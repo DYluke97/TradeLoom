@@ -1,0 +1,29 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# Next.js
+/.next/
+/out/
+/build
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Env & local credentials
+.env
+.env.*
+!.env.example
+
+# User local workspace (notes, Obsidian vault, API keys, generated manuals)
+# Never commit personal trading records or API keys!
+/workspace/
+/.tradeloom/
+
+# Debug & OS
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db

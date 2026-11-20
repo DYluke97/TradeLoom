@@ -1,0 +1,36 @@
+{
+  "name": "tradeloom",
+  "version": "0.1.0",
+  "description": "Weave scattered trading reviews into an Obsidian bi-directional vault, methodology evolution timeline, and personal trading playbook.",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3200",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3200",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "lucide-react": "^0.544.0",
+    "mammoth": "^1.13.0",
+    "next": "15.5.28",
+    "pdfjs-dist": "6.4.299",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "turndown": "^7.2.5",
+    "turndown-plugin-gfm": "^1.0.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/turndown": "^5.0.6",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^4.1.0"
+  }
+}

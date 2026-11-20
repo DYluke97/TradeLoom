@@ -1,0 +1,330 @@
+"use client";
+
+import Link from "next/link";
+import { Calendar, CheckSquare, Cpu, Play, ShieldCheck, Square } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import ReportView from "@/components/ReportView";
+import type { MaskedProviderStatus } from "@/lib/provider";
+import type { SkillSpec } from "@/lib/skills";
+import type { PrecheckSnapshot, SynthesisReport } from "@/lib/synthesis";
+import type { VaultDoc, VaultIndex } from "@/lib/vault-builder";
+
+export default function SynthesizeWorkspace() {
+  const [vault, setVault] = useState<VaultIndex | null>(null);
+  const [skills, setSkills] = useState<SkillSpec[]>([]);
+  const [provider, setProvider] = useState<MaskedProviderStatus | null>(null);
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [kindFilter, setKindFilter] = useState("ALL");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [skillId, setSkillId] = useState("short-term");
+  const [stageTitle, setStageTitle] = useState("");
+
+  const [snapshot, setSnapshot] = useState<PrecheckSnapshot | null>(null);
+  const [report, setReport] = useState<SynthesisReport | null>(null);
+  const [loadingPrecheck, setLoadingPrecheck] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/vault", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/skills", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/provider", { cache: "no-store" }).then((r) => r.json()),
+    ]).then(([v, s, p]) => {
+      if (v.ok) {
+        setVault(v.index);
+        const docs = (v.index.documents ?? []) as VaultDoc[];
+        setSelectedIds(docs.slice(0, 12).map((d) => d.doc_id));
+      }
+      if (s.ok) setSkills(s.skills);
+      if (p.ok) setProvider(p.status);
+    });
+  }, []);
+
+  const filteredDocs = useMemo(() => {
+    const docs = [...(vault?.documents ?? [])].sort((a, b) =>
+      (a.event_date ?? "9999-99-99").localeCompare(b.event_date ?? "9999-99-99"),
+    );
+    return docs.filter((d) => {
+      if (kindFilter !== "ALL" && d.kind !== kindFilter) return false;
+      if (fromDate && (!d.event_date || d.event_date < fromDate)) return false;
+      if (toDate && (!d.event_date || d.event_date > toDate)) return false;
+      return true;
+    });
+  }, [vault, kindFilter, fromDate, toDate]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  function toggleId(id: string) {
+    setSnapshot(null);
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function selectAllFiltered() {
+    setSnapshot(null);
+    setSelectedIds(filteredDocs.map((d) => d.doc_id));
+  }
+
+  function clearSelection() {
+    setSnapshot(null);
+    setSelectedIds([]);
+  }
+
+  async function handlePrecheck() {
+    setError("");
+    setLoadingPrecheck(true);
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "precheck", docIds: selectedIds, skillId, stageTitle }),
+      });
+      const data = await res.json();
+      if (!data.ok) setError(data.error || "预检失败");
+      else setSnapshot(data.snapshot);
+    } finally {
+      setLoadingPrecheck(false);
+    }
+  }
+
+  async function handleRunSynthesis() {
+    setError("");
+    setRunning(true);
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "run", docIds: selectedIds, skillId, stageTitle }),
+      });
+      const data = await res.json();
+      if (!data.ok) setError(data.error || "提炼失败");
+      else setReport(data.report);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        {/* Step 1: Timeline Sample Selector */}
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-[var(--accent)]" />
+              <h2 className="text-sm font-semibold text-[var(--ink)]">1. 按时间线阶段框选复盘样本</h2>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <button type="button" onClick={selectAllFiltered} className="text-[var(--accent)] hover:underline">
+                全选当前筛选 ({filteredDocs.length})
+              </button>
+              <span className="text-[var(--ink-dim)]">·</span>
+              <button type="button" onClick={clearSelection} className="text-[var(--ink-muted)] hover:underline">
+                清空
+              </button>
+            </div>
+          </div>
+
+          {/* Date Range + Kind Filters */}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="text-[11px] text-[var(--ink-dim)]">
+              起始日期
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+              />
+            </label>
+            <label className="text-[11px] text-[var(--ink-dim)]">
+              截止日期
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+              />
+            </label>
+            <label className="text-[11px] text-[var(--ink-dim)]">
+              笔记类型
+              <select
+                value={kindFilter}
+                onChange={(e) => setKindFilter(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+              >
+                <option value="ALL">全部类型</option>
+                {(vault?.kinds ?? []).map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* Timeline Checklist */}
+          <div className="mt-4 max-h-[380px] space-y-1.5 overflow-y-auto pr-1">
+            {filteredDocs.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--ink-muted)]">
+                暂无符合条件的复盘笔记。请先前往{" "}
+                <Link href="/vault" className="text-[var(--accent)] underline">
+                  双链知识库
+                </Link>{" "}
+                导入笔记或加载示例库。
+              </div>
+            ) : (
+              filteredDocs.map((doc) => {
+                const checked = selectedSet.has(doc.doc_id);
+                return (
+                  <button
+                    key={doc.doc_id}
+                    type="button"
+                    onClick={() => toggleId(doc.doc_id)}
+                    className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition ${
+                      checked
+                        ? "border-[var(--accent)]/50 bg-[var(--accent-soft)]/70"
+                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    {checked ? (
+                      <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
+                    ) : (
+                      <Square className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-dim)]" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[11px] text-[var(--accent)]">
+                          {doc.event_date ?? "未标日期"}
+                        </span>
+                        <span className="truncate text-xs font-medium text-[var(--ink)]">{doc.title}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ink-dim)]">
+                        <span>{doc.kind}</span>
+                        <span>·</span>
+                        <span>{doc.carrier.toUpperCase()}</span>
+                        {doc.tags.slice(0, 3).map((t) => (
+                          <span key={t} className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px]">
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        {/* Step 2: Skill Picker + Precheck + Run */}
+        <section className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-[var(--accent)]" />
+              <h2 className="text-sm font-semibold text-[var(--ink)]">2. 选择内置分析 Skill 与阶段命名</h2>
+            </div>
+
+            <div className="space-y-2">
+              {skills.map((sk) => {
+                const active = sk.id === skillId;
+                return (
+                  <button
+                    key={sk.id}
+                    type="button"
+                    onClick={() => setSkillId(sk.id)}
+                    className={`w-full rounded-lg border p-3 text-left transition ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]/70"
+                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-[var(--ink)]">{sk.name}</span>
+                      <span className="font-mono text-[10px] text-[var(--ink-dim)]">{sk.id}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">{sk.summary}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="block text-[11px] text-[var(--ink-dim)]">
+              阶段手册标题（可选，留空自动按时间段与 Skill 命名）
+              <input
+                value={stageTitle}
+                onChange={(e) => setStageTitle(e.target.value)}
+                placeholder="例如：2025 上半年短线情绪周期演进手册"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
+              />
+            </label>
+
+            {/* Provider Status Banner */}
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--ink-muted)]">当前大模型通道</span>
+                <Link href="/settings" className="text-[var(--accent)] hover:underline">
+                  {provider?.configured ? "更换配置" : "去配置 API"}
+                </Link>
+              </div>
+              <div className="mt-1 font-medium text-[var(--ink)]">
+                {provider?.configured
+                  ? `${provider.model}（${provider.url}）`
+                  : "尚未配置大模型 API Key（预检免费可用，执行提炼前需配置）"}
+              </div>
+            </div>
+
+            {/* Precheck Result */}
+            {snapshot && (
+              <div className="rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)]/40 p-3 text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-[var(--emerald)]">
+                  <ShieldCheck className="h-4 w-4" />
+                  外发预检通过（0 Token 消耗）
+                </div>
+                <div className="text-[var(--ink)]">
+                  将纳入 <strong>{snapshot.included_ids.length}</strong> 篇复盘（共{" "}
+                  <strong>{snapshot.total_chars.toLocaleString()}</strong> / {snapshot.limit.toLocaleString()} 字），
+                  已切片生成 <strong>{snapshot.evidence_count}</strong> 条可核验原文证据 ID。
+                </div>
+                <div className="font-mono text-[11px] text-[var(--ink-muted)]">
+                  时间范围：{snapshot.date_range.from ?? "—"} ~ {snapshot.date_range.to ?? "—"} · 指纹：
+                  {snapshot.fingerprint.slice(0, 12)}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-[var(--rose)]/40 bg-[var(--rose-soft)] p-3 text-xs text-[var(--rose)]">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={handlePrecheck}
+              disabled={loadingPrecheck || selectedIds.length === 0}
+              className="flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-2 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)]/60 disabled:opacity-50"
+            >
+              {loadingPrecheck ? "预检中..." : `先做发送预检（已选 ${selectedIds.length} 篇）`}
+            </button>
+            <button
+              type="button"
+              onClick={handleRunSynthesis}
+              disabled={running || selectedIds.length === 0 || !provider?.configured}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[#111] hover:opacity-90 disabled:opacity-45"
+            >
+              <Play className="h-3.5 w-3.5" />
+              {running ? "正在调用大模型提炼..." : "开始提炼时间轴与手册"}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      {/* Live Output */}
+      {report && <ReportView report={report} />}
+    </div>
+  );
+}

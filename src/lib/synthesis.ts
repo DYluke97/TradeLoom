@@ -5,7 +5,7 @@ import { decodeText } from "./convert";
 import { extractPdfText } from "./pdf";
 import { callChatCompletion, loadProviderConfig } from "./provider";
 import { getSkillById, type SkillSpec } from "./skills";
-import type { VaultDoc } from "./vault-builder";
+import { buildVault, type VaultDoc } from "./vault-builder";
 import { ensureWorkspace, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
 
 export const MAX_OUTBOUND_CHARS = 32_000;
@@ -593,6 +593,7 @@ export async function runStageSynthesis(args: {
   const paths = await ensureWorkspace();
   await writeAtomic(path.join(paths.manuals, `${id}.json`), JSON.stringify(report, null, 2));
   await writeAtomic(path.join(paths.manuals, `${id}.md`), exportReportToObsidianMarkdown(report));
+  await buildVault(paths.sources, paths.vault, paths.manuals);
 
   return { ok: true, report };
 }
@@ -700,6 +701,9 @@ export async function deleteSavedManual(id: string): Promise<boolean> {
     } catch {
       /* ignore */
     }
+  }
+  if (deleted) {
+    await buildVault(paths.sources, paths.vault, paths.manuals);
   }
   return deleted;
 }

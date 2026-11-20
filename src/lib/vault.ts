@@ -13,20 +13,20 @@ export async function loadOrBuildVault(): Promise<{ index: VaultIndex; workspace
   if (await fileExists(indexPath)) {
     try {
       const raw = JSON.parse(await readFile(indexPath, "utf8")) as VaultIndex;
-      if (raw && raw.schema === "tradeloom-vault@v1" && Array.isArray(raw.documents)) {
+      if (raw && raw.schema === "tradeloom-vault@v2" && Array.isArray(raw.documents)) {
         return { index: raw, workspaceRoot: paths.root, vaultDir: paths.vault, sourceDir: paths.sources };
       }
     } catch {
       /* rebuild below */
     }
   }
-  const index = await buildVault(paths.sources, paths.vault);
+  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
   return { index, workspaceRoot: paths.root, vaultDir: paths.vault, sourceDir: paths.sources };
 }
 
 export async function rebuildVault(): Promise<VaultIndex> {
   const paths = await ensureWorkspace();
-  return buildVault(paths.sources, paths.vault);
+  return buildVault(paths.sources, paths.vault, paths.manuals);
 }
 
 /**
@@ -43,7 +43,7 @@ export async function loadSampleReviews(): Promise<{ copied: number; index: Vaul
     await copyFile(path.join(sampleDir, entry.name), dest);
     copied++;
   }
-  const index = await buildVault(paths.sources, paths.vault);
+  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
   return { copied, index };
 }
 
@@ -142,7 +142,7 @@ export async function saveOriginalSource(
 
   const nextBuf = Buffer.from(newText, "utf8");
   await writeAtomic(full, nextBuf);
-  const index = await buildVault(paths.sources, paths.vault);
+  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
 
   return { ok: true, sha256: sha(nextBuf), bytes: nextBuf.byteLength, backup: backupRel, index };
 }
@@ -183,7 +183,7 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
   if (carrier === "pdf") {
     const destRel = `_导入/${datePrefix}${safeBase}.pdf`;
     await writeAtomic(path.join(paths.sources, destRel), buf);
-    const index = await buildVault(paths.sources, paths.vault);
+    const index = await buildVault(paths.sources, paths.vault, paths.manuals);
     return { ok: true, sourceRel: destRel, carrier: "pdf", warnings: [], index };
   }
 
@@ -214,7 +214,7 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
 
   const destRel = `_导入/${datePrefix}${safeBase}.md`;
   await writeAtomic(path.join(paths.sources, destRel), mdBody);
-  const index = await buildVault(paths.sources, paths.vault);
+  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
 
   return { ok: true, sourceRel: destRel, carrier, warnings: converted.warnings, index };
 }

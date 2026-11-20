@@ -50,14 +50,15 @@ export default function ManualsArchive() {
   if (manuals.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-12 text-center">
-        <BookOpen className="mx-auto h-8 w-8 text-[var(--accent)] opacity-80" />
-        <h2 className="mt-3 text-base font-semibold text-[var(--ink)]">尚未沉淀任何个人交易手册</h2>
+        <BookOpen className="mx-auto h-8 w-8 text-[var(--accent)] opacity-85" />
+        <h2 className="mt-3 text-base font-semibold text-[#f1f2f5]">尚未沉淀任何个人交易手册</h2>
         <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
           前往「阶段提炼」勾选一段时期的复盘样本，选择短线或基本面 Skill 生成你的第一份可回溯交易手册。
+          生成后也会自动写入 Obsidian 知识库的 <code>40-交易手册/</code> 目录。
         </p>
         <Link
           href="/synthesize"
-          className="mt-4 inline-flex items-center rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[#111]"
+          className="mt-4 inline-flex items-center rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
         >
           前往阶段提炼
         </Link>
@@ -68,7 +69,7 @@ export default function ManualsArchive() {
   return (
     <div className="grid gap-5 lg:grid-cols-[290px_minmax(0,1fr)]">
       <aside className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
-        <div className="px-1 text-xs font-semibold text-[var(--ink)]">已沉淀手册（{manuals.length}）</div>
+        <div className="px-1 text-xs font-semibold text-[#f1f2f5]">已沉淀手册（{manuals.length}）</div>
         <div className="space-y-1.5">
           {manuals.map((m) => {
             const isActive = m.id === active?.id;
@@ -78,7 +79,7 @@ export default function ManualsArchive() {
                 className={`group flex items-start justify-between gap-2 rounded-lg border p-2.5 transition ${
                   isActive
                     ? "border-[var(--accent)] bg-[var(--accent-soft)]/70"
-                    : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                    : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <button type="button" onClick={() => setActiveId(m.id)} className="min-w-0 flex-1 text-left">

@@ -72,6 +72,23 @@ export default function SynthesizeWorkspace() {
     setSelectedIds([]);
   }
 
+  function applyYearStage(year: string) {
+    setSnapshot(null);
+    setFromDate(`${year}-01-01`);
+    setToDate(`${year}-12-31`);
+    const ids = (vault?.documents ?? [])
+      .filter((d) => d.event_date && d.event_date.startsWith(`${year}-`))
+      .map((d) => d.doc_id);
+    setSelectedIds(ids);
+    if (!stageTitle) setStageTitle(`${year} 年度交易方法演变与个人手册`);
+  }
+
+  function resetDateRange() {
+    setSnapshot(null);
+    setFromDate("");
+    setToDate("");
+  }
+
   async function handlePrecheck() {
     setError("");
     setLoadingPrecheck(true);
@@ -114,7 +131,7 @@ export default function SynthesizeWorkspace() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-[var(--accent)]" />
-              <h2 className="text-sm font-semibold text-[var(--ink)]">1. 按时间线阶段框选复盘样本</h2>
+              <h2 className="text-sm font-semibold text-[#f1f2f5]">1. 按时间线阶段框选复盘样本</h2>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <button type="button" onClick={selectAllFiltered} className="text-[var(--accent)] hover:underline">
@@ -127,6 +144,41 @@ export default function SynthesizeWorkspace() {
             </div>
           </div>
 
+          {/* Multi-year Quick Stage Chips */}
+          {vault && vault.years.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-[var(--ink-dim)]">快速按年份框选：</span>
+              <button
+                type="button"
+                onClick={resetDateRange}
+                className={`rounded border px-2 py-0.5 text-[11px] transition ${
+                  !fromDate && !toDate
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                全部年份
+              </button>
+              {vault.years.map((y) => {
+                const active = fromDate === `${y}-01-01` && toDate === `${y}-12-31`;
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => applyYearStage(y)}
+                    className={`rounded border px-2 py-0.5 font-mono text-[11px] transition ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    {y}年
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Date Range + Kind Filters */}
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <label className="text-[11px] text-[var(--ink-dim)]">
@@ -135,7 +187,7 @@ export default function SynthesizeWorkspace() {
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
               />
             </label>
             <label className="text-[11px] text-[var(--ink-dim)]">
@@ -144,7 +196,7 @@ export default function SynthesizeWorkspace() {
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
               />
             </label>
             <label className="text-[11px] text-[var(--ink-dim)]">
@@ -152,7 +204,7 @@ export default function SynthesizeWorkspace() {
               <select
                 value={kindFilter}
                 onChange={(e) => setKindFilter(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)]"
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
               >
                 <option value="ALL">全部类型</option>
                 {(vault?.kinds ?? []).map((k) => (
@@ -167,7 +219,7 @@ export default function SynthesizeWorkspace() {
           {/* Timeline Checklist */}
           <div className="mt-4 max-h-[380px] space-y-1.5 overflow-y-auto pr-1">
             {filteredDocs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--ink-muted)]">
+              <div className="rounded-lg border border-dashed border-[var(--border-strong)] p-6 text-center text-xs text-[var(--ink-muted)]">
                 暂无符合条件的复盘笔记。请先前往{" "}
                 <Link href="/vault" className="text-[var(--accent)] underline">
                   双链知识库
@@ -184,8 +236,8 @@ export default function SynthesizeWorkspace() {
                     onClick={() => toggleId(doc.doc_id)}
                     className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition ${
                       checked
-                        ? "border-[var(--accent)]/50 bg-[var(--accent-soft)]/70"
-                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                        ? "border-[var(--accent)]/55 bg-[var(--accent-soft)]/70"
+                        : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
                     }`}
                   >
                     {checked ? (
@@ -195,7 +247,7 @@ export default function SynthesizeWorkspace() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[11px] text-[var(--accent)]">
+                        <span className="font-mono text-[11px] text-[var(--amber)]">
                           {doc.event_date ?? "未标日期"}
                         </span>
                         <span className="truncate text-xs font-medium text-[var(--ink)]">{doc.title}</span>
@@ -204,8 +256,11 @@ export default function SynthesizeWorkspace() {
                         <span>{doc.kind}</span>
                         <span>·</span>
                         <span>{doc.carrier.toUpperCase()}</span>
-                        {doc.tags.slice(0, 3).map((t) => (
-                          <span key={t} className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px]">
+                        {[...doc.tags, ...(doc.auto_concepts ?? [])].slice(0, 3).map((t) => (
+                          <span
+                            key={t}
+                            className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]"
+                          >
                             #{t}
                           </span>
                         ))}
@@ -219,11 +274,11 @@ export default function SynthesizeWorkspace() {
         </section>
 
         {/* Step 2: Skill Picker + Precheck + Run */}
-        <section className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4">
+        <section className="flex flex-col justify-between space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Cpu className="h-4 w-4 text-[var(--accent)]" />
-              <h2 className="text-sm font-semibold text-[var(--ink)]">2. 选择内置分析 Skill 与阶段命名</h2>
+              <h2 className="text-sm font-semibold text-[#f1f2f5]">2. 选择内置分析 Skill 与阶段命名</h2>
             </div>
 
             <div className="space-y-2">
@@ -237,11 +292,11 @@ export default function SynthesizeWorkspace() {
                     className={`w-full rounded-lg border p-3 text-left transition ${
                       active
                         ? "border-[var(--accent)] bg-[var(--accent-soft)]/70"
-                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]"
+                        : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-[var(--ink)]">{sk.name}</span>
+                      <span className="text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
                       <span className="font-mono text-[10px] text-[var(--ink-dim)]">{sk.id}</span>
                     </div>
                     <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">{sk.summary}</p>
@@ -256,12 +311,12 @@ export default function SynthesizeWorkspace() {
                 value={stageTitle}
                 onChange={(e) => setStageTitle(e.target.value)}
                 placeholder="例如：2025 上半年短线情绪周期演进手册"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
               />
             </label>
 
             {/* Provider Status Banner */}
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-xs">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[var(--ink-muted)]">当前大模型通道</span>
                 <Link href="/settings" className="text-[var(--accent)] hover:underline">
@@ -277,7 +332,7 @@ export default function SynthesizeWorkspace() {
 
             {/* Precheck Result */}
             {snapshot && (
-              <div className="rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)]/40 p-3 text-xs space-y-1.5">
+              <div className="space-y-1.5 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] p-3 text-xs">
                 <div className="flex items-center gap-1.5 font-semibold text-[var(--emerald)]">
                   <ShieldCheck className="h-4 w-4" />
                   外发预检通过（0 Token 消耗）
@@ -314,7 +369,7 @@ export default function SynthesizeWorkspace() {
               type="button"
               onClick={handleRunSynthesis}
               disabled={running || selectedIds.length === 0 || !provider?.configured}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[#111] hover:opacity-90 disabled:opacity-45"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
             >
               <Play className="h-3.5 w-3.5" />
               {running ? "正在调用大模型提炼..." : "开始提炼时间轴与手册"}

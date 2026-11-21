@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace TradeLoomLauncher
 {
@@ -19,7 +20,6 @@ namespace TradeLoomLauncher
         private static ControlForm _form;
         private static string _baseDir;
         private static string _workspaceDir;
-        private static string _appProfileDir;
         private static string _runtimeJsonPath;
         private static string _logPath;
         private static string _url;
@@ -35,7 +35,6 @@ namespace TradeLoomLauncher
             _baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             _workspaceDir = Path.Combine(_baseDir, "workspace");
             Directory.CreateDirectory(_workspaceDir);
-            _appProfileDir = Path.Combine(_workspaceDir, ".app-profile");
             _runtimeJsonPath = Path.Combine(_workspaceDir, ".runtime.json");
             _logPath = Path.Combine(_workspaceDir, "server.log");
 
@@ -52,7 +51,7 @@ namespace TradeLoomLauncher
                         return;
                     }
                     MessageBox.Show(
-                        "TradeLoom 已在后台运行，请点击右下角任务栏托盘图标打开。",
+                        "TradeLoom 已在后台运行，请查看任务栏或右下角托盘图标。",
                         "TradeLoom · 织脉",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information
@@ -91,15 +90,11 @@ namespace TradeLoomLauncher
                 _form = new ControlForm(brandIcon, _url, _workspaceDir, _logPath);
                 SetupTrayIcon(brandIcon);
 
-                // Start Node server in background thread so splash window appears INSTANTLY (<50ms)
                 var bootThread = new Thread(() =>
                 {
                     if (!StartNodeServer(nodeExe, serverJs))
                     {
-                        SafeUi(() =>
-                        {
-                            _form.SetFailed("内置 Node 服务启动失败，请查看运行日志。");
-                        });
+                        SafeUi(() => _form.SetFailed("内置 Node 服务启动失败，请点击右上角查看启动日志。"));
                         return;
                     }
 
@@ -107,10 +102,7 @@ namespace TradeLoomLauncher
                     if (!ready)
                     {
                         StopNodeServer();
-                        SafeUi(() =>
-                        {
-                            _form.SetFailed("本地服务启动超时，请点击下方「查看运行日志」排查。");
-                        });
+                        SafeUi(() => _form.SetFailed("本地服务启动超时，请点击右上角查看启动日志。"));
                         return;
                     }
 
@@ -119,8 +111,6 @@ namespace TradeLoomLauncher
                     {
                         _form.SetReady(_url);
                         OpenAppWindow(_url);
-                        // Minimize control panel to taskbar so the main App Window takes focus cleanly
-                        _form.WindowState = FormWindowState.Minimized;
                     });
                 });
                 bootThread.IsBackground = true;
@@ -160,6 +150,9 @@ namespace TradeLoomLauncher
                 psi.EnvironmentVariables["PORT"] = _port.ToString();
                 psi.EnvironmentVariables["NODE_ENV"] = "production";
                 psi.EnvironmentVariables["TRADELOOM_WORKSPACE_DIR"] = _workspaceDir;
+                // Strip any inherited Electron/Node debug env vars if launched from an IDE/chat client
+                psi.EnvironmentVariables.Remove("ELECTRON_RUN_AS_NODE");
+                psi.EnvironmentVariables.Remove("NODE_OPTIONS");
 
                 var logWriter = new StreamWriter(_logPath, false, Encoding.UTF8) { AutoFlush = true };
                 logWriter.WriteLine("=== TradeLoom Portable Start @ " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ===");
@@ -203,6 +196,7 @@ namespace TradeLoomLauncher
                     var req = (HttpWebRequest)WebRequest.Create(healthUrl);
                     req.Timeout = 1200;
                     req.Method = "GET";
+                    req.Proxy = null;
                     using (var resp = (HttpWebResponse)req.GetResponse())
                     {
                         if ((int)resp.StatusCode == 200) return true;
@@ -247,26 +241,20 @@ namespace TradeLoomLauncher
 
         public static void OpenAppWindow(string targetUrl)
         {
-            string browser = FindChromiumBrowser();
+            string browser = FindPreferredChromiumBrowser();
             if (!string.IsNullOrEmpty(browser))
             {
                 try
                 {
-                    Directory.CreateDirectory(_appProfileDir);
-                    // CRITICAL: NO quotes around targetUrl in --app=...; dedicated --user-data-dir guarantees
-                    // a true foreground standalone desktop window even when Edge/Chrome Startup Boost is running!
-                    string args = "--app=" + targetUrl
-                        + " --window-size=1440,920"
-                        + " --new-window"
-                        + " --no-first-run"
-                        + " --no-default-browser-check"
-                        + " --user-data-dir=\"" + _appProfileDir + "\"";
-                    Process.Start(new ProcessStartInfo
+                    // Clean unquoted --app= URL without creating bloated profile folders inside workspace.
+                    // Uses ShellExecute so Windows spawns cleanly via the desktop shell!
+                    var psi = new ProcessStartInfo
                     {
                         FileName = browser,
-                        Arguments = args,
-                        UseShellExecute = false,
-                    });
+                        Arguments = "--app=" + targetUrl + " --window-size=1440,920 --new-window",
+                        UseShellExecute = true,
+                    };
+                    Process.Start(psi);
                     return;
                 }
                 catch { }
@@ -278,18 +266,50 @@ namespace TradeLoomLauncher
         {
             try
             {
-                Process.Start(new ProcessStartInfo { FileName = targetUrl, UseShellExecute = true });
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = targetUrl,
+                    UseShellExecute = true,
+                });
+                return;
             }
             catch { }
+
+            // Fallback via direct Chromium executable if Shell URL association is restricted
+            string browser = FindPreferredChromiumBrowser();
+            if (!string.IsNullOrEmpty(browser))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = browser,
+                        Arguments = targetUrl,
+                        UseShellExecute = true,
+                    });
+                }
+                catch { }
+            }
         }
 
         public static void OpenFolder(string dir)
         {
             try
             {
-                Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = "\"" + dir + "\"", UseShellExecute = true });
+                Directory.CreateDirectory(dir);
+                // Opening the directory path directly via ShellExecute delegates to the existing desktop
+                // Explorer shell via IPC instead of spawning a new explorer.exe child process (avoids 0xc0000142).
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = dir,
+                    UseShellExecute = true,
+                    Verb = "open",
+                });
             }
-            catch { }
+            catch (Exception ex)
+            {
+                MessageBox.Show("无法直接打开文件夹：" + ex.Message + "\n请手动打开：\n" + dir, "TradeLoom", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
         }
 
         public static void OpenFile(string file)
@@ -310,17 +330,32 @@ namespace TradeLoomLauncher
             Application.Exit();
         }
 
-        private static string FindChromiumBrowser()
+        private static string FindPreferredChromiumBrowser()
         {
-            // Prefer Edge (built into Win10/11) or Chrome
-            string[] candidates = new[]
+            string chrome1 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google\\Chrome\\Application\\chrome.exe");
+            string chrome2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google\\Chrome\\Application\\chrome.exe");
+            string chrome3 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google\\Chrome\\Application\\chrome.exe");
+            string edge1 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe");
+            string edge2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft\\Edge\\Application\\msedge.exe");
+
+            bool preferChrome = false;
+            try
             {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft\\Edge\\Application\\msedge.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google\\Chrome\\Application\\chrome.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google\\Chrome\\Application\\chrome.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google\\Chrome\\Application\\chrome.exe"),
-            };
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"))
+                {
+                    string progId = key != null ? Convert.ToString(key.GetValue("ProgId")) : "";
+                    if (!string.IsNullOrEmpty(progId) && progId.IndexOf("Chrome", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        preferChrome = true;
+                    }
+                }
+            }
+            catch { }
+
+            string[] candidates = preferChrome
+                ? new[] { chrome1, chrome2, chrome3, edge1, edge2 }
+                : new[] { edge1, edge2, chrome1, chrome2, chrome3 };
+
             foreach (var p in candidates)
             {
                 if (File.Exists(p)) return p;
@@ -455,6 +490,7 @@ namespace TradeLoomLauncher
         private readonly Button _btnOpenBrowser;
         private readonly Button _btnOpenWorkspace;
         private readonly Button _btnExit;
+        private readonly LinkLabel _copyLink;
         private string _activeUrl;
 
         public ControlForm(Icon icon, string url, string workspaceDir, string logPath)
@@ -462,8 +498,8 @@ namespace TradeLoomLauncher
             _activeUrl = url;
             Text = "TradeLoom · 织脉";
             Icon = icon;
-            Width = 460;
-            Height = 250;
+            Width = 468;
+            Height = 258;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -476,7 +512,7 @@ namespace TradeLoomLauncher
                 Text = "TradeLoom · 织脉  本地投研复盘工作台",
                 Left = 22,
                 Top = 18,
-                Width = 400,
+                Width = 315,
                 Height = 26,
                 Font = new Font("Microsoft YaHei UI", 12f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(241, 242, 245),
@@ -487,59 +523,79 @@ namespace TradeLoomLauncher
                 Text = "正在启动本地引擎与 A 股行情服务，请稍候 2~5 秒...",
                 Left = 22,
                 Top = 50,
-                Width = 400,
+                Width = 415,
                 Height = 22,
                 ForeColor = Color.FromArgb(179, 136, 255),
             };
 
             _urlLabel = new Label
             {
-                Text = "目标地址：" + url + "（数据 100% 留存本机 workspace）",
+                Text = "本地地址：" + url,
                 Left = 22,
                 Top = 74,
-                Width = 405,
+                Width = 285,
                 Height = 20,
                 Font = new Font("Microsoft YaHei UI", 8.5f),
                 ForeColor = Color.FromArgb(143, 155, 184),
+            };
+
+            _copyLink = new LinkLabel
+            {
+                Text = "复制访问地址",
+                Left = 340,
+                Top = 74,
+                Width = 92,
+                LinkColor = Color.FromArgb(34, 211, 238),
+                ActiveLinkColor = Color.White,
+                Font = new Font("Microsoft YaHei UI", 8.5f),
+            };
+            _copyLink.Click += (s, e) =>
+            {
+                try
+                {
+                    Clipboard.SetText(_activeUrl);
+                    _copyLink.Text = "已复制地址 ✓";
+                }
+                catch { }
             };
 
             _progress = new ProgressBar
             {
                 Left = 22,
                 Top = 102,
-                Width = 400,
+                Width = 408,
                 Height = 10,
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 28,
             };
 
-            _btnOpenApp = MakeButton("打开独立应用窗口", 22, 126, 194, Color.FromArgb(124, 77, 255), Color.White);
+            _btnOpenApp = MakeButton("打开独立应用窗口", 22, 128, 198, Color.FromArgb(124, 77, 255), Color.White);
             _btnOpenApp.Enabled = false;
             _btnOpenApp.Click += (s, e) => Program.OpenAppWindow(_activeUrl);
 
-            _btnOpenBrowser = MakeButton("在默认浏览器打开", 228, 126, 194, Color.FromArgb(24, 32, 52), Color.FromArgb(228, 233, 247));
+            _btnOpenBrowser = MakeButton("在默认浏览器打开", 232, 128, 198, Color.FromArgb(24, 32, 52), Color.FromArgb(228, 233, 247));
             _btnOpenBrowser.Enabled = false;
             _btnOpenBrowser.Click += (s, e) => Program.OpenDefaultBrowser(_activeUrl);
 
-            _btnOpenWorkspace = MakeButton("打开本地工作区 (Obsidian)", 22, 168, 194, Color.FromArgb(24, 32, 52), Color.FromArgb(34, 211, 238));
+            _btnOpenWorkspace = MakeButton("打开本地工作区 (Obsidian)", 22, 172, 198, Color.FromArgb(24, 32, 52), Color.FromArgb(34, 211, 238));
             _btnOpenWorkspace.Click += (s, e) => Program.OpenFolder(workspaceDir);
 
-            _btnExit = MakeButton("停止本地服务并退出", 228, 168, 194, Color.FromArgb(48, 20, 32), Color.FromArgb(251, 113, 133));
+            _btnExit = MakeButton("停止本地服务并退出", 232, 172, 198, Color.FromArgb(48, 20, 32), Color.FromArgb(251, 113, 133));
             _btnExit.Click += (s, e) => Program.ExitAll();
 
             var logLink = new LinkLabel
             {
                 Text = "查看启动日志",
-                Left = 340,
-                Top = 20,
-                Width = 85,
+                Left = 344,
+                Top = 21,
+                Width = 88,
                 LinkColor = Color.FromArgb(143, 155, 184),
                 ActiveLinkColor = Color.FromArgb(34, 211, 238),
                 Font = new Font("Microsoft YaHei UI", 8.5f),
             };
             logLink.Click += (s, e) => Program.OpenFile(logPath);
 
-            Controls.AddRange(new Control[] { title, logLink, _statusLabel, _urlLabel, _progress, _btnOpenApp, _btnOpenBrowser, _btnOpenWorkspace, _btnExit });
+            Controls.AddRange(new Control[] { title, logLink, _statusLabel, _urlLabel, _copyLink, _progress, _btnOpenApp, _btnOpenBrowser, _btnOpenWorkspace, _btnExit });
 
             FormClosing += (s, e) =>
             {
@@ -559,7 +615,7 @@ namespace TradeLoomLauncher
                 Left = left,
                 Top = top,
                 Width = width,
-                Height = 32,
+                Height = 33,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = bg,
                 ForeColor = fg,
@@ -576,8 +632,8 @@ namespace TradeLoomLauncher
             _progress.Style = ProgressBarStyle.Blocks;
             _progress.Value = 100;
             _statusLabel.ForeColor = Color.FromArgb(52, 211, 153);
-            _statusLabel.Text = "● 服务已就绪，正在弹出独立窗口...";
-            _urlLabel.Text = "访问地址：" + url + "（最小化本窗口即可常驻后台）";
+            _statusLabel.Text = "● 本地服务运行中（最小化本窗口即可常驻后台）";
+            _urlLabel.Text = "本地地址：" + url;
             _btnOpenApp.Enabled = true;
             _btnOpenBrowser.Enabled = true;
         }

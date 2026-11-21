@@ -5,6 +5,8 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -239,22 +241,67 @@ namespace TradeLoomLauncher
             _form.Activate();
         }
 
+        [ComImport, Guid("85CB6900-4D95-11CF-960C-0080C7F4EE85"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
+        private interface IShellWindowsDisp
+        {
+            [DispId(1610743816)]
+            [return: MarshalAs(UnmanagedType.IDispatch)]
+            object FindWindowSW(
+                [In] ref object pvarLoc,
+                [In] ref object pvarLocRoot,
+                [In] int swClass,
+                out int phwnd,
+                [In] int swfwOptions);
+        }
+
+        // Delegates ShellExecute to the already-running Windows Desktop explorer.exe via COM.
+        // This completely breaks out of any restricted parent process mitigation policies or
+        // sandboxes (e.g., if the user clicked TradeLoom.exe from inside Electron/WeChat/Feishu/IDE),
+        // preventing 0xc0000142 crashes on explorer.exe and blank white Chromium renderer windows.
+        private static bool TryDesktopShellExecute(string file, string args)
+        {
+            try
+            {
+                Type t = Type.GetTypeFromCLSID(new Guid("9BA05972-F6A8-11CF-A442-00A0C90A8F39"));
+                object swObj = Activator.CreateInstance(t);
+                var sw = (IShellWindowsDisp)swObj;
+                object loc1 = 0;
+                object loc2 = 0;
+                int hwnd;
+                object desktop = sw.FindWindowSW(ref loc1, ref loc2, 8, out hwnd, 1);
+                if (desktop == null) return false;
+                object doc = desktop.GetType().InvokeMember("Document", BindingFlags.GetProperty, null, desktop, null);
+                object app = doc.GetType().InvokeMember("Application", BindingFlags.GetProperty, null, doc, null);
+                app.GetType().InvokeMember(
+                    "ShellExecute",
+                    BindingFlags.InvokeMethod,
+                    null,
+                    app,
+                    new object[] { file, args ?? "", "", "open", 1 }
+                );
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static void OpenAppWindow(string targetUrl)
         {
             string browser = FindPreferredChromiumBrowser();
             if (!string.IsNullOrEmpty(browser))
             {
+                string args = "--app=" + targetUrl + " --window-size=1440,920 --new-window";
+                if (TryDesktopShellExecute(browser, args)) return;
                 try
                 {
-                    // Clean unquoted --app= URL without creating bloated profile folders inside workspace.
-                    // Uses ShellExecute so Windows spawns cleanly via the desktop shell!
-                    var psi = new ProcessStartInfo
+                    Process.Start(new ProcessStartInfo
                     {
                         FileName = browser,
-                        Arguments = "--app=" + targetUrl + " --window-size=1440,920 --new-window",
+                        Arguments = args,
                         UseShellExecute = true,
-                    };
-                    Process.Start(psi);
+                    });
                     return;
                 }
                 catch { }
@@ -264,6 +311,7 @@ namespace TradeLoomLauncher
 
         public static void OpenDefaultBrowser(string targetUrl)
         {
+            if (TryDesktopShellExecute(targetUrl, "")) return;
             try
             {
                 Process.Start(new ProcessStartInfo
@@ -275,10 +323,10 @@ namespace TradeLoomLauncher
             }
             catch { }
 
-            // Fallback via direct Chromium executable if Shell URL association is restricted
             string browser = FindPreferredChromiumBrowser();
             if (!string.IsNullOrEmpty(browser))
             {
+                if (TryDesktopShellExecute(browser, targetUrl)) return;
                 try
                 {
                     Process.Start(new ProcessStartInfo
@@ -297,8 +345,7 @@ namespace TradeLoomLauncher
             try
             {
                 Directory.CreateDirectory(dir);
-                // Opening the directory path directly via ShellExecute delegates to the existing desktop
-                // Explorer shell via IPC instead of spawning a new explorer.exe child process (avoids 0xc0000142).
+                if (TryDesktopShellExecute(dir, "")) return;
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = dir,
@@ -318,12 +365,12 @@ namespace TradeLoomLauncher
             {
                 if (File.Exists(file))
                 {
+                    if (TryDesktopShellExecute(file, "")) return;
                     Process.Start(new ProcessStartInfo { FileName = file, UseShellExecute = true });
                 }
             }
             catch { }
         }
-
         public static void ExitAll()
         {
             Shutdown();

@@ -72,6 +72,8 @@ export type TimelineNode = {
   known_dates: string[];
 };
 
+export type RuleLifecycle = "validated" | "iterated" | "deprecated";
+
 export type PlaybookRule = {
   id: string;
   title: string;
@@ -80,8 +82,27 @@ export type PlaybookRule = {
   action: string;
   exit: string;
   counterexample: string;
+  lifecycle?: RuleLifecycle;
+  conflict_note?: string;
   evidence: EvidenceSlice[];
   known_dates: string[];
+};
+
+export type DisciplineAuditItem = {
+  id: string;
+  stated_rule: string;
+  actual_deviation: string;
+  trigger_psychology: string;
+  fix_guardrail: string;
+  evidence: EvidenceSlice[];
+  known_dates: string[];
+};
+
+export type SynthesisStreamEvent = {
+  phase: "packing" | "streaming" | "verifying" | "saving";
+  message: string;
+  contentChars?: number;
+  reasoningChars?: number;
 };
 
 export type SynthesisReport = {
@@ -103,6 +124,7 @@ export type SynthesisReport = {
   };
   timeline: TimelineNode[];
   manual: PlaybookRule[];
+  discipline_audit?: DisciplineAuditItem[];
   statistics: {
     docs_count: number;
     timeline_count: number;
@@ -462,15 +484,16 @@ export function buildSynthesisPrompt(args: {
     args.skill.content ? `\n===== 内置分析 Skill：${args.skill.name} =====\n${args.skill.content}\n===== Skill 结束 =====` : "",
     "",
     "必须严格遵守以下输出契约（只输出一个合法 JSON 对象，不要 markdown 代码块或额外解释）：",
-    '{"overview":{"summary":"","conditions":[""],"counterexamples":[""]},"timeline":[{"period":"","label":"","change":"","evidence_ids":["ev_..."]}],"manual":[{"id":"M1","title":"","context":"","condition":"","action":"","exit":"","counterexample":"","evidence_ids":["ev_..."]}]}',
+    '{"overview":{"summary":"","conditions":[""],"counterexamples":[""]},"timeline":[{"period":"","label":"","change":"","evidence_ids":["ev_..."]}],"manual":[{"id":"M1","title":"","lifecycle":"validated","conflict_note":"","context":"","condition":"","action":"","exit":"","counterexample":"","evidence_ids":["ev_..."]}],"discipline_audit":[{"id":"D1","stated_rule":"","actual_deviation":"","trigger_psychology":"","fix_guardrail":"","evidence_ids":["ev_..."]}]}',
     "",
     "铁律：",
     "1) 每条 timeline 和 manual 的 evidence_ids 必须严格取自下方「证据目录」中已给出的 evidence_id，禁止编造不存在的 id 或伪造引文。",
     "2) 每条规则必须写清 context（适用情境）、condition（可观测触发条件）、action（执行动作）、exit（退出/止损或证伪条件）、counterexample（反例与失效边界）。",
     "3) 原文没有提及的内容不要脑补，绝不编造标的、仓位或收益数字。",
-    "4) manual 输出 1–8 条高密度可复用规则；timeline 输出 1–6 个按时间推进的关键演变节点。",
+    "4) manual 输出 1–8 条高密度规则，并为每条标注 lifecycle：validated（持续验证有效）、iterated（较早期做法完成认知修正升级，需在 conflict_note 写明修正点）或 deprecated（已被后期实盘大亏证伪或推翻的旧习惯，需在 conflict_note 写明废弃原因）；timeline 输出 1–6 个关键演变节点。",
+    "5) discipline_audit（防嘴盘·知行偏离审计，0–4 条）：专门对照作者在复盘中立下的纪律口号（stated_rule）与实盘真实发生的违纪/知行偏离行为（actual_deviation），提炼心理诱因（trigger_psychology）与硬性阻断条款（fix_guardrail），必须附真实 evidence_ids；若原文无违纪偏离证据则输出空数组 []，严禁强行编造。",
     hasManualInputs
-      ? "5) 二次综合要求：重点提炼跨多个阶段反复验证的铁律（尽量引用多个不同阶段的 evidence_id 形成跨期印证），合并重复规则，并明确指出作者在哪些认知上完成了升级或修正。"
+      ? "6) 二次综合要求：重点提炼跨多个阶段反复验证的铁律（尽量引用多个不同阶段的 evidence_id 形成跨期印证），合并重复规则，并明确指出作者在哪些认知上完成了升级或修正。"
       : "",
   ]
     .filter(Boolean)
@@ -507,6 +530,12 @@ const asStr = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const asStrArr = (v: unknown) =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean) : [];
 
+function normalizeLifecycle(raw: unknown): RuleLifecycle {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "iterated" || s === "deprecated") return s;
+  return "validated";
+}
+
 export function parseSynthesisResponse(
   rawText: string,
   evidenceCatalog: EvidenceSlice[],
@@ -515,6 +544,7 @@ export function parseSynthesisResponse(
   overview: SynthesisReport["overview"];
   timeline: TimelineNode[];
   manual: PlaybookRule[];
+  discipline_audit: DisciplineAuditItem[];
   warnings: string[];
   error?: string;
 } {
@@ -525,6 +555,7 @@ export function parseSynthesisResponse(
       overview: { summary: "", conditions: [], counterexamples: [] },
       timeline: [],
       manual: [],
+      discipline_audit: [],
       warnings: [],
       error: "模型输出中未找到合法 JSON 对象",
     };
@@ -539,6 +570,7 @@ export function parseSynthesisResponse(
       overview: { summary: "", conditions: [], counterexamples: [] },
       timeline: [],
       manual: [],
+      discipline_audit: [],
       warnings: [],
       error: "模型返回的 JSON 解析失败",
     };
@@ -615,6 +647,29 @@ export function parseSynthesisResponse(
       action,
       exit: asStr(o.exit),
       counterexample: asStr(o.counterexample),
+      lifecycle: normalizeLifecycle(o.lifecycle),
+      conflict_note: asStr(o.conflict_note) || undefined,
+      evidence: evs,
+      known_dates: datesOf(evs),
+    });
+  });
+
+  const discipline_audit: DisciplineAuditItem[] = [];
+  const rawAudit = Array.isArray(parsed.discipline_audit) ? parsed.discipline_audit : [];
+  rawAudit.forEach((item, idx) => {
+    const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const id = asStr(o.id) || `D${idx + 1}`;
+    const evs = resolveIds(o.evidence_ids ?? o.evidence, `知行审计[${id}]`);
+    if (evs.length === 0) return;
+    const stated_rule = asStr(o.stated_rule);
+    const actual_deviation = asStr(o.actual_deviation);
+    if (!stated_rule && !actual_deviation) return;
+    discipline_audit.push({
+      id,
+      stated_rule: stated_rule || "未显式声明的隐含纪律",
+      actual_deviation,
+      trigger_psychology: asStr(o.trigger_psychology),
+      fix_guardrail: asStr(o.fix_guardrail),
       evidence: evs,
       known_dates: datesOf(evs),
     });
@@ -633,12 +688,13 @@ export function parseSynthesisResponse(
       overview,
       timeline,
       manual,
+      discipline_audit,
       warnings,
       error: "模型输出未能核对出任何有据的时间轴或交易规则（所有条目均缺少合法 evidence_id）",
     };
   }
 
-  return { ok: true, overview, timeline, manual, warnings };
+  return { ok: true, overview, timeline, manual, discipline_audit, warnings };
 }
 
 export async function runStageSynthesis(args: {
@@ -646,6 +702,8 @@ export async function runStageSynthesis(args: {
   manualIds?: string[];
   skillId: string;
   stageTitle?: string;
+  signal?: AbortSignal;
+  onStage?: (ev: SynthesisStreamEvent) => void;
 }): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
   const { config } = await loadProviderConfig();
   if (!config) {
@@ -654,6 +712,10 @@ export async function runStageSynthesis(args: {
 
   const rawDocs = args.docs ?? [];
   const rawManualIds = args.manualIds ?? [];
+  args.onStage?.({
+    phase: "packing",
+    message: `正在提取并切片 ${rawDocs.length + rawManualIds.length} 份研究材料...`,
+  });
   const [matDocs, matManuals] = await Promise.all([
     rawDocs.length > 0 ? materializeDocs(rawDocs) : Promise.resolve([]),
     rawManualIds.length > 0 ? materializeManuals(rawManualIds) : Promise.resolve([]),
@@ -676,11 +738,41 @@ export async function runStageSynthesis(args: {
     stageTitle: args.stageTitle,
   });
 
-  const llm = await callChatCompletion({ config, system, user, jsonMode: true, timeoutMs: 150_000 });
+  args.onStage?.({
+    phase: "streaming",
+    message: `已装箱 ${packedDocs.length} 份材料（${snapshot.total_chars.toLocaleString()} 字 / ${evidence.length} 条证据），正在请求 ${config.model} 推演...`,
+    contentChars: 0,
+    reasoningChars: 0,
+  });
+
+  const llm = await callChatCompletion({
+    config,
+    system,
+    user,
+    jsonMode: true,
+    timeoutMs: 180_000,
+    signal: args.signal,
+    onProgress: args.onStage
+      ? ({ contentChars, reasoningChars }) =>
+          args.onStage?.({
+            phase: "streaming",
+            message:
+              reasoningChars > 0 && contentChars === 0
+                ? `模型深度思考中（已推演 ${reasoningChars.toLocaleString()} 字）...`
+                : `正在流式生成结构化交易手册（已输出 ${contentChars.toLocaleString()} 字）...`,
+            contentChars,
+            reasoningChars,
+          })
+      : undefined,
+  });
   if (!llm.ok) {
-    return { ok: false, status: 502, error: llm.error };
+    return { ok: false, status: args.signal?.aborted ? 499 : 502, error: llm.error };
   }
 
+  args.onStage?.({
+    phase: "verifying",
+    message: "正在逐字核验 evidence_id 证据回链并执行防幻觉清洗...",
+  });
   const parsed = parseSynthesisResponse(llm.content, evidence);
   if (!parsed.ok) {
     return { ok: false, status: 422, error: parsed.error ?? "模型输出校验失败" };
@@ -689,6 +781,7 @@ export async function runStageSynthesis(args: {
   const usedEv = new Set<string>();
   for (const t of parsed.timeline) for (const e of t.evidence) usedEv.add(e.evidence_id);
   for (const m of parsed.manual) for (const e of m.evidence) usedEv.add(e.evidence_id);
+  for (const d of parsed.discipline_audit) for (const e of d.evidence) usedEv.add(e.evidence_id);
 
   const id = `manual-${Date.now().toString(36)}-${snapshot.fingerprint.slice(0, 6)}`;
   const rangeLabel =
@@ -720,6 +813,7 @@ export async function runStageSynthesis(args: {
     overview: parsed.overview,
     timeline: parsed.timeline,
     manual: parsed.manual,
+    discipline_audit: parsed.discipline_audit,
     statistics: {
       docs_count: packedDocs.length,
       timeline_count: parsed.timeline.length,
@@ -731,6 +825,10 @@ export async function runStageSynthesis(args: {
     usage: llm.usage,
   };
 
+  args.onStage?.({
+    phase: "saving",
+    message: "正在写入本地交易手册并更新 Obsidian 双链星图...",
+  });
   const paths = await ensureWorkspace();
   await writeAtomic(path.join(paths.manuals, `${id}.json`), JSON.stringify(report, null, 2));
   await writeAtomic(path.join(paths.manuals, `${id}.md`), exportReportToObsidianMarkdown(report));
@@ -792,9 +890,16 @@ export function exportReportToObsidianMarkdown(report: SynthesisReport): string 
 
   lines.push("## 三、个人交易手册（可执行规则）", "");
   for (const rule of report.manual) {
+    const lifeBadge =
+      rule.lifecycle === "deprecated"
+        ? " 【⚠ 已证伪废弃】"
+        : rule.lifecycle === "iterated"
+          ? " 【↻ 认知迭代升级】"
+          : " 【✓ 持续有效】";
     lines.push(
-      `### ${rule.id}：${rule.title}`,
+      `### ${rule.id}：${rule.title}${lifeBadge}`,
       "",
+      ...(rule.conflict_note ? [`- **演进与冲突说明**：${rule.conflict_note}`] : []),
       `- **适用情境（Context）**：${rule.context || "—"}`,
       `- **触发条件（Condition）**：${rule.condition || "—"}`,
       `- **执行动作（Action）**：${rule.action || "—"}`,
@@ -810,7 +915,26 @@ export function exportReportToObsidianMarkdown(report: SynthesisReport): string 
     lines.push("");
   }
 
-  lines.push(report.source_mode === "manuals" ? "## 四、纳入阶段手册索引" : "## 四、纳入样本索引", "");
+  if (report.discipline_audit && report.discipline_audit.length > 0) {
+    lines.push("## 四、知行偏离与重复违纪审计（防嘴盘照妖镜）", "");
+    for (const item of report.discipline_audit) {
+      lines.push(
+        `### ${item.id}：立下纪律「${item.stated_rule}」`,
+        "",
+        `- **实盘偏离真相**：${item.actual_deviation || "—"}`,
+        `- **心理与盘面诱因**：${item.trigger_psychology || "—"}`,
+        `- **硬性阻断条款**：${item.fix_guardrail || "—"}`,
+        "",
+      );
+      for (const ev of item.evidence) {
+        const cardLink = ev.card.replace(/\.md$/, "");
+        lines.push(`> 违纪证据：[[${cardLink}|${ev.title}]]（${ev.event_date ?? "未标日期"}）—— “${ev.quote.slice(0, 160)}”`);
+      }
+      lines.push("");
+    }
+  }
+
+  lines.push(report.source_mode === "manuals" ? "## 五、纳入阶段手册索引" : "## 五、纳入样本索引", "");
   for (const doc of report.source_docs) {
     lines.push(`- ${doc.event_date ?? "未标日期"} · [[${doc.card.replace(/\.md$/, "")}|${doc.title}]]`);
   }

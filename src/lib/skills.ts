@@ -24,7 +24,7 @@ export type SaveSkillInput = {
   content: string;
 };
 
-export const BUILTIN_SKILL_IDS = new Set(["general", "short-term", "fundamental"]);
+export const BUILTIN_SKILL_IDS = new Set(["general", "short-term", "fundamental", "trend-swing", "macro-cycle"]);
 const SKILL_ID_RE = /^[a-z0-9][a-z0-9_-]{1,47}$/;
 const MAX_SKILL_CONTENT_CHARS = 30_000;
 
@@ -238,6 +238,8 @@ export async function loadSkills(): Promise<SkillSpec[]> {
   const order = new Map([
     ["short-term", 0],
     ["fundamental", 1],
+    ["trend-swing", 2],
+    ["macro-cycle", 3],
   ]);
 
   const merged = [...byId.values()].sort((a, b) => {

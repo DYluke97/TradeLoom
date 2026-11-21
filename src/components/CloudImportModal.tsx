@@ -13,7 +13,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { VaultIndex } from "@/lib/vault-builder";
 
 const PLATFORMS = [
@@ -27,9 +27,69 @@ const PLATFORMS = [
   "微信公众号",
 ];
 
-function buildBookmarklet(origin: string): string {
+const REVIEW_TEMPLATES = [
+  {
+    id: "plan-exec",
+    label: "盘前计划 vs 盘后执行",
+    tags: "盘前预案, 知行合一, 执行偏差",
+    body: `## 一、市场环境与周期锚定
+- 指数与成交额量级：
+- 情绪/主线阶段定位（顺风进攻 / 震荡轮动 / 退潮防守）：
+- 今日计划总仓位上限：
+
+## 二、盘前交易预案（非计划内标的盘中严禁临时起意）
+- 目标标的与核心逻辑：
+- 计划买点触发条件：
+- 计划止损 / 不及预期退出位：
+
+## 三、盘中实际执行与偏离审计
+- 实际操作记录（标的 / 仓位 / 成交逻辑）：
+- 是否发生计划外冲动交易或扛单偏离：
+- 当日账户盈亏与最大回撤感受：
+
+## 四、明日修正纪律
+- 明日开盘去弱留强标准：
+`,
+  },
+  {
+    id: "swing-track",
+    label: "趋势/周期持仓跟踪",
+    tags: "趋势波段, 仓位管理, 逻辑证伪",
+    body: `## 一、核心持仓与中期驱动假设
+- 当前核心持仓与仓位占比（含是否使用融资）：
+- 核心供需/景气/业绩驱动逻辑：
+
+## 二、关键验证指标与加减仓节点
+- 逻辑强化的右侧加仓条件：
+- 波动率/回撤降仓红线：
+- 核心逻辑证伪的无条件清仓条件：
+
+## 三、今日盘面反馈与心态记录
+- 板块与个股强弱反馈：
+- 是否有恐慌杀跌或过早止盈倾向：
+`,
+  },
+  {
+    id: "loss-autopsy",
+    label: "大亏反例深度解剖",
+    tags: "反例复盘, 大亏回撤, 风控红线",
+    body: `## 一、亏损事实还原
+- 亏损标的、介入日期与单笔/账户回撤幅度：
+- 当时所处的市场与板块阶段：
+
+## 二、致命归因（区分模式内正常试错 vs 模式外违纪）
+- 违反了哪条既有交易纪律（如退潮硬做、逆势满融、破位补仓）：
+- 当时的真实心理诱因（怕踏空 / 急于回本 / 锚定浮盈）：
+
+## 三、可执行的硬性阻断条款
+- 下次出现什么可观测信号时无条件物理阻断：
+`,
+  },
+] as const;
+
+function buildBookmarklet(origin: string, clipToken: string): string {
   const endpoint = `${origin}/api/vault/clip`;
-  const code = `(async()=>{const s=window.getSelection&&window.getSelection().toString().trim();const el=document.querySelector('#js_content,.article__bd__detail,.Post-RichText,.ennote,.ne-viewer-body,article,main')||document.body;const payload={title:document.title,url:location.href,html:s?'':el.innerHTML,text:s||el.innerText};try{const r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();alert(d.ok?'已剪藏到 TradeLoom：'+d.title:'剪藏失败：'+(d.error||r.status));}catch(e){alert('无法连接本地 TradeLoom (${origin})，请确认服务已启动');}})();`;
+  const code = `(async()=>{const s=window.getSelection&&window.getSelection().toString().trim();const el=document.querySelector('#js_content,.article__bd__detail,.Post-RichText,.ennote,.ne-viewer-body,article,main')||document.body;const payload={title:document.title,url:location.href,html:s?'':el.innerHTML,text:s||el.innerText};try{const r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:{'Content-Type':'application/json','X-TradeLoom-Clip-Token':${JSON.stringify(clipToken)}},body:JSON.stringify(payload)});const d=await r.json();alert(d.ok?'已剪藏到 TradeLoom：'+d.title:'剪藏失败：'+(d.error||r.status));}catch(e){alert('无法连接本地 TradeLoom (${origin})，请确认服务已启动');}})();`;
   return `javascript:${encodeURIComponent(code)}`;
 }
 
@@ -65,9 +125,20 @@ export default function CloudImportModal({
 
   // Bookmarklet state
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
+  const [clipToken, setClipToken] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/vault/clip", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok && typeof d.clipToken === "string") setClipToken(d.clipToken);
+      })
+      .catch(() => {});
+  }, [open]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:3200";
-  const bookmarkletHref = useMemo(() => buildBookmarklet(origin), [origin]);
+  const bookmarkletHref = useMemo(() => buildBookmarklet(origin, clipToken), [origin, clipToken]);
 
   if (!open) return null;
 
@@ -305,8 +376,26 @@ export default function CloudImportModal({
               </div>
 
               <div>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
+                  <label className="text-[11px] text-[var(--ink-muted)]">复盘正文（支持粘贴富文本，或一键套用专业投研模板）</label>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {REVIEW_TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => {
+                          setCapturedHtml("");
+                          setContent((prev) => (prev.trim() ? `${prev.trim()}\n\n${tpl.body}` : tpl.body));
+                          if (!tags.trim()) setTags(tpl.tags);
+                        }}
+                        className="rounded border border-[var(--accent)]/40 bg-[var(--accent-soft)]/70 px-2 py-0.5 text-[10px] text-[var(--accent)] transition hover:brightness-110"
+                      >
+                        + {tpl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] text-[var(--ink-muted)]">复盘正文（支持直接粘贴富文本或 Markdown）</label>
                   {capturedHtml && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] text-[var(--emerald)]">
                       <Sparkles className="h-3 w-3" />

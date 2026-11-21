@@ -1,12 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, Copy, Download, FileText, Network, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Download,
+  FileText,
+  Flame,
+  GitBranch,
+  Network,
+  ShieldCheck,
+} from "lucide-react";
 import { useState } from "react";
-import type { SynthesisReport } from "@/lib/synthesis";
+import type { RuleLifecycle, SynthesisReport } from "@/lib/synthesis";
+
+function LifecycleBadge({ lifecycle }: { lifecycle?: RuleLifecycle }) {
+  if (lifecycle === "deprecated") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-300">
+        ⚠ 已证伪废弃（反面警示）
+      </span>
+    );
+  }
+  if (lifecycle === "iterated") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--cyan)]">
+        <GitBranch className="h-2.5 w-2.5" />
+        认知迭代升级
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--emerald)]">
+      ✓ 持续验证有效
+    </span>
+  );
+}
 
 export default function ReportView({ report }: { report: SynthesisReport }) {
   const [copied, setCopied] = useState(false);
+  const auditList = report.discipline_audit ?? [];
 
   async function handleCopyMarkdown() {
     try {
@@ -79,21 +114,25 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
         {/* Summary & KPI */}
         <p className="mt-4 text-sm leading-7 text-[var(--ink)]">{report.overview.summary}</p>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
-            <div className="text-[11px] text-[var(--ink-dim)]">纳入复盘样本</div>
-            <div className="mt-1 text-lg font-bold text-[#f3f4f6]">{report.statistics.docs_count} 篇</div>
+            <div className="text-[11px] text-[var(--ink-dim)]">纳入研究材料</div>
+            <div className="mt-1 text-lg font-bold text-[#f3f4f6]">{report.statistics.docs_count} 份</div>
           </div>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
             <div className="text-[11px] text-[var(--ink-dim)]">方法演变节点</div>
             <div className="mt-1 text-lg font-bold text-[var(--accent)]">{report.statistics.timeline_count} 个</div>
           </div>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
-            <div className="text-[11px] text-[var(--ink-dim)]">沉淀交易规则</div>
+            <div className="text-[11px] text-[var(--ink-dim)]">交易规则卡</div>
             <div className="mt-1 text-lg font-bold text-[var(--emerald)]">{report.statistics.rules_count} 条</div>
           </div>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
-            <div className="text-[11px] text-[var(--ink-dim)]">逐字核验原文证据</div>
+            <div className="text-[11px] text-[var(--ink-dim)]">知行偏离病灶</div>
+            <div className="mt-1 text-lg font-bold text-[var(--amber)]">{auditList.length} 项</div>
+          </div>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
+            <div className="text-[11px] text-[var(--ink-dim)]">逐字核验证据</div>
             <div className="mt-1 text-lg font-bold text-[#f3f4f6]">{report.statistics.evidence_used} 段</div>
           </div>
         </div>
@@ -159,80 +198,182 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
 
       {/* Personal Playbook Rules */}
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-[var(--emerald)]" />
-          <h3 className="text-base font-semibold text-[#f1f2f5]">个人交易手册（有据规则卡）</h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-[var(--emerald)]" />
+            <h3 className="text-base font-semibold text-[#f1f2f5]">个人交易手册（含规则演进与证伪状态）</h3>
+          </div>
+          <span className="text-[11px] text-[var(--ink-dim)]">
+            自动识别跨阶段持续有效、认知迭代升级与已证伪废弃规则
+          </span>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          {report.manual.map((rule) => (
-            <div
-              key={rule.id}
-              className="flex flex-col justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-deep)] p-4"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="rounded bg-[var(--emerald-soft)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--emerald)]">
-                    {rule.id}
-                  </span>
-                  <span className="text-[11px] text-[var(--ink-dim)]">
-                    {rule.known_dates.length >= 2
-                      ? `跨 ${rule.known_dates.length} 个时点印证`
-                      : rule.known_dates[0] || "单次观察"}
-                  </span>
-                </div>
-                <h4 className="mt-2 text-sm font-semibold text-[#f1f2f5]">{rule.title}</h4>
+          {report.manual.map((rule) => {
+            const isDeprecated = rule.lifecycle === "deprecated";
+            return (
+              <div
+                key={rule.id}
+                className={`flex flex-col justify-between rounded-xl border p-4 ${
+                  isDeprecated
+                    ? "border-rose-500/35 bg-rose-950/10"
+                    : "border-[var(--border)] bg-[var(--bg-deep)]"
+                }`}
+              >
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-[var(--emerald-soft)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--emerald)]">
+                        {rule.id}
+                      </span>
+                      <LifecycleBadge lifecycle={rule.lifecycle} />
+                    </div>
+                    <span className="text-[11px] text-[var(--ink-dim)]">
+                      {rule.known_dates.length >= 2
+                        ? `跨 ${rule.known_dates.length} 个时点印证`
+                        : rule.known_dates[0] || "单次观察"}
+                    </span>
+                  </div>
+                  <h4
+                    className={`mt-2 text-sm font-semibold ${
+                      isDeprecated ? "text-rose-200 line-through decoration-rose-400/60" : "text-[#f1f2f5]"
+                    }`}
+                  >
+                    {rule.title}
+                  </h4>
 
-                <dl className="mt-3 space-y-2 text-xs leading-5">
-                  <div>
-                    <dt className="text-[var(--ink-dim)]">适用情境（Context）</dt>
-                    <dd className="mt-0.5 text-[var(--ink)]">{rule.context || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--ink-dim)]">触发条件（Condition）</dt>
-                    <dd className="mt-0.5 text-[var(--ink)]">{rule.condition || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--emerald)]">执行动作（Action）</dt>
-                    <dd className="mt-0.5 text-[#f1f2f5]">{rule.action || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--amber)]">退出 / 证伪边界（Exit）</dt>
-                    <dd className="mt-0.5 text-[var(--ink)]">{rule.exit || "—"}</dd>
-                  </div>
-                  <div className="rounded-lg border border-[var(--rose)]/25 bg-[var(--rose-soft)] p-2">
-                    <dt className="flex items-center gap-1 font-medium text-[var(--rose)]">
-                      <AlertTriangle className="h-3 w-3" />
-                      反例与失效条件（Counterexample）
-                    </dt>
-                    <dd className="mt-1 text-[var(--ink)]">{rule.counterexample || "—"}</dd>
-                  </div>
-                </dl>
-              </div>
+                  {rule.conflict_note && (
+                    <div className="mt-2 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)]/45 px-3 py-2 text-xs leading-5 text-[var(--ink)]">
+                      <strong className="text-[var(--cyan)]">认知演进 / 冲突说明：</strong>
+                      {rule.conflict_note}
+                    </div>
+                  )}
 
-              <div className="mt-3 border-t border-[var(--border)] pt-2.5">
-                <div className="mb-1.5 flex items-center gap-1 text-[11px] text-[var(--emerald)]">
-                  <CheckCircle2 className="h-3 w-3" />
-                  逐字原文溯源（{rule.evidence.length}）
+                  <dl className="mt-3 space-y-2 text-xs leading-5">
+                    <div>
+                      <dt className="text-[var(--ink-dim)]">适用情境（Context）</dt>
+                      <dd className="mt-0.5 text-[var(--ink)]">{rule.context || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[var(--ink-dim)]">触发条件（Condition）</dt>
+                      <dd className="mt-0.5 text-[var(--ink)]">{rule.condition || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[var(--emerald)]">执行动作（Action）</dt>
+                      <dd className="mt-0.5 text-[#f1f2f5]">{rule.action || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[var(--amber)]">退出 / 证伪边界（Exit）</dt>
+                      <dd className="mt-0.5 text-[var(--ink)]">{rule.exit || "—"}</dd>
+                    </div>
+                    <div className="rounded-lg border border-[var(--rose)]/25 bg-[var(--rose-soft)] p-2">
+                      <dt className="flex items-center gap-1 font-medium text-[var(--rose)]">
+                        <AlertTriangle className="h-3 w-3" />
+                        反例与失效条件（Counterexample）
+                      </dt>
+                      <dd className="mt-1 text-[var(--ink)]">{rule.counterexample || "—"}</dd>
+                    </div>
+                  </dl>
                 </div>
-                <div className="space-y-1">
-                  {rule.evidence.map((ev) => (
-                    <Link
-                      key={ev.evidence_id}
-                      href={`/vault?card=${encodeURIComponent(ev.card)}`}
-                      className="block rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]/50"
-                    >
-                      <span className="font-medium text-[var(--accent)]">[[{ev.title}]]</span>
-                      <span className="ml-2 font-mono text-[var(--ink-dim)]">{ev.event_date ?? ""}</span>
-                      <p className="mt-0.5 line-clamp-2 text-[var(--ink-muted)]">“{ev.quote}”</p>
-                    </Link>
-                  ))}
+
+                <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                  <div className="mb-1.5 flex items-center gap-1 text-[11px] text-[var(--emerald)]">
+                    <CheckCircle2 className="h-3 w-3" />
+                    逐字原文溯源（{rule.evidence.length}）
+                  </div>
+                  <div className="space-y-1">
+                    {rule.evidence.map((ev) => (
+                      <Link
+                        key={ev.evidence_id}
+                        href={`/vault?card=${encodeURIComponent(ev.card)}`}
+                        className="block rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-[var(--accent)]/50"
+                      >
+                        <span className="font-medium text-[var(--accent)]">[[{ev.title}]]</span>
+                        <span className="ml-2 font-mono text-[var(--ink-dim)]">{ev.event_date ?? ""}</span>
+                        <p className="mt-0.5 line-clamp-2 text-[var(--ink-muted)]">“{ev.quote}”</p>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
+
+      {/* Anti-Mouth-Trading Discipline Audit */}
+      {auditList.length > 0 && (
+        <section className="rounded-xl border border-amber-500/35 bg-[var(--surface)] p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-[var(--amber)]" />
+              <h3 className="text-base font-semibold text-[#f1f2f5]">
+                知行偏离与重复违纪病灶榜（防“嘴盘”照妖镜）
+              </h3>
+            </div>
+            <span className="text-[11px] text-amber-300/90">
+              对照「口头立下的纪律」与「实盘真实违纪证据」
+            </span>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {auditList.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col justify-between rounded-xl border border-amber-500/25 bg-[var(--bg-deep)] p-4"
+              >
+                <div className="space-y-2.5 text-xs leading-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded bg-amber-500/15 px-2 py-0.5 font-mono font-semibold text-amber-300">
+                      {item.id}
+                    </span>
+                    <span className="font-mono text-[11px] text-[var(--ink-dim)]">
+                      {item.known_dates.join(" · ")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-[var(--ink-dim)]">口头声明纪律（Stated Rule）</div>
+                    <div className="mt-0.5 font-medium text-[#f1f2f5]">{item.stated_rule}</div>
+                  </div>
+
+                  <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
+                    <div className="font-medium text-rose-300">实盘违纪真相（Actual Deviation）</div>
+                    <div className="mt-0.5 text-[var(--ink)]">{item.actual_deviation || "—"}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-[var(--amber)]">心理与盘面诱因（Trigger Psychology）</div>
+                    <div className="mt-0.5 text-[var(--ink)]">{item.trigger_psychology || "—"}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] text-[var(--emerald)]">硬性物理阻断栏（Fix Guardrail）</div>
+                    <div className="mt-0.5 text-[var(--ink)]">{item.fix_guardrail || "—"}</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                  <div className="mb-1.5 text-[11px] text-amber-300">违纪现场原文溯源（{item.evidence.length}）</div>
+                  <div className="space-y-1">
+                    {item.evidence.map((ev) => (
+                      <Link
+                        key={ev.evidence_id}
+                        href={`/vault?card=${encodeURIComponent(ev.card)}`}
+                        className="block rounded border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] hover:border-amber-400/50"
+                      >
+                        <span className="font-medium text-[var(--accent)]">[[{ev.title}]]</span>
+                        <span className="ml-2 font-mono text-[var(--ink-dim)]">{ev.event_date ?? ""}</span>
+                        <p className="mt-0.5 line-clamp-2 text-[var(--ink-muted)]">“{ev.quote}”</p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

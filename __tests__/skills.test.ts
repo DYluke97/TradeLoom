@@ -12,7 +12,7 @@ import {
 
 describe("skills loader & custom workspace CRUD", () => {
   it("validates custom Skill IDs and blocks built-ins and path traversal", () => {
-    expect(validateCustomSkillId("macro-cycle")).toEqual({ ok: true, id: "macro-cycle" });
+    expect(validateCustomSkillId("convertible-arb")).toEqual({ ok: true, id: "convertible-arb" });
     expect(validateCustomSkillId("my_short_term_2")).toEqual({ ok: true, id: "my_short_term_2" });
 
     expect(validateCustomSkillId("short-term").ok).toBe(false);
@@ -37,7 +37,7 @@ describe("skills loader & custom workspace CRUD", () => {
 
       // Create custom skill with colons/quotes in metadata to verify YAML round-trip safety
       const created = await saveCustomSkill({
-        id: "macro-cycle",
+        id: "convertible-arb",
         name: "资源周期: 仓位与融资风控 Skill",
         summary: "面向有色/锂矿与融资融券的风控框架：严控杠杆",
         tags: "周期股, 融资风控, 知行合一",
@@ -47,25 +47,25 @@ describe("skills loader & custom workspace CRUD", () => {
       expect(created.ok).toBe(true);
       if (!created.ok) return;
 
-      expect(created.skill.id).toBe("macro-cycle");
+      expect(created.skill.id).toBe("convertible-arb");
       expect(created.skill.builtin).toBe(false);
       expect(created.skill.editable).toBe(true);
       expect(created.skill.source).toBe("workspace");
       expect(created.skill.name).toBe("资源周期: 仓位与融资风控 Skill");
       expect(created.skill.tags).toEqual(["周期股", "融资风控", "知行合一"]);
 
-      const diskContent = await readFile(path.join(tmp, "skills", "macro-cycle.md"), "utf8");
-      expect(diskContent).toContain("id: macro-cycle");
+      const diskContent = await readFile(path.join(tmp, "skills", "convertible-arb.md"), "utf8");
+      expect(diskContent).toContain("id: convertible-arb");
       expect(diskContent).toContain("融资杠杆红线与回撤控制");
 
       // Lookup via getSkillById
-      const fetched = await getSkillById("macro-cycle");
+      const fetched = await getSkillById("convertible-arb");
       expect(fetched.name).toBe("资源周期: 仓位与融资风控 Skill");
       expect(fetched.content).toContain("供需周期定位");
 
       // Edit in place
       const updated = await saveCustomSkill({
-        id: "macro-cycle",
+        id: "convertible-arb",
         name: "资源周期 Skill v2",
         summary: "升级版周期风控框架",
         tags: ["周期股", "回撤控制"],
@@ -82,10 +82,10 @@ describe("skills loader & custom workspace CRUD", () => {
       expect(blockedDel.ok).toBe(false);
 
       // Delete custom skill
-      const deleted = await deleteCustomSkill("macro-cycle");
+      const deleted = await deleteCustomSkill("convertible-arb");
       expect(deleted.ok).toBe(true);
       if (deleted.ok) {
-        expect(deleted.skills.some((s) => s.id === "macro-cycle")).toBe(false);
+        expect(deleted.skills.some((s) => s.id === "convertible-arb")).toBe(false);
       }
     } finally {
       if (prevDir === undefined) delete process.env.TRADELOOM_WORKSPACE_DIR;

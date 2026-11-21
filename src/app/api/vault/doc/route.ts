@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseMarkdown } from "@/lib/markdown";
-import { loadOrBuildVault, readOriginalSource, readVaultCard, saveOriginalSource } from "@/lib/vault";
+import { deleteVaultDocument, hasLoadedSamples, loadOrBuildVault, readOriginalSource, readVaultCard, saveOriginalSource } from "@/lib/vault";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,4 +99,28 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(saved, { status: saved.status });
   }
   return NextResponse.json(saved);
+}
+
+export async function DELETE(request: NextRequest) {
+  let card = (request.nextUrl.searchParams.get("card") ?? "").trim();
+  if (!card) {
+    try {
+      const body = (await request.json()) as { card?: string };
+      card = (body.card ?? "").trim();
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!card) return NextResponse.json({ ok: false, error: "缺少 card 参数" }, { status: 400 });
+
+  const outcome = await deleteVaultDocument(card);
+  if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.error }, { status: outcome.status });
+  const hasSamples = await hasLoadedSamples(outcome.index);
+  return NextResponse.json({
+    ok: true,
+    title: outcome.title,
+    trashedTo: outcome.trashedTo,
+    index: outcome.index,
+    hasSamples,
+  });
 }

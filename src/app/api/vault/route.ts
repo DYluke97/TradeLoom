@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadOrBuildVault, loadSampleReviews, rebuildVault } from "@/lib/vault";
+import { clearSampleReviews, hasLoadedSamples, loadOrBuildVault, loadSampleReviews, rebuildVault } from "@/lib/vault";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const data = await loadOrBuildVault();
-  return NextResponse.json({ ok: true, ...data }, { headers: { "Cache-Control": "no-store" } });
+  const hasSamples = await hasLoadedSamples(data.index);
+  return NextResponse.json({ ok: true, ...data, hasSamples }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: NextRequest) {
@@ -16,12 +17,17 @@ export async function POST(request: NextRequest) {
   } catch {
     /* ignore */
   }
-
   if (body.action === "load-samples") {
     const res = await loadSampleReviews();
-    return NextResponse.json({ ok: true, copied: res.copied, index: res.index });
+    const hasSamples = await hasLoadedSamples(res.index);
+    return NextResponse.json({ ok: true, copied: res.copied, index: res.index, hasSamples });
   }
-
+  if (body.action === "clear-samples") {
+    const res = await clearSampleReviews();
+    const hasSamples = await hasLoadedSamples(res.index);
+    return NextResponse.json({ ok: true, removed: res.removed, index: res.index, hasSamples });
+  }
   const index = await rebuildVault();
-  return NextResponse.json({ ok: true, index });
+  const hasSamples = await hasLoadedSamples(index);
+  return NextResponse.json({ ok: true, index, hasSamples });
 }

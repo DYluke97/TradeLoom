@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import path from "node:path";
 import {
   extractBalancedJsonObject,
@@ -58,7 +59,10 @@ export function detectPlatformFromUrl(rawUrl: string): string {
   }
 }
 
-function isPrivateIpOrHost(hostname: string): boolean {
+export function isPrivateIpOrHost(hostname: string): boolean {
+  const cleanHost = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (cleanHost.startsWith("::ffff:")) return isPrivateIpOrHost(cleanHost.slice(7));
+  if (cleanHost === "::" || /^0\./.test(cleanHost)) return true;
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
     h === "localhost" ||
@@ -80,6 +84,28 @@ function isPrivateIpOrHost(hostname: string): boolean {
   }
   if (/^(fc|fd|fe80)/i.test(h)) return true;
   return false;
+}
+
+export async function assertSafePublicDns(
+  hostname: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isPrivateIpOrHost(hostname)) {
+    return { ok: false, error: "安全限制：不允许抓取本机或内网私有地址" };
+  }
+  try {
+    const records = await lookup(hostname, { all: true, verbatim: true });
+    if (!records || records.length === 0) {
+      return { ok: false, error: `无法解析目标域名（${hostname}），请检查链接是否正确` };
+    }
+    for (const rec of records) {
+      if (isPrivateIpOrHost(rec.address)) {
+        return { ok: false, error: "安全限制：目标域名解析指向本机或内网私有地址，已自动拦截" };
+      }
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: `域名解析失败（${hostname}），请检查网络连接或链接拼写` };
+  }
 }
 
 export function validatePublicFetchUrl(
@@ -652,6 +678,10 @@ export async function importFromUrl(
   const valid = validatePublicFetchUrl(input.url);
   if (!valid.ok) {
     return { ok: false, status: 400, error: valid.error };
+  }
+  const dnsCheck = await assertSafePublicDns(valid.hostname);
+  if (!dnsCheck.ok) {
+    return { ok: false, status: 403, error: dnsCheck.error };
   }
 
   // 1) Specialized public platform resolvers (Yuque / Feishu / Notion / Youdao / Yinxiang / Evernote)

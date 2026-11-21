@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Cloud,
+  Download,
   Edit3,
   FileText,
   Folder,
@@ -21,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -84,6 +86,8 @@ export default function VaultWorkspace() {
   const paramImport = searchParams.get("import");
 
   const [index, setIndex] = useState<VaultIndex | null>(null);
+  const [hasSamples, setHasSamples] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeCard, setActiveCard] = useState<string>(paramCard || "00-总览.md");
   const [openTabs, setOpenTabs] = useState<string[]>([paramCard || "00-总览.md"]);
   const [centerMode, setCenterMode] = useState<"card" | "source" | "graph">(
@@ -124,11 +128,15 @@ export default function VaultWorkspace() {
   const loadIndex = useCallback(async () => {
     const res = await fetch("/api/vault", { cache: "no-store" });
     const data = await res.json();
-    if (data.ok) setIndex(data.index);
+    if (data.ok) {
+      setIndex(data.index);
+      setHasSamples(Boolean(data.hasSamples));
+    }
   }, []);
 
   const loadDoc = useCallback(async (card: string, mode: "card" | "source") => {
     setEditing(false);
+    setConfirmDelete(false);
     setStatusMsg("");
     const res = await fetch(`/api/vault/doc?card=${encodeURIComponent(card)}&mode=${mode}`, { cache: "no-store" });
     const data = (await res.json()) as DocResponse;
@@ -230,9 +238,15 @@ export default function VaultWorkspace() {
     }
   }
 
-  async function handleAction(action: "rebuild" | "load-samples") {
+  async function handleAction(action: "rebuild" | "load-samples" | "clear-samples") {
     setBusy(true);
-    setStatusMsg(action === "load-samples" ? "正在载入示例复盘..." : "正在按当前主题词典重建双链索引...");
+    setStatusMsg(
+      action === "load-samples"
+        ? "正在载入示例复盘..."
+        : action === "clear-samples"
+          ? "正在清理内置示例复盘..."
+          : "正在按当前主题词典重建双链索引...",
+    );
     try {
       const res = await fetch("/api/vault", {
         method: "POST",
@@ -242,9 +256,44 @@ export default function VaultWorkspace() {
       const data = await res.json();
       if (data.ok && data.index) {
         setIndex(data.index);
+        setHasSamples(Boolean(data.hasSamples));
         openCard("00-总览.md");
         await loadDoc("00-总览.md", "card");
-        setStatusMsg(action === "load-samples" ? `已加载 ${data.copied} 篇示例复盘。` : "双链知识库重建完成。");
+        setStatusMsg(
+          action === "load-samples"
+            ? `已加载 ${data.copied} 篇示例复盘。`
+            : action === "clear-samples"
+              ? `已将 ${data.removed} 篇示例复盘移入回收站，不影响你的个人笔记。`
+              : "双链知识库重建完成。",
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteActiveDoc() {
+    if (!docData?.doc) return;
+    const deletingCard = docData.card;
+    setBusy(true);
+    setStatusMsg("正在将笔记移入本地回收站并重建双链...");
+    try {
+      const res = await fetch(`/api/vault/doc?card=${encodeURIComponent(deletingCard)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.ok && data.index) {
+        setIndex(data.index);
+        setHasSamples(Boolean(data.hasSamples));
+        setConfirmDelete(false);
+        const remainingTabs = openTabs.filter((t) => t !== deletingCard);
+        const nextCard = remainingTabs[remainingTabs.length - 1] ?? "00-总览.md";
+        setOpenTabs(remainingTabs.length > 0 ? remainingTabs : ["00-总览.md"]);
+        setActiveCard(nextCard);
+        await loadDoc(nextCard, "card");
+        setStatusMsg(`已将《${data.title}》安全移入本地 workspace/${data.trashedTo}，双链已更新。`);
+      } else {
+        setStatusMsg(data.error || "删除笔记失败");
       }
     } finally {
       setBusy(false);
@@ -328,6 +377,13 @@ export default function VaultWorkspace() {
             文件浏览器
           </span>
           <div className="flex items-center gap-0.5">
+            <a
+              href="/api/vault/export"
+              title="打包导出 Obsidian 知识库与交易手册 (.zip)"
+              className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--emerald)]"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
             <Link
               href="/settings?tab=concepts"
               title="自定义主题词典并重新编排双链"
@@ -408,6 +464,17 @@ export default function VaultWorkspace() {
             >
               <Sparkles className="h-3.5 w-3.5" />
               加载 6 篇示例复盘
+            </button>
+          )}
+          {hasSamples && (
+            <button
+              type="button"
+              onClick={() => handleAction("clear-samples")}
+              disabled={busy}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-amber-500/35 bg-amber-500/10 py-1 text-[11px] text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+            >
+              <Trash2 className="h-3 w-3" />
+              一键清理 6 篇演示样本
             </button>
           )}
         </div>
@@ -550,6 +617,39 @@ export default function VaultWorkspace() {
                 <Edit3 className="h-3 w-3" />
                 编辑
               </button>
+            )}
+
+            {centerMode !== "graph" && docData?.doc && !editing && (
+              confirmDelete ? (
+                <div className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[11px]">
+                  <span className="text-red-300">移入回收站？</span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={handleDeleteActiveDoc}
+                    className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white hover:bg-red-500"
+                  >
+                    确认
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-1 text-[10px] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  >
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  title="将本篇笔记移入本地回收站 workspace/.trash/"
+                  className="inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-red-500/50 hover:text-red-300"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  回收站
+                </button>
+              )
             )}
 
             {editing && (

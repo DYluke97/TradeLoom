@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConceptRules } from "./concepts";
 import { carrierOf, convertFile, guessTitle, MAX_INPUT_BYTES } from "./convert";
 import { buildVault, wrapFirstUnlinkedOccurrence, type VaultDoc, type VaultIndex } from "./vault-builder";
 import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
+import { createZipBuffer, type ZipInputEntry } from "./zip";
 
 const sha = (buf: Buffer | string) => createHash("sha256").update(buf).digest("hex");
 
@@ -272,4 +273,93 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
   const index = await buildVaultWithUserConcepts();
 
   return { ok: true, sourceRel: destRel, carrier, warnings: converted.warnings, index };
+}
+
+export async function listBuiltinSampleNames(): Promise<Set<string>> {
+  try {
+    const sampleDir = path.join(process.cwd(), "samples");
+    const entries = await readdir(sampleDir, { withFileTypes: true });
+    return new Set(entries.filter((e) => e.isFile() && e.name.endsWith(".md")).map((e) => e.name));
+  } catch {
+    return new Set();
+  }
+}
+
+export async function hasLoadedSamples(index: VaultIndex): Promise<boolean> {
+  const sampleNames = await listBuiltinSampleNames();
+  if (sampleNames.size === 0) return false;
+  return index.documents.some((d) => sampleNames.has(d.source_rel));
+}
+
+async function moveFileToTrash(sourceFullPath: string, labelRel: string): Promise<string> {
+  const paths = await ensureWorkspace();
+  const trashDir = path.join(paths.root, ".trash");
+  await mkdir(trashDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
+  const flatName = labelRel.replace(/[\\/]+/g, "__");
+  const trashRel = `.trash/${stamp}_${flatName}`;
+  await rename(sourceFullPath, path.join(paths.root, trashRel));
+  return trashRel;
+}
+
+export async function deleteVaultDocument(
+  cardRel: string,
+): Promise<
+  | { ok: true; title: string; trashedTo: string; index: VaultIndex }
+  | { ok: false; status: number; error: string }
+> {
+  const { index } = await loadOrBuildVault();
+  const doc = index.documents.find((d) => d.card === cardRel);
+  if (!doc) {
+    return { ok: false, status: 404, error: "仅支持删除复盘笔记卡片（总览、主题索引或交易手册请在对应页面管理）" };
+  }
+  const paths = await ensureWorkspace();
+  const full = await insideRoot(paths.sources, doc.source_rel);
+  if (!full) return { ok: false, status: 404, error: "未找到对应的原始笔记文件" };
+
+  const trashedTo = await moveFileToTrash(full, doc.source_rel);
+  const nextIndex = await buildVaultWithUserConcepts();
+  return { ok: true, title: doc.title, trashedTo, index: nextIndex };
+}
+
+export async function clearSampleReviews(): Promise<{ removed: number; index: VaultIndex }> {
+  const paths = await ensureWorkspace();
+  const sampleNames = await listBuiltinSampleNames();
+  let removed = 0;
+  for (const name of sampleNames) {
+    const full = await insideRoot(paths.sources, name);
+    if (full) {
+      await moveFileToTrash(full, name);
+      removed++;
+    }
+  }
+  const index = await buildVaultWithUserConcepts();
+  return { removed, index };
+}
+
+async function collectFilesRecursively(dir: string, prefix = ""): Promise<ZipInputEntry[]> {
+  const out: ZipInputEntry[] = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...(await collectFilesRecursively(full, rel)));
+    } else if (entry.isFile() && rel !== "index.json") {
+      const [data, info] = await Promise.all([readFile(full), stat(full)]);
+      out.push({ path: `TradeLoom-Vault/${rel}`, data, mtime: info.mtime });
+    }
+  }
+  return out;
+}
+
+export async function exportVaultZipBuffer(): Promise<Buffer> {
+  const { vaultDir } = await loadOrBuildVault();
+  const entries = await collectFilesRecursively(vaultDir);
+  return createZipBuffer(entries);
 }

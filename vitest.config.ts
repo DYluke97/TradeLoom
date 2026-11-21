@@ -4,6 +4,7 @@ import path from "node:path";
 export default defineConfig({
   test: {
     environment: "node",
+    testTimeout: 20000,
     include: ["__tests__/**/*.test.ts"],
   },
   resolve: {

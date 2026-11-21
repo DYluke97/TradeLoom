@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectPlatformFromUrl, importPastedReview } from "@/lib/cloud-ingest";
+import { getOrCreateClipToken, verifyClipToken } from "@/lib/provider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,19 +10,19 @@ function corsHeaders(request: NextRequest): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-TradeLoom-Clip-Token",
   };
+}
+
+export async function GET() {
+  const clipToken = await getOrCreateClipToken();
+  return NextResponse.json({ ok: true, clipToken }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
 }
 
-/**
- * Local-first Browser Bookmarklet clip endpoint.
- * Allows clipping logged-in pages (雪球 / 有道云笔记 / 印象笔记 / 飞书 / 语雀) directly from the user's browser
- * into the local TradeLoom vault without sharing any cookies or passwords.
- */
 export async function POST(request: NextRequest) {
   const headers = corsHeaders(request);
   try {
@@ -31,7 +32,19 @@ export async function POST(request: NextRequest) {
       html?: string;
       text?: string;
       eventDate?: string;
+      clipToken?: string;
     };
+
+    const headerToken = request.headers.get("x-tradeloom-clip-token") ?? body.clipToken ?? "";
+    if (!(await verifyClipToken(headerToken))) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "剪藏安全令牌缺失或已更新，请在本地 TradeLoom「云端采集 → 浏览器剪藏」重新拖拽最新书签按钮。",
+        },
+        { status: 403, headers },
+      );
+    }
 
     const platform = body.url ? detectPlatformFromUrl(body.url) : "浏览器剪藏";
     const outcome = await importPastedReview({

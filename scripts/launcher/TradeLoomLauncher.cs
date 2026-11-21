@@ -241,6 +241,60 @@ namespace TradeLoomLauncher
             _form.Activate();
         }
 
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool GetTokenInformation(IntPtr tokenHandle, int tokenInfoClass, IntPtr tokenInfo, int tokenInfoLength, out int returnLength);
+        [DllImport("advapi32.dll")]
+        private static extern IntPtr GetSidSubAuthorityCount(IntPtr pSid);
+        [DllImport("advapi32.dll")]
+        private static extern IntPtr GetSidSubAuthority(IntPtr pSid, uint nSubAuthority);
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        private static bool _isLowIntegrityChecked = false;
+        private static bool _isLowIntegrity = false;
+
+        public static bool IsLowIntegrityProcess()
+        {
+            if (_isLowIntegrityChecked) return _isLowIntegrity;
+            _isLowIntegrityChecked = true;
+            IntPtr hTok = IntPtr.Zero;
+            IntPtr buf = IntPtr.Zero;
+            try
+            {
+                if (!OpenProcessToken(Process.GetCurrentProcess().Handle, 0x0008, out hTok)) return false;
+                int len = 0;
+                GetTokenInformation(hTok, 25, IntPtr.Zero, 0, out len);
+                if (len <= 0) return false;
+                buf = Marshal.AllocHGlobal(len);
+                if (!GetTokenInformation(hTok, 25, buf, len, out len)) return false;
+                IntPtr pSid = Marshal.ReadIntPtr(buf);
+                byte count = Marshal.ReadByte(GetSidSubAuthorityCount(pSid));
+                uint rid = (uint)Marshal.ReadInt32(GetSidSubAuthority(pSid, (uint)(count - 1)));
+                _isLowIntegrity = (rid < 0x2000);
+            }
+            catch { }
+            finally
+            {
+                if (buf != IntPtr.Zero) Marshal.FreeHGlobal(buf);
+                if (hTok != IntPtr.Zero) CloseHandle(hTok);
+            }
+            return _isLowIntegrity;
+        }
+
+        private static void WarnLowIntegrity(string actionName)
+        {
+            MessageBox.Show(
+                "当前目录被 Windows 标记为低权限沙箱目录（Low Mandatory Level），系统安全策略禁止程序直接" + actionName + "。\n\n" +
+                "解决方法（二选一）：\n" +
+                "1. 将整个 TradeLoom 文件夹移动到普通目录（如 桌面 或 D:\\TradeLoom）后再双击 TradeLoom.exe（推荐）；\n" +
+                "2. 本地服务已在 " + _url + " 正常运行，可点击面板「复制访问地址」后在浏览器地址栏粘贴打开。",
+                "TradeLoom · 沙箱目录权限提示",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
+            );
+        }
         [ComImport, Guid("85CB6900-4D95-11CF-960C-0080C7F4EE85"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
         private interface IShellWindowsDisp
         {

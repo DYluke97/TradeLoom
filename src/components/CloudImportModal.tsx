@@ -116,29 +116,54 @@ export default function CloudImportModal({
     }
   }
 
+  const parsedUrlCount = useMemo(() => {
+    return urlInput
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter((s) => /https?:\/\//i.test(s)).length;
+  }, [urlInput]);
+
   async function handleUrlSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setRequiresLoginHint(false);
     setBusy(true);
     try {
+      const isBatch = parsedUrlCount > 1;
       const res = await fetch("/api/vault/import-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: urlInput,
-          title: urlTitle || undefined,
-          eventDate: urlDate || undefined,
-          tags: urlTags || undefined,
-        }),
+        body: JSON.stringify(
+          isBatch
+            ? {
+                urls: urlInput,
+                eventDate: urlDate || undefined,
+                tags: urlTags || undefined,
+              }
+            : {
+                url: urlInput.trim(),
+                title: urlTitle || undefined,
+                eventDate: urlDate || undefined,
+                tags: urlTags || undefined,
+              },
+        ),
       });
       const data = await res.json();
       if (data.ok && data.index) {
-        onImported(
-          data.index,
-          data.cardRel,
-          `已抓取网页《${data.title}》转为 Markdown 入库，并更新双链知识库。`,
-        );
+        if (data.batch) {
+          const failNote = data.failed > 0 ? `（另有 ${data.failed} 条抓取失败）` : "";
+          onImported(
+            data.index,
+            data.cardRel,
+            `批量防限流队列完成：成功入库 ${data.succeeded} / ${data.total} 篇复盘${failNote}，并已完成双链编排。`,
+          );
+        } else {
+          onImported(
+            data.index,
+            data.cardRel,
+            `已抓取网页《${data.title}》转为 Markdown 入库，并更新双链知识库。`,
+          );
+        }
         setUrlInput("");
         setUrlTitle("");
         setUrlDate("");
@@ -361,32 +386,49 @@ export default function CloudImportModal({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-[var(--ink-muted)]">网页链接 URL</label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-[11px] font-medium text-[var(--ink-muted)]">
+                    网页链接 URL（支持单条，或每行一条批量粘贴最多 50 条）
+                  </label>
+                  {parsedUrlCount > 1 && (
+                    <span className="rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2 py-0.5 font-mono text-[10px] text-[var(--cyan)]">
+                      检测到 {Math.min(parsedUrlCount, 50)} 条链接 · 自动启用防限流队列与单次重建
+                    </span>
+                  )}
+                </div>
                 <div className="relative mt-1">
                   <Link2 className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-[var(--accent)]" />
-                  <input
-                    type="url"
+                  <textarea
+                    rows={parsedUrlCount > 1 ? 5 : 3}
                     required
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    placeholder="https://xueqiu.com/... 或 https://mp.weixin.qq.com/s/..."
-                    className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] py-2 pl-9 pr-3 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                    placeholder={
+                      "单条抓取或每行一条批量抓取（内置同域名礼貌节流 + 雪球 Cookie/WAF 退避重试）：\nhttps://xueqiu.com/4600361796/351477201\nhttps://mp.weixin.qq.com/s/..."
+                    }
+                    className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] py-2 pl-9 pr-3 font-mono text-xs leading-5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] text-[var(--ink-muted)]">自定义标题（留空自动抓取页面标题）</label>
-                  <input
-                    value={urlTitle}
-                    onChange={(e) => setUrlTitle(e.target.value)}
-                    placeholder="留空自动提取"
-                    className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
-                  />
-                </div>
+              <div className={parsedUrlCount > 1 ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-3"}>
+                {parsedUrlCount <= 1 && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] text-[var(--ink-muted)]">
+                      自定义标题（留空自动抓取页面标题）
+                    </label>
+                    <input
+                      value={urlTitle}
+                      onChange={(e) => setUrlTitle(e.target.value)}
+                      placeholder="留空自动提取"
+                      className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                  </div>
+                )}
                 <div>
-                  <label className="block text-[11px] text-[var(--ink-muted)]">复盘日期（留空自动识别）</label>
+                  <label className="block text-[11px] text-[var(--ink-muted)]">
+                    {parsedUrlCount > 1 ? "默认复盘日期（留空按每篇原文自动识别）" : "复盘日期（留空自动识别）"}
+                  </label>
                   <input
                     type="date"
                     value={urlDate}
@@ -394,17 +436,30 @@ export default function CloudImportModal({
                     className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
                   />
                 </div>
+                {parsedUrlCount > 1 && (
+                  <div>
+                    <label className="block text-[11px] text-[var(--ink-muted)]">批量补充标签（可选）</label>
+                    <input
+                      value={urlTags}
+                      onChange={(e) => setUrlTags(e.target.value)}
+                      placeholder="例如：每日复盘, 实盘记录"
+                      className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-[11px] text-[var(--ink-muted)]">补充标签（可选）</label>
-                <input
-                  value={urlTags}
-                  onChange={(e) => setUrlTags(e.target.value)}
-                  placeholder="例如：基本面排雷, 龙头梯队"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
-                />
-              </div>
+              {parsedUrlCount <= 1 && (
+                <div>
+                  <label className="block text-[11px] text-[var(--ink-muted)]">补充标签（可选）</label>
+                  <input
+                    value={urlTags}
+                    onChange={(e) => setUrlTags(e.target.value)}
+                    placeholder="例如：基本面排雷, 龙头梯队"
+                    className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </div>
+              )}
 
               {error && (
                 <div className="space-y-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
@@ -450,7 +505,13 @@ export default function CloudImportModal({
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_0_16px_rgba(124,77,255,0.4)] transition hover:bg-[var(--accent)] disabled:opacity-50"
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {busy ? "正在抓取正文并转 Markdown..." : "立即抓取入库"}
+                  {busy
+                    ? parsedUrlCount > 1
+                      ? `正在防限流排队抓取 ${Math.min(parsedUrlCount, 50)} 篇...`
+                      : "正在抓取正文并转 Markdown..."
+                    : parsedUrlCount > 1
+                      ? `批量防限流抓取入库 (${Math.min(parsedUrlCount, 50)} 条)`
+                      : "立即抓取入库"}
                 </button>
               </div>
             </form>

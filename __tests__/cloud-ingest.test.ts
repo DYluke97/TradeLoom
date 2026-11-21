@@ -7,6 +7,8 @@ import {
   detectPlatformFromUrl,
   extractArticleFromHtml,
   importPastedReview,
+  isXueqiuWafChallenge,
+  parseBatchUrls,
   validatePublicFetchUrl,
 } from "../src/lib/cloud-ingest";
 import {
@@ -182,5 +184,34 @@ describe("cloud-ingest & platform resolvers", () => {
       kind: "wiki",
       token: "WiKiNode999",
     });
+  });
+
+  it("parses, deduplicates, cleans, and caps multi-line batch URLs", () => {
+    const raw = `
+      - https://xueqiu.com/4600361796/351477201
+      1. https://xueqiu.com/4600361796/351477201
+      2. 复盘链接：https://mp.weixin.qq.com/s/demo123。
+      invalid line without url
+      https://www.yuque.com/u1/book/doc1)
+    `;
+    const urls = parseBatchUrls(raw);
+    expect(urls).toEqual([
+      "https://xueqiu.com/4600361796/351477201",
+      "https://mp.weixin.qq.com/s/demo123",
+      "https://www.yuque.com/u1/book/doc1",
+    ]);
+
+    const hugeList = Array.from({ length: 80 }, (_, i) => `https://xueqiu.com/1/${1000 + i}`).join("\n");
+    expect(parseBatchUrls(hugeList)).toHaveLength(50);
+  });
+
+  it("detects Xueqiu Aliyun WAF challenge shells without false positives on real posts", () => {
+    const wafHtml = `<html><head><script>var arg1='ABCDEF123456'; document.cookie='acw_sc__v2='+arg1;</script></head><body></body></html>`;
+    const shortShell = `<html><head><script>location.reload()</script></head><body></body></html>`;
+    const realPostHtml = `<html><body><script>window.SNOWMAN_STATUS = {"id":351477201,"text":"今日复盘"};</script></body></html>`;
+
+    expect(isXueqiuWafChallenge(wafHtml)).toBe(true);
+    expect(isXueqiuWafChallenge(shortShell)).toBe(true);
+    expect(isXueqiuWafChallenge(realPostHtml)).toBe(false);
   });
 });

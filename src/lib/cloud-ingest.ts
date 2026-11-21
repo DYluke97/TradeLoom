@@ -509,34 +509,166 @@ export async function importPastedReview(
   };
 }
 
+const MAX_BATCH_URLS = 50;
+const CHROME_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Per-host polite pacing state (prevents burst WAF triggers during batch URL migration)
+const hostQueues = new Map<string, Promise<unknown>>();
+const hostLastFetchAt = new Map<string, number>();
+
+function getHostMinIntervalMs(hostname: string): number {
+  const h = hostname.toLowerCase();
+  if (h.endsWith("xueqiu.com")) return 1_500;
+  if (h.endsWith("mp.weixin.qq.com")) return 900;
+  return 450;
+}
+
+async function paceHostRequest<T>(hostname: string, task: () => Promise<T>): Promise<T> {
+  const key = hostname.toLowerCase().replace(/^www\./, "");
+  const prev = hostQueues.get(key) ?? Promise.resolve();
+  const minInterval = getHostMinIntervalMs(key);
+
+  const next = prev.then(async () => {
+    const last = hostLastFetchAt.get(key) ?? 0;
+    const elapsed = Date.now() - last;
+    if (last > 0 && elapsed < minInterval) {
+      await sleep(minInterval - elapsed);
+    }
+    hostLastFetchAt.set(key, Date.now());
+    try {
+      return await task();
+    } finally {
+      hostLastFetchAt.set(key, Date.now());
+    }
+  });
+
+  hostQueues.set(
+    key,
+    next.catch(() => {}),
+  );
+  return next;
+}
+
+// Cached Xueqiu guest session cookie (`xq_a_token` / `xqat`) to reduce Aliyun WAF friction
+let xueqiuCookieCache: { cookie: string; fetchedAt: number } | null = null;
+const XUEQIU_COOKIE_TTL_MS = 15 * 60_000;
+
+async function getXueqiuCookieHeader(forceRefresh = false): Promise<string> {
+  if (!forceRefresh && xueqiuCookieCache && Date.now() - xueqiuCookieCache.fetchedAt < XUEQIU_COOKIE_TTL_MS) {
+    return xueqiuCookieCache.cookie;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const res = await fetch("https://xueqiu.com/hq", {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent": CHROME_UA,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+      },
+    });
+    const rawCookies: string[] =
+      typeof res.headers.getSetCookie === "function"
+        ? res.headers.getSetCookie()
+        : (res.headers.get("set-cookie") ?? "")
+            .split(/,(?=\s*[A-Za-z0-9_.-]+=)/)
+            .filter(Boolean);
+    const pairs = rawCookies
+      .map((c) => c.split(";")[0]?.trim())
+      .filter((kv): kv is string => Boolean(kv && kv.includes("=")));
+    const cookie = pairs.join("; ");
+    if (cookie) {
+      xueqiuCookieCache = { cookie, fetchedAt: Date.now() };
+      return cookie;
+    }
+  } catch {
+    /* ignore bootstrap failures, proceed without cookie */
+  } finally {
+    clearTimeout(timer);
+  }
+  return xueqiuCookieCache?.cookie ?? "";
+}
+
 /**
- * Fetches a public web/share URL safely:
+ * Detects Xueqiu / Aliyun WAF JS-challenge or temporary rate-limit decoy HTML
+ * so the fetcher can refresh cookies and back off automatically.
+ */
+export function isXueqiuWafChallenge(html: string): boolean {
+  if (!html) return true;
+  if (html.includes("SNOWMAN_STATUS")) return false;
+  if (/acw_sc__v2|aliyun_waf|var\s+arg1\s*=|__jsl_clearance|访问过于频繁|安全验证/i.test(html)) {
+    return true;
+  }
+  const trimmed = html.trim();
+  return trimmed.length < 4000 && /<script/i.test(trimmed) && !/<article|article__bd__detail/i.test(trimmed);
+}
+
+/**
+ * Parses single or multi-line URL input into a deduplicated list (up to MAX_BATCH_URLS).
+ */
+export function parseBatchUrls(raw: string | string[]): string[] {
+  const lines = Array.isArray(raw) ? raw : raw.split(/\r?\n/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of lines) {
+    const cleaned = line
+      .trim()
+      .replace(/^[-*•]\s+/, "")
+      .replace(/^\d+[.)、]\s+/, "")
+      .trim();
+    if (!cleaned) continue;
+    const match = cleaned.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/i);
+    if (!match) continue;
+    const candidate = match[0].replace(/[),.;:!?，。；：！？】》」』'"）]+$/g, "").trim();
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+    if (out.length >= MAX_BATCH_URLS) break;
+  }
+  return out;
+}
+
+/**
+ * Fetches a public web/share URL safely with per-host polite pacing,
+ * Xueqiu cookie bootstrap, and automatic WAF / rate-limit exponential backoff retry:
  * 1) Runs specialized public API / SSR resolvers for Yuque, Feishu, Notion, Youdao Note, Yinxiang/Evernote.
  * 2) Falls back to SSRF-safe HTML/Markdown fetch with specialized Xueqiu/WeChat/Zhihu extractors.
  */
-export async function importFromUrl(input: {
-  url: string;
-  title?: string;
-  eventDate?: string;
-  tags?: string[];
-}): Promise<CloudIngestOutcome> {
+export async function importFromUrl(
+  input: {
+    url: string;
+    title?: string;
+    eventDate?: string;
+    tags?: string[];
+  },
+  options?: { skipRebuild?: boolean },
+): Promise<CloudIngestOutcome> {
   const valid = validatePublicFetchUrl(input.url);
   if (!valid.ok) {
     return { ok: false, status: 400, error: valid.error };
   }
 
   // 1) Specialized public platform resolvers (Yuque / Feishu / Notion / Youdao / Yinxiang / Evernote)
-  const resolved = await resolveCloudPlatformUrl(valid.href);
+  const resolved = await paceHostRequest(valid.hostname, () => resolveCloudPlatformUrl(valid.href));
   if (resolved.ok) {
-    return importPastedReview({
-      title: input.title?.trim() || resolved.title,
-      content: resolved.md,
-      eventDate: input.eventDate || resolved.eventDate,
-      sourcePlatform: resolved.platform,
-      sourceUrl: valid.href,
-      tags: input.tags,
-      folder: "_云端",
-    });
+    return importPastedReview(
+      {
+        title: input.title?.trim() || resolved.title,
+        content: resolved.md,
+        eventDate: input.eventDate || resolved.eventDate,
+        sourcePlatform: resolved.platform,
+        sourceUrl: valid.href,
+        tags: input.tags,
+        folder: "_云端",
+      },
+      options,
+    );
   }
   if (resolved.handled) {
     return {
@@ -548,88 +680,266 @@ export async function importFromUrl(input: {
   }
 
   // 2) Generic SSRF-safe HTML / Markdown fetch (WeChat, Xueqiu, GitHub raw, Blogs, etc.)
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const platform = detectPlatformFromUrl(valid.href);
+  const isXueqiu = platform === "雪球";
+  const maxAttempts = isXueqiu ? 3 : 2;
+  const backoffScheduleMs = [4_000, 12_000];
 
-  try {
-    const res = await fetch(valid.href, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "text/html,text/markdown,text/plain;q=0.9,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-      },
+  let lastStatus = 0;
+  let lastError = "";
+  let lastRequiresLogin = false;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await sleep(backoffScheduleMs[attempt - 1] ?? 12_000);
+    }
+
+    const xqCookie = isXueqiu ? await getXueqiuCookieHeader(attempt > 0) : "";
+
+    const fetchOutcome = await paceHostRequest(valid.hostname, async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const headers: Record<string, string> = {
+          "User-Agent": CHROME_UA,
+          Accept: "text/html,text/markdown,text/plain;q=0.9,*/*;q=0.8",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        };
+        if (isXueqiu) {
+          headers.Referer = "https://xueqiu.com/";
+          if (xqCookie) headers.Cookie = xqCookie;
+        }
+        const res = await fetch(valid.href, {
+          method: "GET",
+          redirect: "follow",
+          signal: controller.signal,
+          headers,
+        });
+        if (!res.ok) {
+          return { kind: "http_error" as const, status: res.status };
+        }
+        const arrayBuf = await res.arrayBuffer();
+        if (arrayBuf.byteLength > MAX_URL_BYTES) {
+          return { kind: "too_large" as const };
+        }
+        return {
+          kind: "ok" as const,
+          buf: Buffer.from(arrayBuf),
+          contentType: (res.headers.get("content-type") || "").toLowerCase(),
+        };
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "AbortError";
+        return {
+          kind: "network_error" as const,
+          isTimeout,
+          message: err instanceof Error ? err.message : "网络错误",
+        };
+      } finally {
+        clearTimeout(timer);
+      }
     });
 
-    if (!res.ok) {
-      const platform = detectPlatformFromUrl(valid.href);
+    if (fetchOutcome.kind === "too_large") {
+      return { ok: false, status: 413, error: "网页体积超过 10 MB 上限" };
+    }
+
+    if (fetchOutcome.kind === "network_error") {
+      lastStatus = 502;
+      lastError = fetchOutcome.isTimeout
+        ? "抓取网页超时（12秒），请检查网络或改用「快捷粘贴入库」"
+        : `抓取失败：${fetchOutcome.message}`;
+      if (attempt < maxAttempts - 1) continue;
+      return { ok: false, status: lastStatus, error: lastError };
+    }
+
+    if (fetchOutcome.kind === "http_error") {
+      const code = fetchOutcome.status;
+      if ((code === 429 || code === 503 || (isXueqiu && code === 403)) && attempt < maxAttempts - 1) {
+        continue;
+      }
       const zhihuHint =
         platform === "知乎"
           ? "知乎触发了反爬风控校验（HTTP 403），无法直接后端抓取。请在浏览器打开文章后使用「浏览器一键剪藏」或复制正文使用「快捷粘贴入库」。"
-          : `${platform} 返回 HTTP ${res.status}，无法直接抓取。若该页面需要登录或有反爬限制，请复制内容使用「快捷粘贴入库」或「浏览器一键剪藏」。`;
+          : `${platform} 返回 HTTP ${code}，无法直接抓取。若该页面需要登录或有反爬限制，请复制内容使用「快捷粘贴入库」或「浏览器一键剪藏」。`;
       return {
         ok: false,
         status: 422,
-        requiresLogin: res.status === 401 || res.status === 403,
+        requiresLogin: code === 401 || code === 403,
         error: zhihuHint,
       };
     }
 
-    const arrayBuf = await res.arrayBuffer();
-    if (arrayBuf.byteLength > MAX_URL_BYTES) {
-      return { ok: false, status: 413, error: "网页体积超过 10 MB 上限" };
-    }
-
-    const buf = Buffer.from(arrayBuf);
-    const { text } = decodeText(buf);
-    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    const { text } = decodeText(fetchOutcome.buf);
+    const contentType = fetchOutcome.contentType;
 
     // Direct Markdown or plain text URL (e.g. GitHub raw, Gist)
     if (contentType.includes("text/markdown") || contentType.includes("text/plain") || valid.href.endsWith(".md")) {
-      const platform = detectPlatformFromUrl(valid.href);
-      return importPastedReview({
-        title: input.title?.trim() || guessTitle(text, `${platform}笔记`),
-        content: text,
-        eventDate: input.eventDate,
-        sourcePlatform: platform,
-        sourceUrl: valid.href,
-        tags: input.tags,
-        folder: "_云端",
-      });
+      return importPastedReview(
+        {
+          title: input.title?.trim() || guessTitle(text, `${platform}笔记`),
+          content: text,
+          eventDate: input.eventDate,
+          sourcePlatform: platform,
+          sourceUrl: valid.href,
+          tags: input.tags,
+          folder: "_云端",
+        },
+        options,
+      );
+    }
+
+    // Retry Xueqiu Aliyun WAF challenge automatically with fresh guest cookie
+    if (isXueqiu && isXueqiuWafChallenge(text) && attempt < maxAttempts - 1) {
+      continue;
     }
 
     const extracted = extractArticleFromHtml(text, valid.href);
     if (!extracted.ok) {
+      lastStatus = 422;
+      lastError = extracted.error;
+      lastRequiresLogin = Boolean(extracted.requiresLogin);
+      if (isXueqiu && attempt < maxAttempts - 1) continue;
       return {
         ok: false,
-        status: 422,
-        error: extracted.error,
-        requiresLogin: extracted.requiresLogin,
+        status: lastStatus,
+        error: lastError,
+        requiresLogin: lastRequiresLogin,
       };
     }
 
-    return importPastedReview({
-      title: input.title?.trim() || extracted.title,
-      content: extracted.md,
-      eventDate: input.eventDate || extracted.eventDate,
-      sourcePlatform: extracted.platform,
-      sourceUrl: valid.href,
-      tags: input.tags,
-      folder: "_云端",
-    });
-  } catch (err) {
-    const isTimeout = err instanceof Error && err.name === "AbortError";
+    return importPastedReview(
+      {
+        title: input.title?.trim() || extracted.title,
+        content: extracted.md,
+        eventDate: input.eventDate || extracted.eventDate,
+        sourcePlatform: extracted.platform,
+        sourceUrl: valid.href,
+        tags: input.tags,
+        folder: "_云端",
+      },
+      options,
+    );
+  }
+
+  return {
+    ok: false,
+    status: lastStatus || 422,
+    error: lastError || "网页抓取失败，请稍后重试或改用「快捷粘贴入库」",
+    requiresLogin: lastRequiresLogin,
+  };
+}
+
+export type BatchUrlItemResult = {
+  url: string;
+  ok: boolean;
+  title?: string;
+  eventDate?: string;
+  sourceRel?: string;
+  cardRel?: string;
+  error?: string;
+};
+
+export type BatchUrlImportOutcome = {
+  ok: boolean;
+  batch: true;
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BatchUrlItemResult[];
+  cardRel: string;
+  index?: VaultIndex;
+  error?: string;
+};
+
+/**
+ * Batch URL migration queue:
+ * - Processes up to 50 URLs sequentially with per-host polite pacing, Xueqiu cookie cache, and WAF retry
+ * - Rebuilds the Obsidian bi-directional vault ONCE at the end (avoiding O(N^2) rebuild overhead)
+ */
+export async function importFromUrlsBatch(input: {
+  urls: string[];
+  eventDate?: string;
+  tags?: string[];
+}): Promise<BatchUrlImportOutcome> {
+  const urls = parseBatchUrls(input.urls);
+  if (urls.length === 0) {
     return {
       ok: false,
-      status: 502,
-      error: isTimeout
-        ? "抓取网页超时（12秒），请检查网络或改用「快捷粘贴入库」"
-        : `抓取失败：${err instanceof Error ? err.message : "网络错误"}`,
+      batch: true,
+      total: 0,
+      succeeded: 0,
+      failed: 0,
+      results: [],
+      cardRel: "",
+      error: "请提供至少 1 条有效的公开网页链接",
     };
-  } finally {
-    clearTimeout(timer);
   }
+
+  const results: BatchUrlItemResult[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const url of urls) {
+    const out = await importFromUrl(
+      {
+        url,
+        eventDate: input.eventDate,
+        tags: input.tags,
+      },
+      { skipRebuild: true },
+    );
+
+    if (out.ok) {
+      succeeded++;
+      results.push({
+        url,
+        ok: true,
+        title: out.title,
+        eventDate: out.eventDate,
+        sourceRel: out.sourceRel,
+      });
+    } else {
+      failed++;
+      results.push({
+        url,
+        ok: false,
+        error: out.error,
+      });
+    }
+  }
+
+  if (succeeded === 0) {
+    return {
+      ok: false,
+      batch: true,
+      total: urls.length,
+      succeeded: 0,
+      failed,
+      results,
+      cardRel: "",
+      error: results[0]?.error || "批量抓取全部失败，请检查链接是否公开可访问",
+    };
+  }
+
+  const index = await rebuildVault();
+  const bySource = new Map(index.documents.map((d) => [d.source_rel, d.card]));
+  let lastCardRel = "00-总览.md";
+  for (const r of results) {
+    if (r.ok && r.sourceRel) {
+      const card = bySource.get(r.sourceRel) ?? "00-总览.md";
+      r.cardRel = card;
+      lastCardRel = card;
+    }
+  }
+
+  return {
+    ok: true,
+    batch: true,
+    total: urls.length,
+    succeeded,
+    failed,
+    results,
+    cardRel: lastCardRel,
+    index,
+  };
 }

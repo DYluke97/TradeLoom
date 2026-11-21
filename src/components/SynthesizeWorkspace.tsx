@@ -127,6 +127,23 @@ export default function SynthesizeWorkspace() {
     }
   }
 
+  function invertSelection() {
+    setSnapshot(null);
+    if (sourceTab === "manuals") {
+      setSelectedManualIds(sortedManuals.filter((m) => !selectedManualSet.has(m.id)).map((m) => m.id));
+    } else {
+      setSelectedIds(filteredDocs.filter((d) => !selectedSet.has(d.doc_id)).map((d) => d.doc_id));
+    }
+  }
+
+  function openDatePicker(e: React.MouseEvent<HTMLInputElement>) {
+    try {
+      (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      // Fallback gracefully on browsers without showPicker()
+    }
+  }
+
   function applyYearStage(year: string) {
     setSnapshot(null);
     setFromDate(`${year}-01-01`);
@@ -403,22 +420,60 @@ export default function SynthesizeWorkspace() {
 
               {/* Date Range + Kind Filters */}
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <label className="text-[11px] text-[var(--ink-dim)]">
-                  起始日期
+                <label className="block text-[11px] text-[var(--ink-dim)]">
+                  <span className="flex items-center justify-between">
+                    <span>起始日期</span>
+                    {fromDate && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSnapshot(null);
+                          setFromDate("");
+                        }}
+                        className="text-[10px] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                      >
+                        清除
+                      </button>
+                    )}
+                  </span>
                   <input
                     type="date"
                     value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                    onClick={openDatePicker}
+                    onChange={(e) => {
+                      setSnapshot(null);
+                      setFromDate(e.target.value);
+                    }}
+                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] [color-scheme:dark] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
                   />
                 </label>
-                <label className="text-[11px] text-[var(--ink-dim)]">
-                  截止日期
+                <label className="block text-[11px] text-[var(--ink-dim)]">
+                  <span className="flex items-center justify-between">
+                    <span>截止日期</span>
+                    {toDate && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSnapshot(null);
+                          setToDate("");
+                        }}
+                        className="text-[10px] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                      >
+                        清除
+                      </button>
+                    )}
+                  </span>
                   <input
                     type="date"
                     value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                    onClick={openDatePicker}
+                    onChange={(e) => {
+                      setSnapshot(null);
+                      setToDate(e.target.value);
+                    }}
+                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] [color-scheme:dark] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
                   />
                 </label>
                 <label className="text-[11px] text-[var(--ink-dim)]">
@@ -495,6 +550,58 @@ export default function SynthesizeWorkspace() {
               </div>
             </>
           )}
+
+          {/* Bottom Selection Action Bar */}
+          {(() => {
+            const totalInView = sourceTab === "manuals" ? sortedManuals.length : filteredDocs.length;
+            const selectedInView =
+              sourceTab === "manuals"
+                ? sortedManuals.filter((m) => selectedManualSet.has(m.id)).length
+                : filteredDocs.filter((d) => selectedSet.has(d.doc_id)).length;
+            const allInViewSelected = totalInView > 0 && selectedInView === totalInView;
+            return (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                <div className="text-xs text-[var(--ink-muted)]">
+                  已选{" "}
+                  <span className="font-mono font-semibold text-[#f1f2f5]">{activeSelectionCount}</span>
+                  {" / "}
+                  <span className="font-mono">{totalInView}</span>{" "}
+                  {sourceTab === "manuals" ? "份手册" : "篇复盘"}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={totalInView === 0}
+                    onClick={allInViewSelected ? clearSelection : selectAllFiltered}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:opacity-40 ${
+                      allInViewSelected
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-strong)] bg-[var(--bg-deep)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    }`}
+                  >
+                    {allInViewSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                    {allInViewSelected ? `已全选 (${totalInView})` : `全选 (${totalInView})`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={totalInView === 0}
+                    onClick={invertSelection}
+                    className="rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-xs text-[var(--ink-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)] disabled:opacity-40"
+                  >
+                    反选
+                  </button>
+                  <button
+                    type="button"
+                    disabled={activeSelectionCount === 0}
+                    onClick={clearSelection}
+                    className="rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-xs text-[var(--ink-muted)] transition hover:border-rose-500/40 hover:text-rose-300 disabled:opacity-40"
+                  >
+                    清空
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </section>
 
         {/* Step 2: Skill Picker + Precheck + Run */}

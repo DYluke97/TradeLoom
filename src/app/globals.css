@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: dark;
   /* Sci-Fi Holographic Obsidian Palette */
   --bg: #0c0f17;
   --bg-deep: #07090f;
@@ -155,4 +156,20 @@ pre {
   transform-box: fill-box;
   transform-origin: center;
   animation: slow-spin 90s linear infinite;
+}
+
+input[type="date"] {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  filter: brightness(1.15);
+  transition: opacity 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }

@@ -368,7 +368,7 @@ export default function CloudImportModal({
                 <div>
                   <label className="block text-[11px] text-[var(--ink-muted)]">复盘日期</label>
                   <input
-                    type="date"
+                    type="date" onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} }}
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
@@ -520,7 +520,7 @@ export default function CloudImportModal({
                     {parsedUrlCount > 1 ? "默认复盘日期（留空按每篇原文自动识别）" : "复盘日期（留空自动识别）"}
                   </label>
                   <input
-                    type="date"
+                    type="date" onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} }}
                     value={urlDate}
                     onChange={(e) => setUrlDate(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"

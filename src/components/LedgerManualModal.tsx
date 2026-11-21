@@ -244,7 +244,7 @@ export default function LedgerManualModal({
                 <div>
                   <label className="block text-[11px] text-[var(--ink-muted)]">成交日期 *</label>
                   <input
-                    type="date"
+                    type="date" onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} }}
                     required
                     value={tDate}
                     onChange={(e) => setTDate(e.target.value)}
@@ -422,7 +422,7 @@ export default function LedgerManualModal({
                 <div>
                   <label className="block text-[11px] text-[var(--ink-muted)]">交易日期 *</label>
                   <input
-                    type="date"
+                    type="date" onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} }}
                     required
                     value={dDate}
                     onChange={(e) => setDDate(e.target.value)}

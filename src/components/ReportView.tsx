@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   CandlestickChart,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Copy,
   Download,
@@ -42,6 +44,27 @@ function LifecycleBadge({ lifecycle }: { lifecycle?: RuleLifecycle }) {
 
 export default function ReportView({ report }: { report: SynthesisReport }) {
   const [copied, setCopied] = useState(false);
+  const [expandedTimelineEv, setExpandedTimelineEv] = useState<Record<number, boolean>>({});
+  const timelineHasEvidence = report.timeline.some((n) => n.evidence.length > 0);
+  const allTimelineEvExpanded =
+    timelineHasEvidence &&
+    report.timeline.every((n, i) => n.evidence.length === 0 || Boolean(expandedTimelineEv[i]));
+
+  function toggleTimelineEvidence(idx: number) {
+    setExpandedTimelineEv((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  }
+
+  function toggleAllTimelineEvidence() {
+    if (allTimelineEvExpanded) {
+      setExpandedTimelineEv({});
+    } else {
+      const next: Record<number, boolean> = {};
+      report.timeline.forEach((n, i) => {
+        if (n.evidence.length > 0) next[i] = true;
+      });
+      setExpandedTimelineEv(next);
+    }
+  }
   const auditList = report.discipline_audit ?? [];
 
   async function handleCopyMarkdown() {
@@ -194,47 +217,96 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
 
       {/* Evolution Timeline */}
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-[var(--amber)]" />
-          <h3 className="text-base font-semibold text-[#f1f2f5]">方法演变时间轴</h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-[var(--amber)]" />
+            <h3 className="text-base font-semibold text-[#f1f2f5]">方法演变时间轴</h3>
+          </div>
+          {timelineHasEvidence && (
+            <button
+              type="button"
+              onClick={toggleAllTimelineEvidence}
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/60 hover:text-[var(--ink)]"
+            >
+              {allTimelineEvExpanded ? (
+                <>
+                  <ChevronDown className="h-3 w-3" />
+                  收起全部原文依据
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="h-3 w-3" />
+                  展开全部原文依据
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {report.timeline.length === 0 ? (
           <p className="text-sm text-[var(--ink-muted)]">本次未提炼出独立的时间轴节点。</p>
         ) : (
           <div className="relative space-y-5 border-l border-[var(--border-strong)] pl-5">
-            {report.timeline.map((node, idx) => (
-              <div key={idx} className="relative">
-                <span className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--accent)]" />
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 font-mono text-xs text-[var(--amber)]">
-                    {node.period}
-                  </span>
-                  <span className="text-sm font-semibold text-[#f1f2f5]">{node.label}</span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--ink)]">{node.change}</p>
-                <div className="mt-2.5 space-y-1.5">
-                  {node.evidence.map((ev) => (
-                    <div
-                      key={ev.evidence_id}
-                      className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs"
-                    >
-                      <div className="flex items-center justify-between gap-2 text-[var(--ink-muted)]">
-                        <Link
-                          href={`/vault?card=${encodeURIComponent(ev.card)}`}
-                          className="inline-flex items-center gap-1 font-medium text-[var(--accent)] hover:underline"
-                        >
-                          <FileText className="h-3 w-3" />
-                          [[{ev.title}]]
-                        </Link>
-                        <span className="font-mono text-[11px]">{ev.event_date ?? "未标日期"}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[var(--ink-muted)]">“{ev.quote}”</p>
+            {report.timeline.map((node, idx) => {
+              const isOpen = Boolean(expandedTimelineEv[idx]);
+              return (
+                <div key={idx} className="relative">
+                  <span className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--accent)]" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 font-mono text-xs text-[var(--amber)]">
+                      {node.period}
+                    </span>
+                    <span className="text-sm font-semibold text-[#f1f2f5]">{node.label}</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[var(--ink)]">{node.change}</p>
+
+                  {node.evidence.length > 0 && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleTimelineEvidence(idx)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/60 hover:text-[var(--accent)]"
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-[var(--accent)]" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-[var(--ink-dim)]" />
+                        )}
+                        <FileText className="h-3 w-3" />
+                        <span>
+                          {isOpen
+                            ? `收起原文依据（${node.evidence.length} 条）`
+                            : `查看原文依据（${node.evidence.length} 条）`}
+                        </span>
+                      </button>
+
+                      {isOpen && (
+                        <div className="mt-2 space-y-1.5">
+                          {node.evidence.map((ev) => (
+                            <div
+                              key={ev.evidence_id}
+                              className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs"
+                            >
+                              <div className="flex items-center justify-between gap-2 text-[var(--ink-muted)]">
+                                <Link
+                                  href={`/vault?card=${encodeURIComponent(ev.card)}`}
+                                  className="inline-flex items-center gap-1 font-medium text-[var(--accent)] hover:underline"
+                                >
+                                  <FileText className="h-3 w-3" />
+                                  [[{ev.title}]]
+                                </Link>
+                                <span className="font-mono text-[11px]">{ev.event_date ?? "未标日期"}</span>
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-[var(--ink-muted)]">“{ev.quote}”</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

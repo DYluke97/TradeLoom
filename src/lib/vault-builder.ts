@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { DEFAULT_CONCEPT_RULES, extractAutoConcepts, type ConceptRule } from "./concepts";
 import { carrierOf, decodeText, guessTitle, type CarrierKind } from "./convert";
 import { extractTags, extractWikiLinks } from "./markdown";
 import { writeAtomic } from "./workspace";
+
+export { DEFAULT_CONCEPT_RULES, extractAutoConcepts, type ConceptRule };
 
 export type VaultNodeType = "overview" | "timeline" | "card" | "topic" | "manual";
 
@@ -24,6 +27,14 @@ export type VaultDoc = {
 
 export type VaultLinkGraph = Record<string, { out: string[]; in: string[] }>;
 
+export type UnlinkedMention = {
+  source: string;
+  sourceTitle: string;
+  match: string;
+  snippet: string;
+  count: number;
+};
+
 export type TimelineYearNode = {
   year: string;
   count: number;
@@ -43,7 +54,7 @@ export type VaultFileItem = {
 };
 
 export type VaultIndex = {
-  schema: "tradeloom-vault@v2";
+  schema: "tradeloom-vault@v3";
   built_at: string;
   counts: {
     total: number;
@@ -54,6 +65,7 @@ export type VaultIndex = {
     topics: number;
     manuals: number;
     links: number;
+    unlinked: number;
   };
   documents: VaultDoc[];
   days: string[];
@@ -64,39 +76,13 @@ export type VaultIndex = {
   timelineTree: TimelineYearNode[];
   files: VaultFileItem[];
   links: VaultLinkGraph;
+  unlinked: Record<string, UnlinkedMention[]>;
 };
 
 const MAX_SCAN_FILES = 3000;
+const MAX_UNLINKED_PER_NODE = 20;
 const SKIP_DIRS = new Set([".git", ".obsidian", ".vault-history", "_inbox", "node_modules"]);
-
-/**
- * Curated trading concept dictionary for untagged legacy reviews (.txt / .docx / old .md).
- * Even if multi-year legacy notes contain zero #tags or [[wikilinks]], matching concepts
- * automatically weave them into Obsidian 30-主题/ hubs.
- */
-const AUTO_CONCEPT_RULES: Array<{ concept: string; patterns: RegExp[] }> = [
-  { concept: "情绪周期", patterns: [/情绪周期/, /冰点/, /高潮/, /情绪修复/, /发酵期/] },
-  { concept: "退潮风控", patterns: [/退潮/, /核按钮/, /炸板率/, /连亏降档/, /负反馈/] },
-  { concept: "龙头与梯队", patterns: [/龙头/, /梯队/, /中军/, /跟风/, /补涨/, /连板/] },
-  { concept: "买点结构", patterns: [/弱转强/, /分歧转一致/, /首板/, /回踩/, /放量突破/, /竞价/] },
-  { concept: "仓位与止损", patterns: [/止损/, /仓位/, /单笔风险/, /回撤/, /空仓/, /T\+1/] },
-  { concept: "追高反例", patterns: [/追高/, /追涨/, /半路/, /接盘/, /反例/] },
-  { concept: "行业景气", patterns: [/景气/, /渗透率/, /产能/, /订单/, /资本开支/, /竞争格局/] },
-  { concept: "财务质量", patterns: [/现金流/, /应收账款/, /存货/, /毛利率/, /扣非/, /三表/, /ROE/] },
-  { concept: "估值锚", patterns: [/估值/, /PE/, /PB/, /分位/, /DCF/, /赔率/, /安全边际/] },
-  { concept: "基本面排雷", patterns: [/商誉/, /质押/, /减持/, /排雷/, /证伪/, /财务洗澡/] },
-];
-
-export function extractAutoConcepts(text: string): string[] {
-  if (!text) return [];
-  const hits: string[] = [];
-  for (const rule of AUTO_CONCEPT_RULES) {
-    if (rule.patterns.some((re) => re.test(text))) {
-      hits.push(rule.concept);
-    }
-  }
-  return hits;
-}
+const GENERIC_SKIP_TERMS = new Set(["复盘", "总结", "记录", "日志", "笔记", "分析", "观察", "交易", "市场", "个股", "收盘复盘"]);
 
 const sha = (buf: Buffer | string) => createHash("sha256").update(buf).digest("hex");
 
@@ -133,6 +119,82 @@ export function detectKind(sourceRel: string): string {
   return "复盘笔记";
 }
 
+/**
+ * Replaces YAML frontmatter, fenced code blocks, inline code, existing [[wikilinks]],
+ * and #tags with spaces of equal length so character offsets remain exact while preventing false matches.
+ */
+export function maskLinkedAndCodeRegions(raw: string): string {
+  let masked = raw;
+  const blank = (m: string) => " ".repeat(m.length);
+  masked = masked.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, blank);
+  masked = masked.replace(/```[\s\S]*?```/g, blank);
+  masked = masked.replace(/`[^`\n]+`/g, blank);
+  masked = masked.replace(/\[\[[^\]]+\]\]/g, blank);
+  masked = masked.replace(/(?<![\w/])#[\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9_\-/]{0,30}/g, blank);
+  return masked;
+}
+
+/**
+ * Safely wraps the first unlinked occurrence of `matchText` in `raw` as an Obsidian wikilink.
+ */
+export function wrapFirstUnlinkedOccurrence(
+  raw: string,
+  matchText: string,
+  targetWithoutExt: string,
+): { changed: boolean; nextText: string } {
+  const term = matchText.trim();
+  if (!term) return { changed: false, nextText: raw };
+  const maskedLower = maskLinkedAndCodeRegions(raw).toLowerCase();
+  const idx = maskedLower.indexOf(term.toLowerCase());
+  if (idx < 0) return { changed: false, nextText: raw };
+
+  const actualPhrase = raw.slice(idx, idx + term.length);
+  const tail = targetWithoutExt.split("/").pop() ?? targetWithoutExt;
+  const replacement =
+    tail.toLowerCase() === actualPhrase.toLowerCase()
+      ? `[[${targetWithoutExt}]]`
+      : `[[${targetWithoutExt}|${actualPhrase}]]`;
+
+  return {
+    changed: true,
+    nextText: raw.slice(0, idx) + replacement + raw.slice(idx + term.length),
+  };
+}
+
+function buildSnippet(raw: string, matchIdx: number, matchLen: number): string {
+  const start = Math.max(0, matchIdx - 26);
+  const end = Math.min(raw.length, matchIdx + matchLen + 30);
+  const chunk = raw.slice(start, end).replace(/\s+/g, " ").trim();
+  return `${start > 0 ? "…" : ""}${chunk}${end < raw.length ? "…" : ""}`;
+}
+
+function deriveCardMatchTerms(doc: VaultDoc): string[] {
+  const candidates = new Set<string>();
+  const add = (s: string) => {
+    const clean = s.trim();
+    if (clean.length < 2 || clean.length > 28) return;
+    if (/^\d{4}[-._]?\d{2}[-._]?\d{2}$/.test(clean)) return;
+    if (GENERIC_SKIP_TERMS.has(clean)) return;
+    candidates.add(clean);
+  };
+
+  add(doc.title);
+  // Strip leading date/kind prefix from filename (e.g. 2025-03-01_收盘复盘_情绪冰点 -> 情绪冰点)
+  const base = path.basename(doc.card, ".md");
+  const stripped = base
+    .replace(/^\d{4}[-._]\d{2}[-._]\d{2}[_\-\s]*/, "")
+    .replace(/^[^_\-\s]+[_\-\s]+/, "");
+  if (stripped && stripped !== base) add(stripped);
+
+  // Split title by common delimiters (：/｜/—/-) to catch concise concept handles (len >= 3)
+  for (const part of doc.title.split(/[：:|｜—\-]/)) {
+    const trimmed = part.trim();
+    if (trimmed.length >= 3 && trimmed.length <= 16) add(trimmed);
+  }
+
+  return [...candidates];
+}
+
 async function scanSources(sourceRoot: string): Promise<{ rel: string; full: string; carrier: CarrierKind }[]> {
   const out: { rel: string; full: string; carrier: CarrierKind }[] = [];
   const visit = async (dir: string, relPrefix: string) => {
@@ -161,15 +223,17 @@ async function scanSources(sourceRoot: string): Promise<{ rel: string; full: str
 }
 
 /**
- * Built-in Obsidian Bi-directional Vault Builder (v2).
+ * Built-in Obsidian Bi-directional Vault Builder (v3).
  * - Multi-year timeline hierarchy: 10-时间轴/YYYY年.md -> YYYY-MM.md -> 10-每日/YYYY-MM-DD.md
- * - Auto-concept linking for untagged multi-year legacy notes
- * - Playbook back-sync: mirrors workspace/manuals/*.md into 40-交易手册/ so rules link back to source cards
+ * - Customizable concept taxonomy for untagged multi-year legacy notes
+ * - Playbook back-sync: mirrors workspace/manuals/*.md into 40-交易手册/
+ * - Native Obsidian Unlinked Mentions scanner across all cards, topics, and manuals
  */
 export async function buildVault(
   sourceRoot: string,
   vaultRoot: string,
   manualsRoot?: string,
+  conceptRules: ConceptRule[] = DEFAULT_CONCEPT_RULES,
 ): Promise<VaultIndex> {
   await mkdir(sourceRoot, { recursive: true });
   await mkdir(vaultRoot, { recursive: true });
@@ -181,6 +245,7 @@ export async function buildVault(
 
   const found = await scanSources(sourceRoot);
   const documents: VaultDoc[] = [];
+  const rawSourceTextByCard = new Map<string, string>();
   const cardContents = new Map<string, string>();
   const fileMeta = new Map<string, { title: string; nodeType: VaultNodeType; eventDate?: string | null }>();
 
@@ -207,8 +272,10 @@ export async function buildVault(
     const kind = detectKind(item.rel);
     const tags = text ? extractTags(text) : [];
     const wikilinks = text ? extractWikiLinks(text) : [];
-    const autoConcepts = text ? extractAutoConcepts(text) : [];
+    const autoConcepts = text ? extractAutoConcepts(text, conceptRules) : [];
     const cardFile = `20-卡片/${safeFileName(baseName)}.md`;
+
+    if (text) rawSourceTextByCard.set(cardFile, text);
 
     documents.push({
       doc_id: docId,
@@ -281,17 +348,13 @@ export async function buildVault(
 
   // 1) Write 20-卡片/*.md
   for (const doc of documents) {
-    const srcFull = path.join(sourceRoot, doc.source_rel);
+    const rawText = rawSourceTextByCard.get(doc.card) ?? "";
     let excerpt = "";
-    if (doc.carrier === "md" || doc.carrier === "txt") {
-      try {
-        excerpt = decodeText(await readFile(srcFull))
-          .text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
-          .trim()
-          .slice(0, 1600);
-      } catch {
-        excerpt = "";
-      }
+    if ((doc.carrier === "md" || doc.carrier === "txt") && rawText) {
+      excerpt = rawText
+        .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+        .trim()
+        .slice(0, 1600);
     }
 
     const allConceptNames = [...new Set([...doc.tags, ...doc.auto_concepts, ...doc.wikilinks])]
@@ -330,11 +393,11 @@ export async function buildVault(
     }
     lines.push("", "---", "");
     if (doc.carrier === "pdf") {
-      lines.push("> 本条目为 PDF 原件，可在上方切换「查看 PDF 原件」直接内嵌阅读，并在「阶段提炼」中逐页提取正文供大模型归纳。");
+      lines.push("> 本条目为 PDF 原件，可在上方切换「PDF 原件」直接内嵌阅读，并在「阶段提炼」中逐页提取正文供大模型归纳。");
     } else if (excerpt) {
       lines.push(excerpt);
     } else {
-      lines.push("> 点击上方「查看原文」查看完整内容。");
+      lines.push("> 点击上方「原始笔记」查看完整内容。");
     }
 
     const md = lines.join("\n") + "\n";
@@ -373,7 +436,7 @@ export async function buildVault(
     fileMeta.set(rel, { title: `${day}`, nodeType: "timeline", eventDate: day });
   }
 
-  // 3) Write 10-时间轴/YYYY年.md & YYYY-MM.md (Multi-Year Hierarchy!)
+  // 3) Write 10-时间轴/YYYY年.md & YYYY-MM.md
   const years = [...byYear.keys()].sort().reverse();
   const timelineTree: TimelineYearNode[] = [];
 
@@ -456,7 +519,7 @@ export async function buildVault(
       "",
       `# 主题双链：${topic}`,
       "",
-      `以下 **${tDocs.length}** 篇复盘（含跨年记录与自动主题识别）关联到 \`#${topic}\`：`,
+      `以下 **${tDocs.length}** 篇复盘（含跨年记录与自定义词典匹配）关联到 \`#${topic}\`：`,
       "",
       ...tDocs.map(
         (d) =>
@@ -471,7 +534,7 @@ export async function buildVault(
     fileMeta.set(rel, { title: `#${topic}`, nodeType: "topic" });
   }
 
-  // 5) Sync 40-交易手册/*.md from workspace/manuals/ so Playbooks link back into the Obsidian Graph!
+  // 5) Sync 40-交易手册/*.md from workspace/manuals/
   let manualsCount = 0;
   const manualRels: Array<{ rel: string; title: string }> = [];
   if (manualsRoot) {
@@ -504,13 +567,13 @@ export async function buildVault(
     "",
     ...(years.length > 0
       ? years.map((y) => `- [[10-时间轴/${y}年|${y} 年复盘档案]]（${byYear.get(y)!.length} 篇）`)
-      : ["- 暂无带日期的复盘笔记，可点击左侧「导入笔记」或一键载入示例库。"]),
+      : ["- 暂无带日期的复盘笔记，可点击左侧「导入」或一键载入示例库。"]),
     "",
-    "## 二、核心交易主题双链（自动聚合 + 手动标签）",
+    "## 二、核心交易主题双链（自定义词典 + 手动标签）",
     "",
     ...(topics.length > 0
       ? topics.map((t) => `- [[30-主题/${t}|#${t}]]（${byTopic.get(t)!.length} 篇）`)
-      : ["- 导入笔记后系统会自动提取交易主题（情绪周期/买点结构/财务质量/排雷等）并建立双向链接。"]),
+      : ["- 导入笔记后系统会根据你的主题词典自动建立双向链接。"]),
     "",
     "## 三、已沉淀个人交易手册（反向回链历史案例）",
     "",
@@ -556,6 +619,79 @@ export async function buildVault(
     }
   }
 
+  // 8) Scan Obsidian Unlinked Mentions across source notes
+  const searchableDocs = documents
+    .map((doc) => {
+      const raw = rawSourceTextByCard.get(doc.card);
+      if (!raw || (doc.carrier !== "md" && doc.carrier !== "txt")) return null;
+      const masked = maskLinkedAndCodeRegions(raw);
+      return { doc, raw, maskedLower: masked.toLowerCase() };
+    })
+    .filter((x): x is { doc: VaultDoc; raw: string; maskedLower: string } => Boolean(x));
+
+  const targetTerms: Array<{ rel: string; terms: string[] }> = [];
+  for (const topic of topics) {
+    if (topic.length >= 2 && !GENERIC_SKIP_TERMS.has(topic)) {
+      targetTerms.push({ rel: `30-主题/${topic}.md`, terms: [topic] });
+    }
+  }
+  for (const doc of documents) {
+    const terms = deriveCardMatchTerms(doc);
+    if (terms.length > 0) targetTerms.push({ rel: doc.card, terms });
+  }
+  for (const m of manualRels) {
+    if (m.title.length >= 3) targetTerms.push({ rel: m.rel, terms: [m.title] });
+  }
+
+  const unlinked: Record<string, UnlinkedMention[]> = {};
+  let totalUnlinked = 0;
+
+  for (const target of targetTerms) {
+    const linkedInSet = new Set(links[target.rel]?.in ?? []);
+    const hits: UnlinkedMention[] = [];
+
+    for (const src of searchableDocs) {
+      if (src.doc.card === target.rel) continue;
+      if (linkedInSet.has(src.doc.card)) continue;
+
+      let bestMatch: { term: string; idx: number; count: number } | null = null;
+      for (const term of target.terms) {
+        const needle = term.toLowerCase();
+        const firstIdx = src.maskedLower.indexOf(needle);
+        if (firstIdx < 0) continue;
+
+        let count = 1;
+        let pos = firstIdx + needle.length;
+        while (pos < src.maskedLower.length) {
+          const next = src.maskedLower.indexOf(needle, pos);
+          if (next < 0) break;
+          count++;
+          pos = next + needle.length;
+        }
+        if (!bestMatch || term.length > bestMatch.term.length) {
+          bestMatch = { term, idx: firstIdx, count };
+        }
+      }
+
+      if (bestMatch) {
+        const exactSlice = src.raw.slice(bestMatch.idx, bestMatch.idx + bestMatch.term.length);
+        hits.push({
+          source: src.doc.card,
+          sourceTitle: src.doc.title,
+          match: exactSlice,
+          snippet: buildSnippet(src.raw, bestMatch.idx, bestMatch.term.length),
+          count: bestMatch.count,
+        });
+        if (hits.length >= MAX_UNLINKED_PER_NODE) break;
+      }
+    }
+
+    if (hits.length > 0) {
+      unlinked[target.rel] = hits;
+      totalUnlinked += hits.length;
+    }
+  }
+
   const files: VaultFileItem[] = allRels.map((rel) => {
     const meta = fileMeta.get(rel);
     return {
@@ -568,7 +704,7 @@ export async function buildVault(
   });
 
   const index: VaultIndex = {
-    schema: "tradeloom-vault@v2",
+    schema: "tradeloom-vault@v3",
     built_at: new Date().toISOString(),
     counts: {
       total: documents.length,
@@ -579,6 +715,7 @@ export async function buildVault(
       topics: topics.length,
       manuals: manualsCount,
       links: totalLinks,
+      unlinked: totalUnlinked,
     },
     documents,
     days,
@@ -589,6 +726,7 @@ export async function buildVault(
     timelineTree,
     files,
     links,
+    unlinked,
   };
 
   await writeAtomic(path.join(vaultRoot, "index.json"), JSON.stringify(index, null, 2));

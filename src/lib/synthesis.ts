@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
+import { loadConceptRules } from "./concepts";
 import { decodeText } from "./convert";
 import { extractPdfText } from "./pdf";
 import { callChatCompletion, loadProviderConfig } from "./provider";
@@ -593,7 +594,8 @@ export async function runStageSynthesis(args: {
   const paths = await ensureWorkspace();
   await writeAtomic(path.join(paths.manuals, `${id}.json`), JSON.stringify(report, null, 2));
   await writeAtomic(path.join(paths.manuals, `${id}.md`), exportReportToObsidianMarkdown(report));
-  await buildVault(paths.sources, paths.vault, paths.manuals);
+  const { rules } = await loadConceptRules();
+  await buildVault(paths.sources, paths.vault, paths.manuals, rules);
 
   return { ok: true, report };
 }
@@ -703,7 +705,8 @@ export async function deleteSavedManual(id: string): Promise<boolean> {
     }
   }
   if (deleted) {
-    await buildVault(paths.sources, paths.vault, paths.manuals);
+    const { rules } = await loadConceptRules();
+    await buildVault(paths.sources, paths.vault, paths.manuals, rules);
   }
   return deleted;
 }

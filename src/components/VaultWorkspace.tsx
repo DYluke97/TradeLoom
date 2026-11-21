@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   BookOpen,
@@ -13,9 +14,11 @@ import {
   Hash,
   Link2,
   Network,
+  PlusCircle,
   RefreshCw,
   Save,
   Search,
+  SlidersHorizontal,
   Sparkles,
   Upload,
   X,
@@ -24,7 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MarkdownView from "@/components/MarkdownView";
 import ObsidianGraph from "@/components/ObsidianGraph";
 import type { ParsedMarkdown } from "@/lib/markdown";
-import type { VaultDoc, VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
+import type { UnlinkedMention, VaultDoc, VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
 
 type DocResponse = {
   ok: boolean;
@@ -38,6 +41,7 @@ type DocResponse = {
   sha256: string;
   fileUrl?: string;
   links: { out: string[]; in: string[] };
+  unlinked?: UnlinkedMention[];
   error?: string;
 };
 
@@ -56,6 +60,21 @@ function FileNodeIcon({ type }: { type: VaultNodeType }) {
   }
 }
 
+function HighlightSnippet({ snippet, match }: { snippet: string; match: string }) {
+  const lower = snippet.toLowerCase();
+  const idx = lower.indexOf(match.toLowerCase());
+  if (idx < 0) return <>{snippet}</>;
+  return (
+    <>
+      {snippet.slice(0, idx)}
+      <mark className="rounded bg-[var(--amber-soft)] px-0.5 text-[var(--amber)]">
+        {snippet.slice(idx, idx + match.length)}
+      </mark>
+      {snippet.slice(idx + match.length)}
+    </>
+  );
+}
+
 export default function VaultWorkspace() {
   const searchParams = useSearchParams();
   const paramCard = searchParams.get("card");
@@ -70,13 +89,14 @@ export default function VaultWorkspace() {
   const [docData, setDocData] = useState<DocResponse | null>(null);
   const [query, setQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [showUnlinked, setShowUnlinked] = useState(true);
+  const [linkingKey, setLinkingKey] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sync URL query params (from Ctrl+K switcher or ribbon Graph icon)
   useEffect(() => {
     if (paramCard) {
       setActiveCard(paramCard);
@@ -188,7 +208,7 @@ export default function VaultWorkspace() {
       const data = await res.json();
       if (data.ok && data.index) {
         setIndex(data.index);
-        setStatusMsg(`导入完成：成功 ${data.succeeded}/${data.total} 份，双链与时间轴索引已更新。`);
+        setStatusMsg(`导入完成：成功 ${data.succeeded}/${data.total} 份，双链与未链接提及索引已更新。`);
         const firstDoc = data.index.documents?.[0];
         if (firstDoc) openCard(firstDoc.card);
       } else {
@@ -202,7 +222,7 @@ export default function VaultWorkspace() {
 
   async function handleAction(action: "rebuild" | "load-samples") {
     setBusy(true);
-    setStatusMsg(action === "load-samples" ? "正在载入示例复盘..." : "正在重建 Obsidian 双链索引...");
+    setStatusMsg(action === "load-samples" ? "正在载入示例复盘..." : "正在按当前主题词典重建双链索引...");
     try {
       const res = await fetch("/api/vault", {
         method: "POST",
@@ -245,6 +265,34 @@ export default function VaultWorkspace() {
     }
   }
 
+  async function handleConvertUnlinked(mention: UnlinkedMention) {
+    const key = `${mention.source}::${mention.match}`;
+    setLinkingKey(key);
+    try {
+      const res = await fetch("/api/vault/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceCard: mention.source,
+          targetRel: activeCard,
+          match: mention.match,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (data.index) setIndex(data.index);
+        await loadDoc(activeCard, centerMode === "source" ? "source" : "card");
+        setStatusMsg(
+          `已将《${mention.sourceTitle}》中的「${mention.match}」转为 [[双链]]，原件已备份至 ${data.backup}`,
+        );
+      } else {
+        setStatusMsg(data.error || "转为双链失败");
+      }
+    } finally {
+      setLinkingKey(null);
+    }
+  }
+
   const groupedFiles = useMemo(() => {
     const q = query.trim().toLowerCase();
     const groups = new Map<string, VaultFileItem[]>();
@@ -258,6 +306,7 @@ export default function VaultWorkspace() {
   }, [index, query]);
 
   const breadcrumbParts = activeCard.split("/");
+  const unlinkedList = docData?.unlinked ?? [];
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-[var(--bg)]">
@@ -269,10 +318,17 @@ export default function VaultWorkspace() {
             文件浏览器
           </span>
           <div className="flex items-center gap-0.5">
+            <Link
+              href="/settings?tab=concepts"
+              title="自定义主题词典并重新编排双链"
+              className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+            </Link>
             <button
               type="button"
               onClick={() => setCenterMode((m) => (m === "graph" ? "card" : "graph"))}
-              title="切换全局关系图谱"
+              title="切换全局力导向图谱"
               className={`rounded p-1.5 transition ${
                 centerMode === "graph"
                   ? "bg-[var(--accent-soft)] text-[var(--accent)]"
@@ -285,7 +341,7 @@ export default function VaultWorkspace() {
               type="button"
               onClick={() => handleAction("rebuild")}
               disabled={busy}
-              title="重新扫描源文件并构建双链索引"
+              title="重新扫描源文件并重建双链索引"
               className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
@@ -337,7 +393,7 @@ export default function VaultWorkspace() {
         </div>
 
         {/* Collapsible Obsidian Folder Tree */}
-        <div className="flex-1 overflow-y-auto px-1.5 py-2 space-y-1">
+        <div className="flex-1 space-y-1 overflow-y-auto px-1.5 py-2">
           {groupedFiles.map(([group, items]) => {
             const collapsed = Boolean(collapsedGroups[group]) && !query.trim();
             return (
@@ -391,7 +447,7 @@ export default function VaultWorkspace() {
         </div>
       </aside>
 
-      {/* CENTER PANE: Obsidian Multi-Tab Canvas (Reading / Source / Global Graph) */}
+      {/* CENTER PANE: Obsidian Multi-Tab Canvas */}
       <section className="flex min-w-0 flex-1 flex-col bg-[var(--bg)]">
         {/* Note Tabs Strip */}
         <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-2 pt-1">
@@ -436,7 +492,7 @@ export default function VaultWorkspace() {
               }`}
             >
               <Network className="h-3 w-3" />
-              关系图谱
+              力导向图谱
             </button>
           </div>
 
@@ -567,10 +623,10 @@ export default function VaultWorkspace() {
         )}
       </section>
 
-      {/* RIGHT PANE: Obsidian Local Graph + Backlinks + Outgoing Links */}
-      <aside className="hidden w-[304px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] xl:flex">
-        {/* Local Graph View */}
-        <div className="h-[250px] shrink-0 border-b border-[var(--border)]">
+      {/* RIGHT PANE: Force-Directed Local Graph + Backlinks + Unlinked Mentions + Outgoing */}
+      <aside className="hidden w-[312px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] xl:flex">
+        {/* Local Physics Graph */}
+        <div className="h-[252px] shrink-0 border-b border-[var(--border)]">
           <ObsidianGraph
             index={index}
             activeRel={activeCard}
@@ -580,9 +636,9 @@ export default function VaultWorkspace() {
           />
         </div>
 
-        {/* Scrollable Backlinks & Outgoing Links */}
-        <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)]">
-          {/* Backlinks (Linked Mentions) */}
+        {/* Scrollable Inspector */}
+        <div className="flex-1 divide-y divide-[var(--border)] overflow-y-auto">
+          {/* 1. Backlinks (Linked Mentions) */}
           <div className="p-3.5">
             <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
               <span className="flex items-center gap-1.5">
@@ -613,7 +669,70 @@ export default function VaultWorkspace() {
             </div>
           </div>
 
-          {/* Outgoing Links */}
+          {/* 2. Native Obsidian Unlinked Mentions */}
+          <div className="p-3.5">
+            <button
+              type="button"
+              onClick={() => setShowUnlinked((s) => !s)}
+              className="flex w-full items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]"
+            >
+              <span className="flex items-center gap-1.5">
+                {showUnlinked ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-[var(--amber)]" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-[var(--amber)]" />
+                )}
+                未链接提及 · Unlinked
+              </span>
+              <span className="rounded bg-[var(--amber-soft)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--amber)]">
+                {unlinkedList.length}
+              </span>
+            </button>
+
+            {showUnlinked && (
+              <div className="mt-2 space-y-2">
+                {unlinkedList.length === 0 ? (
+                  <div className="text-xs text-[var(--ink-dim)]">暂无待连接的潜在提及</div>
+                ) : (
+                  unlinkedList.map((m) => {
+                    const key = `${m.source}::${m.match}`;
+                    const isLinking = linkingKey === key;
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openCard(m.source)}
+                            className="truncate font-medium text-[var(--ink)] hover:text-[var(--accent)]"
+                          >
+                            {m.sourceTitle}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLinking}
+                            onClick={() => handleConvertUnlinked(m)}
+                            title={`在《${m.sourceTitle}》中将「${m.match}」一键转为 Obsidian [[双链]]`}
+                            className="inline-flex shrink-0 items-center gap-1 rounded border border-[var(--amber)]/40 bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--amber)] transition hover:bg-[var(--amber)]/25 disabled:opacity-50"
+                          >
+                            <PlusCircle className="h-3 w-3" />
+                            {isLinking ? "链接中..." : "转为双链"}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
+                          <HighlightSnippet snippet={m.snippet} match={m.match} />
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Outgoing Links */}
           <div className="p-3.5">
             <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
               <span className="flex items-center gap-1.5">
@@ -644,11 +763,16 @@ export default function VaultWorkspace() {
             </div>
           </div>
 
-          {/* Auto-extracted Trading Concepts & Source Meta */}
+          {/* 4. Auto-extracted Concepts & Meta */}
           {docData?.doc && (
-            <div className="p-3.5 text-xs space-y-2 text-[var(--ink-muted)]">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-dim)]">
-                自动识别概念 & 元信息
+            <div className="space-y-2 p-3.5 text-xs text-[var(--ink-muted)]">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-dim)]">
+                  词典识别主题 & 元信息
+                </span>
+                <Link href="/settings?tab=concepts" className="text-[10px] text-[var(--cyan)] hover:underline">
+                  编辑词典
+                </Link>
               </div>
               {docData.doc.auto_concepts?.length > 0 && (
                 <div className="flex flex-wrap gap-1">
@@ -665,7 +789,9 @@ export default function VaultWorkspace() {
                 </div>
               )}
               <div className="space-y-1 pt-1 text-[11px] text-[var(--ink-dim)]">
-                <div>类型：{docData.doc.kind} · {docData.doc.carrier.toUpperCase()}</div>
+                <div>
+                  类型：{docData.doc.kind} · {docData.doc.carrier.toUpperCase()}
+                </div>
                 <div className="truncate font-mono">源文件：{docData.doc.source_rel}</div>
                 <div className="font-mono">SHA256：{docData.doc.sha256.slice(0, 12)}</div>
               </div>

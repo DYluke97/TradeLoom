@@ -1,11 +1,18 @@
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { loadConceptRules } from "./concepts";
 import { carrierOf, convertFile, guessTitle, MAX_INPUT_BYTES } from "./convert";
-import { buildVault, type VaultDoc, type VaultIndex } from "./vault-builder";
+import { buildVault, wrapFirstUnlinkedOccurrence, type VaultDoc, type VaultIndex } from "./vault-builder";
 import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
 
 const sha = (buf: Buffer | string) => createHash("sha256").update(buf).digest("hex");
+
+async function buildVaultWithUserConcepts(): Promise<VaultIndex> {
+  const paths = await ensureWorkspace();
+  const { rules } = await loadConceptRules();
+  return buildVault(paths.sources, paths.vault, paths.manuals, rules);
+}
 
 export async function loadOrBuildVault(): Promise<{ index: VaultIndex; workspaceRoot: string; vaultDir: string; sourceDir: string }> {
   const paths = await ensureWorkspace();
@@ -13,20 +20,19 @@ export async function loadOrBuildVault(): Promise<{ index: VaultIndex; workspace
   if (await fileExists(indexPath)) {
     try {
       const raw = JSON.parse(await readFile(indexPath, "utf8")) as VaultIndex;
-      if (raw && raw.schema === "tradeloom-vault@v2" && Array.isArray(raw.documents)) {
+      if (raw && raw.schema === "tradeloom-vault@v3" && Array.isArray(raw.documents)) {
         return { index: raw, workspaceRoot: paths.root, vaultDir: paths.vault, sourceDir: paths.sources };
       }
     } catch {
       /* rebuild below */
     }
   }
-  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
+  const index = await buildVaultWithUserConcepts();
   return { index, workspaceRoot: paths.root, vaultDir: paths.vault, sourceDir: paths.sources };
 }
 
 export async function rebuildVault(): Promise<VaultIndex> {
-  const paths = await ensureWorkspace();
-  return buildVault(paths.sources, paths.vault, paths.manuals);
+  return buildVaultWithUserConcepts();
 }
 
 /**
@@ -43,7 +49,7 @@ export async function loadSampleReviews(): Promise<{ copied: number; index: Vaul
     await copyFile(path.join(sampleDir, entry.name), dest);
     copied++;
   }
-  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
+  const index = await buildVaultWithUserConcepts();
   return { copied, index };
 }
 
@@ -142,9 +148,51 @@ export async function saveOriginalSource(
 
   const nextBuf = Buffer.from(newText, "utf8");
   await writeAtomic(full, nextBuf);
-  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
+  const index = await buildVaultWithUserConcepts();
 
   return { ok: true, sha256: sha(nextBuf), bytes: nextBuf.byteLength, backup: backupRel, index };
+}
+
+/**
+ * Converts an Obsidian Unlinked Mention inside `sourceDoc` into a real `[[target|match]]` wikilink,
+ * backing up the original source into `.vault-history/` before atomic write and vault rebuild.
+ */
+export async function materializeUnlinkedMention(args: {
+  sourceCard: string;
+  targetRel: string;
+  match: string;
+}): Promise<
+  | { ok: true; backup: string; index: VaultIndex }
+  | { ok: false; status: number; error: string }
+> {
+  const { index } = await loadOrBuildVault();
+  const sourceDoc = index.documents.find((d) => d.card === args.sourceCard);
+  if (!sourceDoc) {
+    return { ok: false, status: 404, error: "找不到来源笔记" };
+  }
+  if (sourceDoc.carrier !== "md" && sourceDoc.carrier !== "txt") {
+    return { ok: false, status: 400, error: "仅支持在 Markdown / TXT 源文件中插入双链" };
+  }
+  if (!index.files.some((f) => f.rel === args.targetRel)) {
+    return { ok: false, status: 404, error: "找不到目标卡片" };
+  }
+
+  const src = await readOriginalSource(sourceDoc.source_rel);
+  if (!src || !src.utf8 || src.text === null) {
+    return { ok: false, status: 400, error: "源文件非 UTF-8 文本，无法自动插入双链" };
+  }
+
+  const targetWithoutExt = args.targetRel.replace(/\.md$/, "");
+  const wrapped = wrapFirstUnlinkedOccurrence(src.text, args.match, targetWithoutExt);
+  if (!wrapped.changed) {
+    return { ok: false, status: 409, error: "原文中已不存在未链接的匹配词，可能已建立链接" };
+  }
+
+  const saved = await saveOriginalSource(sourceDoc, wrapped.nextText, src.sha256);
+  if (!saved.ok) {
+    return { ok: false, status: saved.status, error: saved.error };
+  }
+  return { ok: true, backup: saved.backup, index: saved.index };
 }
 
 function sanitizeFileName(raw: string): string {
@@ -183,7 +231,7 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
   if (carrier === "pdf") {
     const destRel = `_导入/${datePrefix}${safeBase}.pdf`;
     await writeAtomic(path.join(paths.sources, destRel), buf);
-    const index = await buildVault(paths.sources, paths.vault, paths.manuals);
+    const index = await buildVaultWithUserConcepts();
     return { ok: true, sourceRel: destRel, carrier: "pdf", warnings: [], index };
   }
 
@@ -214,7 +262,7 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
 
   const destRel = `_导入/${datePrefix}${safeBase}.md`;
   await writeAtomic(path.join(paths.sources, destRel), mdBody);
-  const index = await buildVault(paths.sources, paths.vault, paths.manuals);
+  const index = await buildVaultWithUserConcepts();
 
   return { ok: true, sourceRel: destRel, carrier, warnings: converted.warnings, index };
 }

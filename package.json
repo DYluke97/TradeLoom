@@ -1,6 +1,6 @@
 {
   "name": "tradeloom",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Weave scattered trading reviews into an Obsidian bi-directional vault, methodology evolution timeline, and personal trading playbook.",
   "license": "MIT",
   "private": false,

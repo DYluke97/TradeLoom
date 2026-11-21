@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
   const doc = index.documents.find((d) => d.card === card) ?? null;
   const linkInfo = index.links[card] ?? { out: [], in: [] };
+  const unlinked = index.unlinked?.[card] ?? [];
 
   if (mode === "source" && doc) {
     if (doc.carrier === "pdf") {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
         parsed: null,
         sha256: doc.sha256,
         links: linkInfo,
+        unlinked,
         fileUrl: `/api/vault/file?card=${encodeURIComponent(card)}`,
       });
     }
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
       sha256: src.sha256,
       bytes: src.bytes,
       links: linkInfo,
+      unlinked,
     });
   }
 
@@ -69,6 +72,7 @@ export async function GET(request: NextRequest) {
     parsed: parseMarkdown(loaded.text),
     sha256: loaded.sha256,
     links: linkInfo,
+    unlinked,
   });
 }
 

@@ -373,16 +373,14 @@ async function resolveFeishuUrl(parsed: URL): Promise<ResolvedCloudDoc> {
       eventDate = formatChinaDateFromEpoch(Number(timeMatch[1]));
     }
 
-    // Parse full structured block_map from clientVars
-    const cvIdx = html.indexOf("clientVars:");
-    if (cvIdx >= 0) {
-      const jsonStr = extractBalancedJsonObject(html, cvIdx);
+    // Parse full structured block_map from `clientVars: Object({"data":{"block_map":{...}}})`
+    // Note: an earlier script sets `clientVars: undefined`, so anchor directly on `"block_map":{`
+    const bmIdx = html.indexOf('"block_map":{');
+    if (bmIdx >= 0) {
+      const jsonStr = extractBalancedJsonObject(html, bmIdx + '"block_map":'.length);
       if (jsonStr) {
         try {
-          const clientVars = JSON.parse(jsonStr) as {
-            data?: { block_map?: Record<string, FeishuBlock> };
-          };
-          const blockMap = clientVars?.data?.block_map;
+          const blockMap = JSON.parse(jsonStr) as Record<string, FeishuBlock>;
           if (blockMap && Object.keys(blockMap).length > 0) {
             const parsedDoc = parseFeishuBlockMapToMarkdown(blockMap);
             if (parsedDoc.md.length > 0) {
@@ -397,7 +395,7 @@ async function resolveFeishuUrl(parsed: URL): Promise<ResolvedCloudDoc> {
             }
           }
         } catch {
-          /* fall through to DOM */
+          /* fall through */
         }
       }
     }

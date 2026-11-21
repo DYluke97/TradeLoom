@@ -8,10 +8,17 @@ import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic
 
 const sha = (buf: Buffer | string) => createHash("sha256").update(buf).digest("hex");
 
+let vaultBuildQueue: Promise<unknown> = Promise.resolve();
+
 async function buildVaultWithUserConcepts(): Promise<VaultIndex> {
-  const paths = await ensureWorkspace();
-  const { rules } = await loadConceptRules();
-  return buildVault(paths.sources, paths.vault, paths.manuals, rules);
+  const run = async (): Promise<VaultIndex> => {
+    const paths = await ensureWorkspace();
+    const { rules } = await loadConceptRules();
+    return buildVault(paths.sources, paths.vault, paths.manuals, rules);
+  };
+  const next = vaultBuildQueue.then(run, run);
+  vaultBuildQueue = next.catch(() => {});
+  return next;
 }
 
 export async function loadOrBuildVault(): Promise<{ index: VaultIndex; workspaceRoot: string; vaultDir: string; sourceDir: string }> {

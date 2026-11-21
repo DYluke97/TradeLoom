@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import {
+  extractBalancedJsonObject,
+  formatChinaDateFromEpoch,
+  resolveCloudPlatformUrl,
+} from "./cloud-resolvers";
 import { decodeText, guessTitle, htmlToMd } from "./convert";
 import { rebuildVault } from "./vault";
 import type { VaultIndex } from "./vault-builder";
 import { ensureWorkspace, writeAtomic } from "./workspace";
 
-const MAX_URL_BYTES = 4 * 1024 * 1024;
+// WeChat articles often exceed 3.6 MB of inline CSS/JS; allow up to 10 MB safely.
+const MAX_URL_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 12_000;
 
 function sanitizeSlug(raw: string): string {
@@ -20,14 +26,14 @@ function sanitizeSlug(raw: string): string {
 }
 
 function normalizeDate(raw?: string): string {
-  if (!raw) return new Date().toISOString().slice(0, 10);
+  if (!raw) return formatChinaDateFromEpoch(Date.now());
   const m = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/.exec(raw.trim());
-  if (!m) return new Date().toISOString().slice(0, 10);
+  if (!m) return formatChinaDateFromEpoch(Date.now());
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
   if (y < 2000 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) {
-    return new Date().toISOString().slice(0, 10);
+    return formatChinaDateFromEpoch(Date.now());
   }
   return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
@@ -40,7 +46,8 @@ export function detectPlatformFromUrl(rawUrl: string): string {
     if (host.includes("yuque.com")) return "语雀";
     if (host.includes("xueqiu.com")) return "雪球";
     if (host.includes("note.youdao.com") || host.includes("youdao.com")) return "有道云笔记";
-    if (host.includes("yinxiang.com") || host.includes("evernote.com")) return "印象笔记";
+    if (host.includes("yinxiang.com")) return "印象笔记";
+    if (host.includes("evernote.com")) return "Evernote";
     if (host.includes("dida365.com") || host.includes("ticktick.com")) return "滴答清单";
     if (host.includes("mp.weixin.qq.com")) return "微信公众号";
     if (host.includes("zhihu.com")) return "知乎";
@@ -109,6 +116,12 @@ function decodeHtmlEntities(s: string): string {
     .trim();
 }
 
+function stripHiddenAndJsNoise(html: string): string {
+  return html
+    .replace(/<(p|div|span)\b[^>]*style=["'][^"']*display\s*:\s*none[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<a\b[^>]*href=["']javascript:[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, "");
+}
+
 function extractBalancedElementByAttr(html: string, attrPattern: RegExp): string | null {
   const match = attrPattern.exec(html);
   if (!match || match.index === undefined) return null;
@@ -137,25 +150,139 @@ function extractBalancedElementByAttr(html: string, attrPattern: RegExp): string
   return null;
 }
 
-export type ExtractedArticle = {
-  ok: true;
-  title: string;
-  md: string;
-  eventDate: string;
-  platform: string;
-  warnings: string[];
-} | {
-  ok: false;
-  error: string;
-  requiresLogin?: boolean;
+export type ExtractedArticle =
+  | {
+      ok: true;
+      title: string;
+      md: string;
+      eventDate: string;
+      platform: string;
+      warnings: string[];
+    }
+  | {
+      ok: false;
+      error: string;
+      requiresLogin?: boolean;
+    };
+
+type XueqiuStatusJson = {
+  title?: string;
+  text?: string;
+  created_at?: number;
+  user?: { screen_name?: string };
+  retweeted_status?: {
+    title?: string;
+    text?: string;
+    user?: { screen_name?: string };
+  } | null;
 };
 
 /**
- * Extracts main readable article content from an HTML document, with platform-aware selectors
- * for WeChat Official Accounts, Xueqiu, Yuque, and generic blogs/docs.
+ * Extracts Xueqiu long articles & short posts directly from embedded `window.SNOWMAN_STATUS` JSON:
+ * - Avoids leaked hidden `<p style="display:none;">来源：雪球App...` watermarks
+ * - Preserves `retweeted_status` quoted original posts (which SSR DOM leaves empty)
+ * - Uses accurate Asia/Shanghai (+08:00) publish date from `created_at`
+ */
+function tryExtractXueqiuFromStatusJson(html: string): ExtractedArticle | null {
+  const markerIdx = html.indexOf("SNOWMAN_STATUS");
+  if (markerIdx < 0) return null;
+  const jsonStr = extractBalancedJsonObject(html, markerIdx);
+  if (!jsonStr) return null;
+
+  let status: XueqiuStatusJson;
+  try {
+    status = JSON.parse(jsonStr) as XueqiuStatusJson;
+  } catch {
+    return null;
+  }
+
+  if (!status.text || typeof status.text !== "string") return null;
+  const mainConv = htmlToMd(stripHiddenAndJsNoise(status.text));
+  if (!mainConv.ok) return null;
+
+  const warnings = [...mainConv.warnings];
+  const parts: string[] = [];
+  const author = status.user?.screen_name?.trim();
+  if (author) parts.push(`> 作者：${author}`, "");
+  parts.push(mainConv.md);
+
+  const rt = status.retweeted_status;
+  if (rt?.text && !rt.text.includes("原帖已删除")) {
+    const rtConv = htmlToMd(stripHiddenAndJsNoise(rt.text));
+    if (rtConv.ok && rtConv.md.trim()) {
+      const rtAuthor = rt.user?.screen_name?.trim() || "原帖";
+      const rtHeader = rt.title ? `**转发自 @${rtAuthor}：《${rt.title}》**` : `**转发自 @${rtAuthor}**`;
+      const quoted = rtConv.md
+        .split("\n")
+        .map((line) => (line.trim() ? `> ${line}` : ">"))
+        .join("\n");
+      parts.push("", "---", "", `> ${rtHeader}`, ">", quoted);
+    }
+  }
+
+  const rawTitle = (status.title ?? "").trim();
+  const plainSnippet = mainConv.md
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[#>*`_\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const title =
+    rawTitle ||
+    (author ? `${author}：${plainSnippet.slice(0, 36)}` : plainSnippet.slice(0, 44)) ||
+    "雪球复盘笔记";
+
+  const eventDate = status.created_at
+    ? formatChinaDateFromEpoch(status.created_at)
+    : formatChinaDateFromEpoch(Date.now());
+
+  return {
+    ok: true,
+    title,
+    md: parts.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+    eventDate: eventDate || formatChinaDateFromEpoch(Date.now()),
+    platform: "雪球",
+    warnings,
+  };
+}
+
+/**
+ * Extracts main readable article content from an HTML document, with platform-aware extractors
+ * for Xueqiu (`SNOWMAN_STATUS`), WeChat Official Accounts (`#js_content` + `var ct`), Zhihu (`.Post-RichText`),
+ * Yuque, and generic blogs/docs.
  */
 export function extractArticleFromHtml(html: string, sourceUrl: string): ExtractedArticle {
   const platform = detectPlatformFromUrl(sourceUrl);
+
+  // 0) Reject Zhihu anti-bot JS VM challenge early (avoids false-positive decoy slogan)
+  if (/zh-zse-ck|zse_ck|知乎，让每一次点击都充满意义/i.test(html)) {
+    return {
+      ok: false,
+      requiresLogin: true,
+      error:
+        "知乎触发了人机风控校验（zse_ck），无法通过后端直接抓取。请在已登录浏览器中打开文章，使用「浏览器一键剪藏」或复制正文使用「快捷粘贴入库」。",
+    };
+  }
+
+  // 1) Xueqiu: prefer embedded `window.SNOWMAN_STATUS` JSON over DOM (clean body + quoted retweet + exact +08:00 date)
+  if (platform === "雪球") {
+    const xq = tryExtractXueqiuFromStatusJson(html);
+    if (xq) return xq;
+  }
+
+  // 2) WeChat Official Accounts: fail fast on deleted / violated / captcha pages
+  if (platform === "微信公众号") {
+    const hasJsContent = /id=["']js_content["']/i.test(html);
+    if (
+      !hasJsContent &&
+      /weui-msg__title|此内容因违规无法查看|该内容已被发布者删除|当前环境异常/i.test(html)
+    ) {
+      return {
+        ok: false,
+        requiresLogin: true,
+        error: "该微信公众号文章已被删除、违规下架或触发微信安全验证，无法抓取正文。",
+      };
+    }
+  }
 
   const rawH1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, "") || "";
   const cleanH1 = decodeHtmlEntities(rawH1).replace(/\s+/g, " ").trim();
@@ -171,7 +298,7 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
     .replace(/\s+/g, " ")
     .trim();
 
-  // Prefer concise <h1> when available (avoids Xueqiu <title> concatenating body preview text)
+  // Prefer concise <h1> when available (avoids bloated SEO <title> tags)
   const title =
     cleanH1 && cleanH1.length >= 2 && cleanH1.length <= 80
       ? cleanH1
@@ -183,28 +310,46 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
     /<time[^>]+datetime=["']([^"']+)["']/i.exec(html)?.[1] ||
     "";
 
-  if (!dateHint) {
-    const tsMatch = /"created_at"\s*:\s*(\d{13})/.exec(html);
-    if (tsMatch) {
-      const dt = new Date(Number(tsMatch[1]));
-      if (!Number.isNaN(dt.getTime()) && dt.getUTCFullYear() >= 2000 && dt.getUTCFullYear() <= 2100) {
-        dateHint = dt.toISOString().slice(0, 10);
-      }
+  // WeChat publish timestamp: `var ct = "1795073863";` or `ori_create_time: '1795073863'`
+  if (!dateHint && platform === "微信公众号") {
+    const ctMatch =
+      /\bvar\s+ct\s*=\s*["'](\d{10})["']/.exec(html) ||
+      /ori_create_time\s*[:=]\s*["']?(\d{10})["']?/.exec(html);
+    if (ctMatch) {
+      dateHint = formatChinaDateFromEpoch(Number(ctMatch[1]));
     }
   }
 
-  // Strip noisy structural chrome before extraction
-  const preCleaned = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
-    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
-    .replace(/<(?:nav|header|footer|aside)\b[\s\S]*?<\/(?:nav|header|footer|aside)>/gi, "");
+  // Generic 13-digit ms timestamp fallback (e.g. Xueqiu created_at when DOM fallback runs)
+  if (!dateHint) {
+    const tsMatch = /"created_at"\s*:\s*(\d{13})/.exec(html);
+    if (tsMatch) {
+      dateHint = formatChinaDateFromEpoch(Number(tsMatch[1]));
+    }
+  }
+
+  // WeChat account nickname
+  let wechatNickname = "";
+  if (platform === "微信公众号") {
+    const nickMatch = /var\s+nickname\s*=\s*htmlDecode\(["']([^"']+)["']\)/.exec(html);
+    if (nickMatch) wechatNickname = decodeHtmlEntities(nickMatch[1]);
+  }
+
+  // Strip noisy structural chrome & hidden anti-copy watermarks before extraction
+  const preCleaned = stripHiddenAndJsNoise(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+      .replace(/<(?:nav|header|footer|aside)\b[\s\S]*?<\/(?:nav|header|footer|aside)>/gi, ""),
+  );
 
   // Platform-specific main body extraction
   const mainChunk =
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*id=["']js_content["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*article__bd__detail[^"']*["'][^>]*>/i) ||
+    extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*Post-RichText[^"']*["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*ne-viewer-body[^"']*["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<article\b[^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<main\b[^>]*>/i) ||
@@ -216,26 +361,37 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
     return {
       ok: false,
       requiresLogin: true,
-      error: `未能从 ${platform} 页面提取到正文（可能是需要登录、动态 JS 渲染或防爬拦截）。建议直接在原页面全选复制后使用「快捷粘贴入库」，或使用「云端连接器 / 浏览器剪藏」。`,
+      error: `未能从 ${platform} 页面提取到正文（可能是需要登录、动态 JS 渲染或防爬拦截）。建议直接在原页面复制后使用「快捷粘贴入库」，或使用「云端连接器 / 浏览器剪藏」。`,
     };
   }
 
   const md = converted.md.trim();
+  const textWithoutPlaceholders = md.replace(/（图[^）]*）/g, "").trim();
+  const isEmptySpaShell =
+    /<div\b[^>]*id=["'](?:root|app|__next|ReactApp|notion-app)["'][^>]*>\s*<\/div>/i.test(html) &&
+    textWithoutPlaceholders.length < 80;
+
   const loginWallPattern =
-    /(请先登录|登录后查看|扫码登录|安全验证|访问过于频繁|Access Denied|Enable JavaScript|验证码)/i;
-  if (md.length < 60 && loginWallPattern.test(md + " " + title)) {
+    /(请先登录|登录后查看|扫码登录|安全验证|访问过于频繁|Access Denied|Enable JavaScript|You need to enable JavaScript|验证码)/i;
+
+  if (
+    isEmptySpaShell ||
+    textWithoutPlaceholders.length < 25 ||
+    (textWithoutPlaceholders.length < 80 && loginWallPattern.test(md + " " + title))
+  ) {
     return {
       ok: false,
       requiresLogin: true,
-      error: `${platform} 页面触发了登录墙或人机校验，无法直接抓取。请在已登录浏览器中复制内容使用「快捷粘贴入库」，或点击「浏览器一键剪藏」。`,
+      error: `${platform} 页面为前端动态渲染或触发了登录校验，未能直接抓取到正文。请在已登录浏览器中复制内容使用「快捷粘贴入库」，或使用「浏览器一键剪藏」。`,
     };
   }
 
+  const finalMd = wechatNickname ? `> 公众号：${wechatNickname}\n\n${md}` : md;
   const eventDate = normalizeDate(dateHint || md.slice(0, 300));
   return {
     ok: true,
     title: title || guessTitle(md, `${platform}复盘`),
-    md,
+    md: finalMd,
     eventDate,
     platform,
     warnings: converted.warnings,
@@ -277,7 +433,7 @@ export async function importPastedReview(
   let bodyMd = (input.content ?? "").trim();
 
   if (input.html && input.html.trim().length > 0) {
-    const converted = htmlToMd(input.html);
+    const converted = htmlToMd(stripHiddenAndJsNoise(input.html));
     if (converted.ok && converted.md.trim().length > 0) {
       bodyMd = converted.md.trim();
       warnings.push(...converted.warnings);
@@ -354,8 +510,9 @@ export async function importPastedReview(
 }
 
 /**
- * Fetches a public web/share URL safely, converts readable article content to Markdown,
- * archives it in `sources/_云端/`, and rebuilds the Obsidian vault.
+ * Fetches a public web/share URL safely:
+ * 1) Runs specialized public API / SSR resolvers for Yuque, Feishu, Notion, Youdao Note, Yinxiang/Evernote.
+ * 2) Falls back to SSRF-safe HTML/Markdown fetch with specialized Xueqiu/WeChat/Zhihu extractors.
  */
 export async function importFromUrl(input: {
   url: string;
@@ -368,6 +525,29 @@ export async function importFromUrl(input: {
     return { ok: false, status: 400, error: valid.error };
   }
 
+  // 1) Specialized public platform resolvers (Yuque / Feishu / Notion / Youdao / Yinxiang / Evernote)
+  const resolved = await resolveCloudPlatformUrl(valid.href);
+  if (resolved.ok) {
+    return importPastedReview({
+      title: input.title?.trim() || resolved.title,
+      content: resolved.md,
+      eventDate: input.eventDate || resolved.eventDate,
+      sourcePlatform: resolved.platform,
+      sourceUrl: valid.href,
+      tags: input.tags,
+      folder: "_云端",
+    });
+  }
+  if (resolved.handled) {
+    return {
+      ok: false,
+      status: 422,
+      error: resolved.error,
+      requiresLogin: resolved.requiresLogin,
+    };
+  }
+
+  // 2) Generic SSRF-safe HTML / Markdown fetch (WeChat, Xueqiu, GitHub raw, Blogs, etc.)
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -386,17 +566,21 @@ export async function importFromUrl(input: {
 
     if (!res.ok) {
       const platform = detectPlatformFromUrl(valid.href);
+      const zhihuHint =
+        platform === "知乎"
+          ? "知乎触发了反爬风控校验（HTTP 403），无法直接后端抓取。请在浏览器打开文章后使用「浏览器一键剪藏」或复制正文使用「快捷粘贴入库」。"
+          : `${platform} 返回 HTTP ${res.status}，无法直接抓取。若该页面需要登录或有反爬限制，请复制内容使用「快捷粘贴入库」或「浏览器一键剪藏」。`;
       return {
         ok: false,
         status: 422,
         requiresLogin: res.status === 401 || res.status === 403,
-        error: `${platform} 返回 HTTP ${res.status}，无法直接抓取。若该页面需要登录或有反爬限制，请复制内容使用「快捷粘贴入库」或「浏览器一键剪藏」。`,
+        error: zhihuHint,
       };
     }
 
     const arrayBuf = await res.arrayBuffer();
     if (arrayBuf.byteLength > MAX_URL_BYTES) {
-      return { ok: false, status: 413, error: "网页体积超过 4 MB 上限" };
+      return { ok: false, status: 413, error: "网页体积超过 10 MB 上限" };
     }
 
     const buf = Buffer.from(arrayBuf);

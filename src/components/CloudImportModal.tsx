@@ -29,7 +29,7 @@ const PLATFORMS = [
 
 function buildBookmarklet(origin: string): string {
   const endpoint = `${origin}/api/vault/clip`;
-  const code = `(async()=>{const s=window.getSelection&&window.getSelection().toString().trim();const el=document.querySelector('#js_content,.article__bd__detail,.ne-viewer-body,article,main')||document.body;const payload={title:document.title,url:location.href,html:s?'':el.innerHTML,text:s||el.innerText};try{const r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();alert(d.ok?'已剪藏到 TradeLoom：'+d.title:'剪藏失败：'+(d.error||r.status));}catch(e){alert('无法连接本地 TradeLoom (${origin})，请确认服务已启动');}})();`;
+  const code = `(async()=>{const s=window.getSelection&&window.getSelection().toString().trim();const el=document.querySelector('#js_content,.article__bd__detail,.Post-RichText,.ennote,.ne-viewer-body,article,main')||document.body;const payload={title:document.title,url:location.href,html:s?'':el.innerHTML,text:s||el.innerText};try{const r=await fetch(${JSON.stringify(endpoint)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();alert(d.ok?'已剪藏到 TradeLoom：'+d.title:'剪藏失败：'+(d.error||r.status));}catch(e){alert('无法连接本地 TradeLoom (${origin})，请确认服务已启动');}})();`;
   return `javascript:${encodeURIComponent(code)}`;
 }
 
@@ -347,7 +347,17 @@ export default function CloudImportModal({
           {tab === "url" && (
             <form onSubmit={handleUrlSubmit} className="space-y-4">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/90 p-3 text-xs leading-6 text-[var(--ink-muted)]">
-                支持抓取 <strong className="text-[var(--ink)]">公开可访问</strong> 的复盘或文章链接：微信公众号、雪球公开帖、语雀公开页、公开 Notion / 飞书分享页、知乎专栏、GitHub Raw Markdown 与个人博客。
+                已深度适配 <strong className="text-[var(--cyan)]">7 大主流平台公开链接直抓</strong>：
+                <strong className="text-[var(--ink)]">雪球</strong>（含转发原帖）、
+                <strong className="text-[var(--ink)]">微信公众号</strong>、
+                <strong className="text-[var(--ink)]">语雀</strong>、
+                <strong className="text-[var(--ink)]">飞书公开文档</strong>、
+                <strong className="text-[var(--ink)]">Notion 公开页</strong>、
+                <strong className="text-[var(--ink)]">有道云笔记公开分享</strong>、
+                <strong className="text-[var(--ink)]">印象笔记公开分享</strong>（以及 GitHub Raw 与博客）。
+                <span className="text-[var(--ink-dim)]">
+                  （知乎与 Evernote 国际版因人机风控，推荐使用「快捷粘贴」或「浏览器剪藏」）
+                </span>
               </div>
 
               <div>

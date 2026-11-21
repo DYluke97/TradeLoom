@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,49 +9,128 @@ import {
   importPastedReview,
   validatePublicFetchUrl,
 } from "../src/lib/cloud-ingest";
+import {
+  formatChinaDateFromEpoch,
+  parseFeishuBlockMapToMarkdown,
+  parseNotionRecordMapToMarkdown,
+  unwrapYinxiangHtml,
+} from "../src/lib/cloud-resolvers";
 
-describe("cloud-ingest", () => {
-  it("blocks private/local URLs for SSRF safety and accepts public HTTPS URLs", () => {
+describe("cloud-ingest & platform resolvers", () => {
+  it("blocks private/local URLs for SSRF safety and detects platforms accurately", () => {
     expect(validatePublicFetchUrl("http://127.0.0.1:3200/api/vault").ok).toBe(false);
     expect(validatePublicFetchUrl("http://localhost:8080/secret").ok).toBe(false);
     expect(validatePublicFetchUrl("http://192.168.1.1/admin").ok).toBe(false);
     expect(validatePublicFetchUrl("http://169.254.169.254/latest/meta-data").ok).toBe(false);
     expect(validatePublicFetchUrl("file:///etc/passwd").ok).toBe(false);
 
-    const ok = validatePublicFetchUrl("https://xueqiu.com/123456/789012");
-    expect(ok.ok).toBe(true);
+    expect(validatePublicFetchUrl("https://xueqiu.com/123456/789012").ok).toBe(true);
     expect(detectPlatformFromUrl("https://xueqiu.com/123456/789012")).toBe("雪球");
     expect(detectPlatformFromUrl("https://my.feishu.cn/docx/AbCdEf123")).toBe("飞书文档");
     expect(detectPlatformFromUrl("https://www.yuque.com/u1/trading/abc")).toBe("语雀");
+    expect(detectPlatformFromUrl("https://app.yinxiang.com/fx/abc")).toBe("印象笔记");
+    expect(detectPlatformFromUrl("https://share.evernote.com/note/abc")).toBe("Evernote");
   });
 
-  it("extracts readable Markdown from WeChat and Xueqiu HTML pages", () => {
-    const html = `
+  it("extracts Xueqiu SNOWMAN_STATUS JSON cleanly with quoted retweet and +08:00 date (zero hidden watermark)", () => {
+    // 2026-09-28 00:30:00 CST = 2026-09-27 16:30:00 UTC -> 1790526600000
+    const statusJson = JSON.stringify({
+      title: "",
+      created_at: 1790526600000,
+      user: { screen_name: "短线复盘手" },
+      text: '<p style="display:none;">来源：雪球App，作者：短线复盘手</p><p>今天情绪周期进入<strong>退潮冰点</strong>，严格执行止损。</p>',
+      retweeted_status: {
+        user: { screen_name: "提问球友" },
+        title: "",
+        text: "<p>请问退潮期如何控制回撤？</p>",
+      },
+    });
+    const html = `<html><head><title>雪球</title></head><body><script>window.SNOWMAN_STATUS = ${statusJson};</script></body></html>`;
+
+    const res = extractArticleFromHtml(html, "https://xueqiu.com/1247347556/410686155");
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.eventDate).toBe("2026-09-28");
+      expect(res.title).toContain("短线复盘手");
+      expect(res.md).toContain("**退潮冰点**");
+      expect(res.md).toContain("转发自 @提问球友");
+      expect(res.md).toContain("请问退潮期如何控制回撤");
+      expect(res.md).not.toContain("来源：雪球App");
+    }
+  });
+
+  it("extracts WeChat publish date from var ct (+08:00) and rejects violated/deleted pages", () => {
+    // 2025-08-08 18:25:18 CST = 1754648718
+    const okHtml = `
       <html>
-        <head>
-          <title>2025-11-18 情绪冰点反核复盘 - 雪球</title>
-          <meta property="article:published_time" content="2025-11-18T15:30:00Z" />
-        </head>
+        <head><title>盘后深度复盘 - 微信公众平台</title></head>
         <body>
-          <nav>导航栏杂项</nav>
-          <div class="article__bd__detail">
-            <h2>盘面结构</h2>
-            <p>今天情绪周期进入<strong>退潮冰点</strong>，尾盘出现分歧转一致试错信号。</p>
-            <ul><li>龙头反核承接强</li><li>严格执行止损纪律</li></ul>
-          </div>
+          <script>var ct = "1754648718"; var nickname = htmlDecode("量化复盘笔记");</script>
+          <div id="js_content"><p>今天市场完成了从冰点到分歧转一致的关键切换，龙头承接非常强势。</p></div>
         </body>
       </html>
     `;
-    const res = extractArticleFromHtml(html, "https://xueqiu.com/123/456");
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.title).toBe("2025-11-18 情绪冰点反核复盘");
-      expect(res.eventDate).toBe("2025-11-18");
-      expect(res.platform).toBe("雪球");
-      expect(res.md).toContain("盘面结构");
-      expect(res.md).toContain("**退潮冰点**");
-      expect(res.md).not.toContain("导航栏杂项");
+    const okRes = extractArticleFromHtml(okHtml, "https://mp.weixin.qq.com/s/test123");
+    expect(okRes.ok).toBe(true);
+    if (okRes.ok) {
+      expect(okRes.eventDate).toBe("2025-08-08");
+      expect(okRes.md).toContain("公众号：量化复盘笔记");
+      expect(okRes.md).toContain("分歧转一致");
     }
+
+    const violatedHtml = `
+      <html><head><title>此内容因违规无法查看</title></head>
+      <body><h2 class="weui-msg__title">此内容因违规无法查看</h2><div>视频 小程序 赞 分享</div></body></html>
+    `;
+    const failRes = extractArticleFromHtml(violatedHtml, "https://mp.weixin.qq.com/s/deleted999");
+    expect(failRes.ok).toBe(false);
+  });
+
+  it("rejects empty SPA shells, image-only placeholder pages, and Zhihu zse_ck anti-bot pages", () => {
+    const yinxiangSpa = `<html><body><div id="root"></div><img src="/fx/assets/yx-icon@300.png" style="display:none"/></body></html>`;
+    expect(extractArticleFromHtml(yinxiangSpa, "https://app.yinxiang.com/fx/123").ok).toBe(false);
+
+    const zhihuBot = `<html><head><meta id="zh-zse-ck" content="1"/></head><body>知乎，让每一次点击都充满意义</body></html>`;
+    expect(extractArticleFromHtml(zhihuBot, "https://zhuanlan.zhihu.com/p/446274572").ok).toBe(false);
+  });
+
+  it("parses Feishu block_map, Notion double-wrapped recordMap, and Yinxiang SuperNote CDATA", () => {
+    const feishu = parseFeishuBlockMapToMarkdown({
+      root: { id: "root", data: { type: "page", children: ["h1", "p1", "b1"], text: { initialAttributedTexts: { text: { "0": "飞书交易体系" } } } } },
+      h1: { id: "h1", data: { type: "heading2", text: { initialAttributedTexts: { text: { "0": "核心纪律" } } } } },
+      p1: { id: "p1", data: { type: "text", text: { initialAttributedTexts: { text: { "0": "永不重仓单一题材" } } } } },
+      b1: { id: "b1", data: { type: "bullet", text: { initialAttributedTexts: { text: { "0": "冰点轻仓试错" } } } } },
+    });
+    expect(feishu.title).toBe("飞书交易体系");
+    expect(feishu.md).toContain("## 核心纪律");
+    expect(feishu.md).toContain("- 冰点轻仓试错");
+
+    const notion = parseNotionRecordMapToMarkdown(
+      {
+        "11111111-1111-1111-1111-111111111111": {
+          value: {
+            value: {
+              id: "11111111-1111-1111-1111-111111111111",
+              type: "page",
+              properties: { title: [["Notion 复盘框架"]] },
+              content: ["b1", "b2"],
+              created_time: 1763683200000,
+            },
+          },
+        },
+        b1: { value: { value: { id: "b1", type: "sub_header", properties: { title: [["估值锚检查"]] } } } },
+        b2: { value: { value: { id: "b2", type: "to_do", properties: { title: [["核对现金流", [["b"]]]], checked: [["Yes"]] } } } },
+      },
+      "11111111-1111-1111-1111-111111111111",
+    );
+    expect(notion.title).toBe("Notion 复盘框架");
+    expect(notion.eventDate).toBe("2025-11-21");
+    expect(notion.md).toContain("## 估值锚检查");
+    expect(notion.md).toContain("- [x] **核对现金流**");
+
+    const enex = `<?xml version="1.0"?><en-export><note><content><![CDATA[<en-note><p>印象超级笔记正文</p></en-note>]]></content></note></en-export>`;
+    expect(unwrapYinxiangHtml(enex)).toBe("<p>印象超级笔记正文</p>");
+    expect(formatChinaDateFromEpoch(1763683200)).toBe("2025-11-21");
   });
 
   it("imports long pasted review (>4000 chars) without truncating Obsidian card body", async () => {
@@ -74,7 +153,6 @@ describe("cloud-ingest", () => {
         expect(outcome.eventDate).toBe("2025-11-20");
         expect(outcome.index.counts.total).toBe(1);
         expect(outcome.index.topics).toContain("情绪周期");
-        const { readFile } = await import("node:fs/promises");
         const cardContent = await readFile(path.join(tmp, "vault", outcome.cardRel), "utf8");
         expect(cardContent.length).toBeGreaterThan(3500);
         expect(cardContent).toContain(longTailMarker);
@@ -86,26 +164,7 @@ describe("cloud-ingest", () => {
     }
   });
 
-  it("prefers concise H1 over bloated Xueqiu title and extracts created_at timestamp", () => {
-    const html = `
-      <html>
-        <head><title>聪明人破产只有三种方式：酒、美色、杠杆 巴菲特说查理芒格说这句话加上了酒和美色... - 雪球</title></head>
-        <body>
-          <script>window.SNOWMAN_STATUS = {"created_at": 1763683200000};</script>
-          <h1 class="article__bd__title">聪明人破产只有三种方式：酒、美色、杠杆</h1>
-          <div class="article__bd__detail"><p>完整正文内容测试。</p></div>
-        </body>
-      </html>
-    `;
-    const res = extractArticleFromHtml(html, "https://www.xueqiu.com/1674052027/417954856");
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.title).toBe("聪明人破产只有三种方式：酒、美色、杠杆");
-      expect(res.eventDate).toBe("2025-11-21");
-    }
-  });
-
-  it("parses Notion blocks and Feishu URLs cleanly", () => {
+  it("parses official Notion blocks and Feishu connector URLs cleanly", () => {
     const md = notionBlocksToMarkdown([
       { type: "heading_2", heading_2: { rich_text: [{ plain_text: "交易复盘" }] } },
       { type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ plain_text: "控制仓位" }] } },

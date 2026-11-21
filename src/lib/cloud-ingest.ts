@@ -157,20 +157,41 @@ export type ExtractedArticle = {
 export function extractArticleFromHtml(html: string, sourceUrl: string): ExtractedArticle {
   const platform = detectPlatformFromUrl(sourceUrl);
 
-  const ogTitle =
+  const rawH1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, "") || "";
+  const cleanH1 = decodeHtmlEntities(rawH1).replace(/\s+/g, " ").trim();
+
+  const ogOrDocTitle =
     /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i.exec(html)?.[1] ||
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i.exec(html)?.[1] ||
     /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ||
-    /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, "") ||
     "";
 
-  const title = decodeHtmlEntities(ogTitle).replace(/\s*[-–_|·]\s*(雪球|语雀|飞书云文档|Notion|知乎|微信公众平台).*$/i, "").trim();
+  const cleanDocTitle = decodeHtmlEntities(ogOrDocTitle)
+    .replace(/\s*[-–_|·]\s*(雪球|语雀|飞书云文档|Notion|知乎|微信公众平台).*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const dateHint =
+  // Prefer concise <h1> when available (avoids Xueqiu <title> concatenating body preview text)
+  const title =
+    cleanH1 && cleanH1.length >= 2 && cleanH1.length <= 80
+      ? cleanH1
+      : cleanDocTitle.slice(0, 80);
+
+  let dateHint =
     /<meta[^>]+(?:property|name)=["'](?:article:published_time|publishdate|pubdate|date)["'][^>]+content=["']([^"']+)["']/i.exec(html)?.[1] ||
     /var\s+publish_time\s*=\s*["'](\d{4}-\d{2}-\d{2})/i.exec(html)?.[1] ||
     /<time[^>]+datetime=["']([^"']+)["']/i.exec(html)?.[1] ||
     "";
+
+  if (!dateHint) {
+    const tsMatch = /"created_at"\s*:\s*(\d{13})/.exec(html);
+    if (tsMatch) {
+      const dt = new Date(Number(tsMatch[1]));
+      if (!Number.isNaN(dt.getTime()) && dt.getUTCFullYear() >= 2000 && dt.getUTCFullYear() <= 2100) {
+        dateHint = dt.toISOString().slice(0, 10);
+      }
+    }
+  }
 
   // Strip noisy structural chrome before extraction
   const preCleaned = html

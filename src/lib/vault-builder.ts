@@ -346,15 +346,22 @@ export async function buildVault(
     byTopic.delete(base);
   }
 
-  // 1) Write 20-卡片/*.md
+  // 1) Write 20-卡片/*.md (preserve complete note body so long reviews & cloud articles are never truncated)
+  const MAX_CARD_BODY_CHARS = 200_000;
   for (const doc of documents) {
     const rawText = rawSourceTextByCard.get(doc.card) ?? "";
-    let excerpt = "";
+    let fullBody = "";
     if ((doc.carrier === "md" || doc.carrier === "txt") && rawText) {
-      excerpt = rawText
+      fullBody = rawText
         .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
-        .trim()
-        .slice(0, 1600);
+        .replace(/^#\s+.+\r?\n+/, "")
+        .trim();
+      if (fullBody.length > MAX_CARD_BODY_CHARS) {
+        const cutAt = fullBody.lastIndexOf("\n", MAX_CARD_BODY_CHARS);
+        fullBody =
+          fullBody.slice(0, cutAt > MAX_CARD_BODY_CHARS * 0.8 ? cutAt : MAX_CARD_BODY_CHARS) +
+          "\n\n> （正文超过 20 万字，请切换上方「原始笔记」查看完整原文）";
+      }
     }
 
     const allConceptNames = [...new Set([...doc.tags, ...doc.auto_concepts, ...doc.wikilinks])]
@@ -394,8 +401,8 @@ export async function buildVault(
     lines.push("", "---", "");
     if (doc.carrier === "pdf") {
       lines.push("> 本条目为 PDF 原件，可在上方切换「PDF 原件」直接内嵌阅读，并在「阶段提炼」中逐页提取正文供大模型归纳。");
-    } else if (excerpt) {
-      lines.push(excerpt);
+    } else if (fullBody) {
+      lines.push(fullBody);
     } else {
       lines.push("> 点击上方「原始笔记」查看完整内容。");
     }

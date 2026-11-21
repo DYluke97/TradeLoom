@@ -54,17 +54,19 @@ describe("cloud-ingest", () => {
     }
   });
 
-  it("imports pasted rich HTML review into workspace and rebuilds Obsidian bi-directional vault", async () => {
+  it("imports long pasted review (>4000 chars) without truncating Obsidian card body", async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), "tradeloom-cloud-"));
     const prevDir = process.env.TRADELOOM_WORKSPACE_DIR;
     process.env.TRADELOOM_WORKSPACE_DIR = tmp;
     try {
+      const longTailMarker = "结尾完整校验标记_END_OF_LONG_ARTICLE_999";
+      const longBody = `${"复盘段落：严格控制仓位与杠杆，关注情绪周期与股息率估值锚。\n\n".repeat(140)}${longTailMarker}`;
       const outcome = await importPastedReview({
-        title: "飞书盘后复盘测试",
-        html: "<h1>飞书盘后复盘测试</h1><p>今日观察到<strong>情绪周期</strong>切换与<strong>龙头战法</strong>回流。</p>",
+        title: "长文复盘完整性测试",
+        content: longBody,
         eventDate: "2025-11-20",
-        sourcePlatform: "飞书文档",
-        tags: ["龙头战法", "情绪周期"],
+        sourcePlatform: "雪球",
+        tags: ["仓位与止损", "估值锚"],
       });
 
       expect(outcome.ok).toBe(true);
@@ -72,12 +74,34 @@ describe("cloud-ingest", () => {
         expect(outcome.eventDate).toBe("2025-11-20");
         expect(outcome.index.counts.total).toBe(1);
         expect(outcome.index.topics).toContain("情绪周期");
-        expect(outcome.index.topics).toContain("龙头战法");
+        const { readFile } = await import("node:fs/promises");
+        const cardContent = await readFile(path.join(tmp, "vault", outcome.cardRel), "utf8");
+        expect(cardContent.length).toBeGreaterThan(3500);
+        expect(cardContent).toContain(longTailMarker);
       }
     } finally {
       if (prevDir === undefined) delete process.env.TRADELOOM_WORKSPACE_DIR;
       else process.env.TRADELOOM_WORKSPACE_DIR = prevDir;
       await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers concise H1 over bloated Xueqiu title and extracts created_at timestamp", () => {
+    const html = `
+      <html>
+        <head><title>聪明人破产只有三种方式：酒、美色、杠杆 巴菲特说查理芒格说这句话加上了酒和美色... - 雪球</title></head>
+        <body>
+          <script>window.SNOWMAN_STATUS = {"created_at": 1763683200000};</script>
+          <h1 class="article__bd__title">聪明人破产只有三种方式：酒、美色、杠杆</h1>
+          <div class="article__bd__detail"><p>完整正文内容测试。</p></div>
+        </body>
+      </html>
+    `;
+    const res = extractArticleFromHtml(html, "https://www.xueqiu.com/1674052027/417954856");
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.title).toBe("聪明人破产只有三种方式：酒、美色、杠杆");
+      expect(res.eventDate).toBe("2025-11-21");
     }
   });
 

@@ -750,16 +750,19 @@ export default function ObsidianGraph({
       return;
     }
 
-    if (panRef.current && svgRef.current) {
-      const dist = Math.hypot(e.clientX - panRef.current.startClientX, e.clientY - panRef.current.startClientY);
-      if (dist > 4) panRef.current.moved = true;
+    const pan = panRef.current;
+    if (pan && svgRef.current) {
+      const dist = Math.hypot(e.clientX - pan.startClientX, e.clientY - pan.startClientY);
+      if (dist > 4) pan.moved = true;
       const rect = svgRef.current.getBoundingClientRect();
-      const dx = ((e.clientX - panRef.current.startClientX) / Math.max(rect.width, 1)) * width;
-      const dy = ((e.clientY - panRef.current.startClientY) / Math.max(rect.height, 1)) * height;
+      const dx = ((e.clientX - pan.startClientX) / Math.max(rect.width, 1)) * width;
+      const dy = ((e.clientY - pan.startClientY) / Math.max(rect.height, 1)) * height;
+      const nextX = pan.origX + dx;
+      const nextY = pan.origY + dy;
       setTransform((prev) => ({
         ...prev,
-        x: panRef.current!.origX + dx,
-        y: panRef.current!.origY + dy,
+        x: nextX,
+        y: nextY,
       }));
     }
   };

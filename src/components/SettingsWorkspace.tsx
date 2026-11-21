@@ -77,6 +77,7 @@ export default function SettingsWorkspace() {
       const data = await res.json();
       if (data.ok) {
         setStatus(data.status);
+        if (data.status?.url) setUrl(data.status.url);
         setApiKey("");
         setMsg("配置已安全保存至本地 workspace/config.json（已被 .gitignore 隔离）。");
       } else {

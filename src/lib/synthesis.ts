@@ -9,7 +9,7 @@ import { getSkillById, type SkillSpec } from "./skills";
 import { buildVault, type VaultDoc } from "./vault-builder";
 import { ensureWorkspace, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
 
-export const MAX_OUTBOUND_CHARS = 32_000;
+export const MAX_OUTBOUND_CHARS = 80_000;
 export const MAX_SELECTED_DOCS = 50;
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
@@ -370,7 +370,7 @@ export function buildSynthesisPrompt(args: {
   userLines.push("===== 证据目录（evidence_ids 只能填以下 ID）=====");
   for (const e of args.evidence) {
     userLines.push(
-      `${e.evidence_id} | 日期=${e.event_date ?? "未知"}${e.page ? ` 第${e.page}页` : ""} | 《${e.title}》：${e.quote.slice(0, 260)}`,
+      `${e.evidence_id} | 日期=${e.event_date ?? "未知"}${e.page ? ` 第${e.page}页` : ""} | 《${e.title}》：${e.quote.slice(0, 140)}`,
     );
   }
 
@@ -539,7 +539,7 @@ export async function runStageSynthesis(args: {
     stageTitle: args.stageTitle,
   });
 
-  const llm = await callChatCompletion({ config, system, user, jsonMode: true });
+  const llm = await callChatCompletion({ config, system, user, jsonMode: true, timeoutMs: 150_000 });
   if (!llm.ok) {
     return { ok: false, status: 502, error: llm.error };
   }

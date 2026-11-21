@@ -45,6 +45,23 @@ export const PROVIDER_PRESETS = [
   },
 ] as const;
 
+export function normalizeChatCompletionsUrl(parsed: URL): URL {
+  const out = new URL(parsed.href);
+  const cleanPath = out.pathname.replace(/\/+$/, "");
+  if (/\/(chat\/completions|completions|responses)$/i.test(cleanPath)) {
+    return out;
+  }
+  if (cleanPath === "") {
+    out.pathname = "/v1/chat/completions";
+    return out;
+  }
+  if (/(\/v\d+(?:alpha\d*|beta\d*)?|\/openai|\/compatible-mode\/v\d+|\/api\/v\d+|\/api\/paas\/v\d+)$/i.test(cleanPath)) {
+    out.pathname = `${cleanPath}/chat/completions`;
+    return out;
+  }
+  return out;
+}
+
 export function validateProviderUrl(rawUrl: string): { ok: true; href: string; isLocal: boolean } | { ok: false; error: string } {
   const trimmed = rawUrl.trim();
   if (!trimmed) return { ok: false, error: "API 地址不能为空" };
@@ -60,7 +77,8 @@ export function validateProviderUrl(rawUrl: string): { ok: true; href: string; i
     if (parsed.username || parsed.password) {
       return { ok: false, error: "请不要在 URL 中嵌入用户名或密码" };
     }
-    return { ok: true, href: parsed.href, isLocal };
+    const normalized = normalizeChatCompletionsUrl(parsed);
+    return { ok: true, href: normalized.href, isLocal };
   } catch {
     return { ok: false, error: "API 地址不是合法的 URL" };
   }
@@ -225,7 +243,10 @@ export async function callChatCompletion(args: {
     const text = await res.text();
     if (!res.ok) {
       const safeSnippet = text.slice(0, 240).replace(args.config.apiKey || "___NONE___", "[REDACTED]");
-      return { ok: false, error: `模型接口返回 HTTP ${res.status}：${safeSnippet}` };
+      const modelHint = /model\s*not\s*exist|model_not_found/i.test(safeSnippet)
+        ? "（提示：请检查「设置」中的模型名称，例如 DeepSeek 官方为 deepseek-chat 或 deepseek-reasoner）"
+        : "";
+      return { ok: false, error: `模型接口返回 HTTP ${res.status}：${safeSnippet}${modelHint}` };
     }
 
     const parsed = JSON.parse(text) as {

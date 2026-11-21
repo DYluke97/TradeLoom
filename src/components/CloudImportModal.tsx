@@ -140,6 +140,13 @@ export default function CloudImportModal({
   const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:3200";
   const bookmarkletHref = useMemo(() => buildBookmarklet(origin, clipToken), [origin, clipToken]);
 
+  const parsedUrlCount = useMemo(() => {
+    return urlInput
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter((s) => /https?:\/\//i.test(s)).length;
+  }, [urlInput]);
+
   if (!open) return null;
 
   function handleRichPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -187,12 +194,6 @@ export default function CloudImportModal({
     }
   }
 
-  const parsedUrlCount = useMemo(() => {
-    return urlInput
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter((s) => /https?:\/\//i.test(s)).length;
-  }, [urlInput]);
 
   async function handleUrlSubmit(e: React.FormEvent) {
     e.preventDefault();

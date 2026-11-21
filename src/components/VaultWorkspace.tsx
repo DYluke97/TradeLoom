@@ -922,7 +922,14 @@ export default function VaultWorkspace() {
 
       <CloudImportModal
         open={cloudImportOpen}
-        onClose={() => setCloudImportOpen(false)}
+        onClose={() => {
+          setCloudImportOpen(false);
+          if (typeof window !== "undefined" && window.location.search.includes("import=cloud")) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("import");
+            window.history.replaceState(null, "", url.pathname + url.search);
+          }
+        }}
         onImported={(nextIndex, cardRel, message) => {
           setIndex(nextIndex);
           setStatusMsg(message);

@@ -695,8 +695,13 @@ export default function ObsidianGraph({
 
   const handleBgPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
-    if ((e.target as Element).closest("[data-graph-node]")) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    const targetEl = e.target instanceof Element ? e.target : null;
+    if (targetEl?.closest("[data-graph-node]")) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* Precision touchpad tap-to-click may release pointer before handler runs */
+    }
     panRef.current = {
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -709,7 +714,11 @@ export default function ObsidianGraph({
   const handleNodePointerDown = (e: React.PointerEvent<SVGGElement>, rel: string) => {
     e.stopPropagation();
     if (e.button !== 0) return;
-    svgRef.current?.setPointerCapture(e.pointerId);
+    try {
+      svgRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      /* Ignore already-released pointer */
+    }
     const world = clientToWorld(e.clientX, e.clientY);
     const node = nodesRef.current.find((n) => n.rel === rel);
     if (node) {
@@ -786,8 +795,12 @@ export default function ObsidianGraph({
       panRef.current = null;
     }
 
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      /* Ignore if pointer already released */
     }
   };
 

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReportView from "@/components/ReportView";
 import type { MaskedProviderStatus } from "@/lib/provider";
 import type { SkillSpec } from "@/lib/skills";
+import type { PeriodQuantBrief } from "@/lib/ledger-analytics";
 import type { PrecheckSnapshot, SynthesisReport } from "@/lib/synthesis";
 import type { VaultDoc, VaultIndex } from "@/lib/vault-builder";
 
@@ -27,6 +28,8 @@ export default function SynthesizeWorkspace() {
   const [stageTitle, setStageTitle] = useState("");
 
   const [snapshot, setSnapshot] = useState<PrecheckSnapshot | null>(null);
+  const [quantBrief, setQuantBrief] = useState<PeriodQuantBrief | null>(null);
+  const [includeQuantAudit, setIncludeQuantAudit] = useState(true);
   const [report, setReport] = useState<SynthesisReport | null>(null);
   const [loadingPrecheck, setLoadingPrecheck] = useState(false);
   const [running, setRunning] = useState(false);
@@ -143,8 +146,8 @@ export default function SynthesizeWorkspace() {
 
   function buildRequestPayload(mode: "precheck" | "run") {
     return sourceTab === "manuals"
-      ? { mode, manualIds: selectedManualIds, skillId, stageTitle }
-      : { mode, docIds: selectedIds, skillId, stageTitle };
+      ? { mode, manualIds: selectedManualIds, skillId, stageTitle, includeQuantAudit }
+      : { mode, docIds: selectedIds, skillId, stageTitle, includeQuantAudit };
   }
 
   async function handlePrecheck() {
@@ -158,7 +161,10 @@ export default function SynthesizeWorkspace() {
       });
       const data = await res.json();
       if (!data.ok) setError(data.error || "预检失败");
-      else setSnapshot(data.snapshot);
+      else {
+        setSnapshot(data.snapshot);
+        setQuantBrief(data.quantBrief ?? null);
+      }
     } finally {
       setLoadingPrecheck(false);
     }
@@ -583,6 +589,39 @@ export default function SynthesizeWorkspace() {
                   时间范围：{snapshot.date_range.from ?? "—"} ~ {snapshot.date_range.to ?? "—"} · 指纹：
                   {snapshot.fingerprint.slice(0, 12)}
                 </div>
+                {quantBrief ? (
+                  <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[#090f1d] p-2.5 text-[11px] text-[var(--ink)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 font-medium text-[var(--cyan)]">
+                        <input
+                          type="checkbox"
+                          checked={includeQuantAudit}
+                          onChange={(e) => setIncludeQuantAudit(e.target.checked)}
+                          className="accent-[var(--cyan)]"
+                        />
+                        注入同期脱敏实盘账本，开启“文字 × 盈亏”定量证伪
+                      </label>
+                      <span className="font-mono text-[10px] text-[var(--ink-dim)]">仅传百分比，不传绝对资金</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-[var(--ink-muted)]">
+                      <span>对齐 {quantBrief.matchedDays} 天 / {quantBrief.tradeCount} 笔</span>
+                      <span>区间收益 {quantBrief.periodReturnPct > 0 ? "+" : ""}{quantBrief.periodReturnPct}%</span>
+                      <span>MDD {quantBrief.mddPct}%</span>
+                      {quantBrief.excessAlphaPct !== null && (
+                        <span>超额 {quantBrief.excessAlphaPct > 0 ? "+" : ""}{quantBrief.excessAlphaPct}%</span>
+                      )}
+                      {quantBrief.profitFactor !== null && <span>PF {quantBrief.profitFactor}</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-1 text-[11px] text-[var(--ink-dim)]">
+                    提示：当前时间段暂无匹配的实盘账本记录，可前往{" "}
+                    <Link href="/ledger" className="text-[var(--cyan)] hover:underline">
+                      实盘账本
+                    </Link>{" "}
+                    导入交割单或每日净值以开启定量证伪。
+                  </div>
+                )}
               </div>
             )}
 

@@ -7,6 +7,9 @@ export type WorkspacePaths = {
   vault: string;
   manuals: string;
   skills: string;
+  ledger: string;
+  marketCache: string;
+  ledgerFile: string;
   configFile: string;
   conceptsFile: string;
   connectorsFile: string;
@@ -25,6 +28,9 @@ export function getWorkspacePaths(): WorkspacePaths {
     vault: path.join(root, "vault"),
     manuals: path.join(root, "manuals"),
     skills: path.join(root, "skills"),
+    ledger: path.join(root, "ledger"),
+    marketCache: path.join(root, "ledger", "market-cache"),
+    ledgerFile: path.join(root, "ledger", "ledger.json"),
     configFile: path.join(root, "config.json"),
     conceptsFile: path.join(root, "concepts.json"),
     connectorsFile: path.join(root, "connectors.json"),
@@ -39,6 +45,8 @@ export async function ensureWorkspace(): Promise<WorkspacePaths> {
     mkdir(p.vault, { recursive: true }),
     mkdir(p.manuals, { recursive: true }),
     mkdir(p.skills, { recursive: true }),
+    mkdir(p.ledger, { recursive: true }),
+    mkdir(p.marketCache, { recursive: true }),
   ]);
   return p;
 }

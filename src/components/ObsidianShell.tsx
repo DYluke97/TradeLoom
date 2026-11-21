@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
   Calendar,
+  CandlestickChart,
   Command,
   Compass,
   FileText,
@@ -23,6 +24,7 @@ import type { VaultFileItem, VaultIndex } from "@/lib/vault-builder";
 const WORKSPACE_TABS = [
   { href: "/", label: "总览工作台", shortLabel: "总览", icon: Compass },
   { href: "/vault", label: "双链知识库", shortLabel: "知识库", icon: FolderGit2 },
+  { href: "/ledger", label: "实盘账本", shortLabel: "账本", icon: CandlestickChart },
   { href: "/synthesize", label: "阶段提炼", shortLabel: "提炼", icon: Layers },
   { href: "/manuals", label: "个人交易手册", shortLabel: "手册", icon: BookOpen },
   { href: "/settings", label: "模型与 Skill", shortLabel: "设置", icon: Settings },
@@ -107,6 +109,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
       { id: "cmd-cloud-import", label: "云端复盘采集（粘贴 / URL 抓取 / 浏览器剪藏）", sublabel: "从飞书 / Notion / 有道 / 印象 / 雪球 / 语雀快速入库", href: "/vault?import=cloud", kind: "command" },
       { id: "cmd-connectors", label: "配置云端平台直连同步器（Notion / 飞书 / 语雀 / 滴答清单）", sublabel: "BYOK 本地凭证直连拉取云端复盘并重建双链", href: "/settings?tab=connectors", kind: "command" },
       { id: "cmd-concepts", label: "自定义主题词典与双链重排", sublabel: "编辑你自己的交易主题关键词并一键重织双链", href: "/settings?tab=concepts", kind: "command" },
+      { id: "cmd-ledger", label: "打开实盘投资账本（净值曲线 & A股K线买卖点）", sublabel: "导入券商交割单/每日净值、查看个股走势与B/S执行点", href: "/ledger", kind: "command" },
       { id: "cmd-synth", label: "按时间线阶段提炼个人交易手册", sublabel: "选择复盘样本 + 内置短线/基本面 Skill", href: "/synthesize", kind: "command" },
       { id: "cmd-manuals", label: "查看已沉淀的个人交易手册", sublabel: "包含方法演变时间轴与逐字原文溯源", href: "/manuals", kind: "command" },
       { id: "cmd-settings", label: "配置大模型 API 与内置 Skill", sublabel: "DeepSeek / OpenAI / 硅基流动 / Ollama", href: "/settings", kind: "command" },

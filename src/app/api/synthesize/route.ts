@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildPeriodQuantBrief } from "@/lib/ledger";
 import { buildPrecheck, materializeDocs, materializeManuals, runStageSynthesis } from "@/lib/synthesis";
 import { loadOrBuildVault } from "@/lib/vault";
 
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
     manualIds?: string[];
     skillId?: string;
     stageTitle?: string;
+    includeQuantAudit?: boolean;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -47,7 +49,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "所选阶段手册或文档不存在" }, { status: 404 });
     }
     const { snapshot } = buildPrecheck([...matDocs, ...matManuals]);
-    return NextResponse.json({ ok: true, mode: "precheck", snapshot });
+    const quantBrief = await buildPeriodQuantBrief(
+      snapshot.date_range.from ?? undefined,
+      snapshot.date_range.to ?? undefined,
+    ).catch(() => null);
+    return NextResponse.json({ ok: true, mode: "precheck", snapshot, quantBrief });
   }
 
   if (body.stream) {
@@ -67,6 +73,7 @@ export async function POST(request: NextRequest) {
             manualIds,
             skillId: body.skillId || "short-term",
             stageTitle: body.stageTitle,
+            includeQuantAudit: body.includeQuantAudit !== false,
             signal: request.signal,
             onStage: (ev) => send({ type: "progress", ...ev }),
           });
@@ -102,6 +109,7 @@ export async function POST(request: NextRequest) {
     manualIds,
     skillId: body.skillId || "short-term",
     stageTitle: body.stageTitle,
+    includeQuantAudit: body.includeQuantAudit !== false,
     signal: request.signal,
   });
 

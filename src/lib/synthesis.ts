@@ -3,6 +3,7 @@ import { readdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { decodeText } from "./convert";
 import { extractPdfText } from "./pdf";
+import { buildPeriodQuantBrief, type PeriodQuantBrief } from "./ledger";
 import { callChatCompletion, loadProviderConfig } from "./provider";
 import { getSkillById, type SkillSpec } from "./skills";
 import { rebuildVault } from "./vault";
@@ -84,6 +85,7 @@ export type PlaybookRule = {
   counterexample: string;
   lifecycle?: RuleLifecycle;
   conflict_note?: string;
+  quant_warning?: string;
   evidence: EvidenceSlice[];
   known_dates: string[];
 };
@@ -125,6 +127,7 @@ export type SynthesisReport = {
   timeline: TimelineNode[];
   manual: PlaybookRule[];
   discipline_audit?: DisciplineAuditItem[];
+  quant_anchor?: PeriodQuantBrief | null;
   statistics: {
     docs_count: number;
     timeline_count: number;
@@ -474,6 +477,7 @@ export function buildSynthesisPrompt(args: {
   evidence: EvidenceSlice[];
   skill: SkillSpec;
   stageTitle?: string;
+  quantBrief?: PeriodQuantBrief | null;
 }): { system: string; user: string } {
   const hasManualInputs = args.docs.some((d) => d.carrier === "manual");
   const system = [
@@ -484,7 +488,7 @@ export function buildSynthesisPrompt(args: {
     args.skill.content ? `\n===== 内置分析 Skill：${args.skill.name} =====\n${args.skill.content}\n===== Skill 结束 =====` : "",
     "",
     "必须严格遵守以下输出契约（只输出一个合法 JSON 对象，不要 markdown 代码块或额外解释）：",
-    '{"overview":{"summary":"","conditions":[""],"counterexamples":[""]},"timeline":[{"period":"","label":"","change":"","evidence_ids":["ev_..."]}],"manual":[{"id":"M1","title":"","lifecycle":"validated","conflict_note":"","context":"","condition":"","action":"","exit":"","counterexample":"","evidence_ids":["ev_..."]}],"discipline_audit":[{"id":"D1","stated_rule":"","actual_deviation":"","trigger_psychology":"","fix_guardrail":"","evidence_ids":["ev_..."]}]}',
+    '{"overview":{"summary":"","conditions":[""],"counterexamples":[""]},"timeline":[{"period":"","label":"","change":"","evidence_ids":["ev_..."]}],"manual":[{"id":"M1","title":"","lifecycle":"validated","conflict_note":"","quant_warning":"","context":"","condition":"","action":"","exit":"","counterexample":"","evidence_ids":["ev_..."]}],"discipline_audit":[{"id":"D1","stated_rule":"","actual_deviation":"","trigger_psychology":"","fix_guardrail":"","evidence_ids":["ev_..."]}]}',
     "",
     "铁律：",
     "1) 每条 timeline 和 manual 的 evidence_ids 必须严格取自下方「证据目录」中已给出的 evidence_id，禁止编造不存在的 id 或伪造引文。",
@@ -492,8 +496,11 @@ export function buildSynthesisPrompt(args: {
     "3) 原文没有提及的内容不要脑补，绝不编造标的、仓位或收益数字。",
     "4) manual 输出 1–8 条高密度规则，并为每条标注 lifecycle：validated（持续验证有效）、iterated（较早期做法完成认知修正升级，需在 conflict_note 写明修正点）或 deprecated（已被后期实盘大亏证伪或推翻的旧习惯，需在 conflict_note 写明废弃原因）；timeline 输出 1–6 个关键演变节点。",
     "5) discipline_audit（防嘴盘·知行偏离审计，0–4 条）：专门对照作者在复盘中立下的纪律口号（stated_rule）与实盘真实发生的违纪/知行偏离行为（actual_deviation），提炼心理诱因（trigger_psychology）与硬性阻断条款（fix_guardrail），必须附真实 evidence_ids；若原文无违纪偏离证据则输出空数组 []，严禁强行编造。",
+    args.quantBrief
+      ? "6) 【实盘定量交叉证伪】：下方已提供同期脱敏实盘账本统计（仅百分比与比率）。请核对作者在文字里吹捧的策略与同期真实收益、最大回撤、基准超额及个股已实现盈亏%：若某条规则所在阶段实际回撤大、盈亏比 < 1 或纯属跑输基准的牛市 Beta 顺风，务必在对应规则的 quant_warning 字段给出客观定量警示；若实盘验证正向则留空。"
+      : "",
     hasManualInputs
-      ? "6) 二次综合要求：重点提炼跨多个阶段反复验证的铁律（尽量引用多个不同阶段的 evidence_id 形成跨期印证），合并重复规则，并明确指出作者在哪些认知上完成了升级或修正。"
+      ? "7) 二次综合要求：重点提炼跨多个阶段反复验证的铁律（尽量引用多个不同阶段的 evidence_id 形成跨期印证），合并重复规则，并明确指出作者在哪些认知上完成了升级或修正。"
       : "",
   ]
     .filter(Boolean)
@@ -502,6 +509,23 @@ export function buildSynthesisPrompt(args: {
   const userLines: string[] = [];
   if (args.stageTitle?.trim()) {
     userLines.push(`阶段命名：${args.stageTitle.trim()}`, "");
+  }
+  if (args.quantBrief) {
+    const q = args.quantBrief;
+    userLines.push(
+      "===== 同期客观实盘绩效锚点（纯脱敏百分比/比率，不含绝对资金与账号）=====",
+      `覆盖区间：${q.fromDate} ~ ${q.toDate}（${q.matchedDays} 个交易日，${q.tradeCount} 笔成交，对比基准：${q.benchmarkName}）`,
+      `区间收益：${q.periodReturnPct > 0 ? "+" : ""}${q.periodReturnPct}% | 基准收益：${q.benchmarkReturnPct !== null ? (q.benchmarkReturnPct > 0 ? "+" : "") + q.benchmarkReturnPct + "%" : "—"} | 超额 Alpha：${q.excessAlphaPct !== null ? (q.excessAlphaPct > 0 ? "+" : "") + q.excessAlphaPct + "%" : "—"}`,
+      `最大回撤 MDD：${q.mddPct}% | 日胜率：${q.dailyWinRatePct}% | 盈亏比 PF：${q.profitFactor ?? "—"} | 峰值仓位：${q.peakPositionPct !== null ? q.peakPositionPct + "%" : "—"}（融资日 ${q.marginDays} 天）`,
+      q.worstDays.length > 0
+        ? `最大单日回撤日：${q.worstDays.map((d) => `${d.date}(${d.dailyReturnPct}%${d.positionPct ? ",仓位" + d.positionPct + "%" : ""})`).join("、")}`
+        : "",
+      q.stockStats.length > 0
+        ? `核心标的已实现盈亏%：${q.stockStats.map((s) => `${s.name}(${s.symbol}): ${s.realizedPnlPct > 0 ? "+" : ""}${s.realizedPnlPct}%/${s.tradeCount}笔`).join("；")}`
+        : "",
+      "===== 客观实盘锚点结束 =====",
+      "",
+    );
   }
   userLines.push(
     hasManualInputs
@@ -649,6 +673,7 @@ export function parseSynthesisResponse(
       counterexample: asStr(o.counterexample),
       lifecycle: normalizeLifecycle(o.lifecycle),
       conflict_note: asStr(o.conflict_note) || undefined,
+      quant_warning: asStr(o.quant_warning) || undefined,
       evidence: evs,
       known_dates: datesOf(evs),
     });
@@ -702,6 +727,7 @@ export async function runStageSynthesis(args: {
   manualIds?: string[];
   skillId: string;
   stageTitle?: string;
+  includeQuantAudit?: boolean;
   signal?: AbortSignal;
   onStage?: (ev: SynthesisStreamEvent) => void;
 }): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
@@ -730,12 +756,20 @@ export async function runStageSynthesis(args: {
   const hasManuals = packedDocs.some((d) => d.carrier === "manual");
   const sourceMode: "docs" | "manuals" | "mixed" = hasDocs && hasManuals ? "mixed" : hasManuals ? "manuals" : "docs";
 
+  const quantBrief =
+    args.includeQuantAudit === false
+      ? null
+      : await buildPeriodQuantBrief(snapshot.date_range.from ?? undefined, snapshot.date_range.to ?? undefined).catch(
+          () => null,
+        );
+
   const skill = await getSkillById(args.skillId);
   const { system, user } = buildSynthesisPrompt({
     docs: packedDocs,
     evidence,
     skill,
     stageTitle: args.stageTitle,
+    quantBrief,
   });
 
   args.onStage?.({
@@ -814,6 +848,7 @@ export async function runStageSynthesis(args: {
     timeline: parsed.timeline,
     manual: parsed.manual,
     discipline_audit: parsed.discipline_audit,
+    quant_anchor: quantBrief,
     statistics: {
       docs_count: packedDocs.length,
       timeline_count: parsed.timeline.length,
@@ -873,6 +908,19 @@ export function exportReportToObsidianMarkdown(report: SynthesisReport): string 
   if (report.overview.counterexamples.length > 0) {
     lines.push("### 核心反例警示", ...report.overview.counterexamples.map((c) => `- ${c}`), "");
   }
+  if (report.quant_anchor) {
+    const q = report.quant_anchor;
+    const fmt = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+    lines.push(
+      "### 客观实盘量化锚点（交割与净值交叉核验）",
+      "",
+      `- **统计区间**：${q.fromDate} ~ ${q.toDate}（匹配 ${q.matchedDays} 个交易日 / ${q.tradeCount} 笔成交）`,
+      `- **区间收益率**：${fmt(q.periodReturnPct)}${q.excessAlphaPct !== null ? ` ｜ 相对 ${q.benchmarkName} 超额 Alpha：${fmt(q.excessAlphaPct)}` : ""}`,
+      `- **最大回撤（MDD）**：${q.mddPct.toFixed(2)}% ｜ **日胜率**：${q.dailyWinRatePct.toFixed(1)}%${q.profitFactor !== null ? ` ｜ **盈亏比 (PF)**：${q.profitFactor.toFixed(2)}` : ""}`,
+      ...(q.peakPositionPct !== null ? [`- **峰值仓位**：${q.peakPositionPct.toFixed(1)}%${q.marginDays > 0 ? `（含 ${q.marginDays} 日融资/高杠杆记录）` : ""}`] : []),
+      "",
+    );
+  }
 
   lines.push("## 二、方法演变时间轴", "");
   if (report.timeline.length === 0) {
@@ -900,6 +948,7 @@ export function exportReportToObsidianMarkdown(report: SynthesisReport): string 
       `### ${rule.id}：${rule.title}${lifeBadge}`,
       "",
       ...(rule.conflict_note ? [`- **演进与冲突说明**：${rule.conflict_note}`] : []),
+      ...(rule.quant_warning ? [`- **实盘定量核验警示**：${rule.quant_warning}`] : []),
       `- **适用情境（Context）**：${rule.context || "—"}`,
       `- **触发条件（Condition）**：${rule.condition || "—"}`,
       `- **执行动作（Action）**：${rule.action || "—"}`,

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   BookOpen,
   Calendar,
+  CandlestickChart,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -31,6 +32,7 @@ import CloudImportModal from "@/components/CloudImportModal";
 import MarkdownView from "@/components/MarkdownView";
 import ObsidianGraph from "@/components/ObsidianGraph";
 import type { ParsedMarkdown } from "@/lib/markdown";
+import type { LedgerDailySnapshot } from "@/lib/ledger-analytics";
 import type { UnlinkedMention, VaultDoc, VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
 
 type DocResponse = {
@@ -87,6 +89,8 @@ export default function VaultWorkspace() {
 
   const [index, setIndex] = useState<VaultIndex | null>(null);
   const [hasSamples, setHasSamples] = useState(false);
+  const [ledgerByDate, setLedgerByDate] = useState<Record<string, LedgerDailySnapshot>>({});
+  const [ledgerColor, setLedgerColor] = useState<"cn" | "global">("cn");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeCard, setActiveCard] = useState<string>(paramCard || "00-总览.md");
   const [openTabs, setOpenTabs] = useState<string[]>([paramCard || "00-总览.md"]);
@@ -150,6 +154,15 @@ export default function VaultWorkspace() {
 
   useEffect(() => {
     loadIndex();
+    fetch("/api/ledger?mode=lite", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok && d.dailyByDate) {
+          setLedgerByDate(d.dailyByDate);
+          if (d.settings?.colorScheme === "global") setLedgerColor("global");
+        }
+      })
+      .catch(() => {});
   }, [loadIndex]);
 
   useEffect(() => {
@@ -730,11 +743,76 @@ export default function VaultWorkspace() {
                   className="h-[72vh] w-full resize-none rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] p-4 font-mono text-xs leading-6 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
                 />
               ) : docData?.parsed ? (
-                <MarkdownView
-                  parsed={docData.parsed}
+                <>
+                  {docData.doc?.event_date && ledgerByDate[docData.doc.event_date] && (() => {
+                    const snap = ledgerByDate[docData.doc.event_date!];
+                    const upCls = ledgerColor === "cn" ? "text-red-400" : "text-emerald-400";
+                    const downCls = ledgerColor === "cn" ? "text-emerald-400" : "text-red-400";
+                    return (
+                      <div className="mb-5 rounded-xl border border-[var(--cyan)]/35 bg-[#090f1d]/95 p-3.5 text-xs shadow-[0_0_20px_rgba(34,211,238,0.08)]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono">
+                            <span className="inline-flex items-center gap-1.5 font-sans font-semibold text-[var(--cyan)]">
+                              <CandlestickChart className="h-3.5 w-3.5" />
+                              客观实盘锚点 · {snap.date}
+                            </span>
+                            {(snap.nav !== 1 || snap.dailyReturnPct !== 0) && (
+                              <>
+                                <span>
+                                  当日{" "}
+                                  <strong className={snap.dailyReturnPct >= 0 ? upCls : downCls}>
+                                    {snap.dailyReturnPct >= 0 ? "+" : ""}
+                                    {snap.dailyReturnPct.toFixed(2)}%
+                                  </strong>
+                                </span>
+                                <span className="text-[var(--ink-muted)]">净值 {snap.nav.toFixed(4)}</span>
+                                <span className="text-red-300/80">回撤 {snap.drawdownPct.toFixed(2)}%</span>
+                              </>
+                            )}
+                            {snap.positionPct !== undefined && (
+                              <span className={snap.positionPct > 100 ? "font-semibold text-amber-300" : "text-[var(--ink-muted)]"}>
+                                仓位 {snap.positionPct}%{snap.positionPct > 100 ? " (含融)" : ""}
+                              </span>
+                            )}
+                            {snap.excessDailyPct !== undefined && (
+                              <span className={snap.excessDailyPct >= 0 ? "text-[var(--cyan)]" : "text-amber-400"}>
+                                超额 {snap.excessDailyPct >= 0 ? "+" : ""}
+                                {snap.excessDailyPct.toFixed(2)}%
+                              </span>
+                            )}
+                          </div>
+                          <Link href="/ledger" className="text-[11px] text-[var(--cyan)] hover:underline">
+                            打开实盘账本 →
+                          </Link>
+                        </div>
+                        {snap.trades.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
+                            <span className="text-[10px] text-[var(--ink-dim)]">当日交割：</span>
+                            {snap.trades.map((tr, ti) => (
+                              <Link
+                                key={ti}
+                                href={`/ledger?symbol=${encodeURIComponent(tr.symbol)}`}
+                                title="点击查看该股真实 K 线买卖节点"
+                                className="inline-flex items-center gap-1 rounded border border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 font-mono text-[10px] text-[var(--ink)] transition hover:border-[var(--cyan)]/60"
+                              >
+                                <span className={tr.side === "BUY" ? "font-bold text-rose-400" : "font-bold text-sky-400"}>
+                                  {tr.side === "BUY" ? "B" : "S"}
+                                </span>
+                                <span className="font-sans">{tr.name}</span>
+                                <span className="text-[var(--ink-muted)]">¥{tr.price.toFixed(2)}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <MarkdownView
+                    parsed={docData.parsed}
                   onWikiClick={handleWikiClick}
-                  onTagClick={handleTagClick}
-                />
+                    onTagClick={handleTagClick}
+                  />
+                </>
               ) : (
                 <div className="py-16 text-center text-xs text-[var(--ink-dim)]">正在读取双链笔记...</div>
               )}

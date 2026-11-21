@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  CandlestickChart,
   CheckCircle2,
   Clock,
   Copy,
@@ -137,6 +138,48 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
           </div>
         </div>
 
+        {report.quant_anchor && (
+          <div className="mt-4 rounded-xl border border-[var(--cyan)]/35 bg-[#080e1a] p-3.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 font-semibold text-[var(--cyan)]">
+                <CandlestickChart className="h-4 w-4" />
+                阶段客观实盘绩效锚定（{report.quant_anchor.fromDate} ~ {report.quant_anchor.toDate} · 对比 {report.quant_anchor.benchmarkName}）
+              </div>
+              <Link href="/ledger" className="text-[11px] text-[var(--cyan)] hover:underline">
+                在实盘账本查看净值与 K 线 →
+              </Link>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-[var(--ink)]">
+              <span>
+                区间收益{" "}
+                <strong className={report.quant_anchor.periodReturnPct >= 0 ? "text-red-400" : "text-emerald-400"}>
+                  {report.quant_anchor.periodReturnPct > 0 ? "+" : ""}
+                  {report.quant_anchor.periodReturnPct.toFixed(2)}%
+                </strong>
+              </span>
+              {report.quant_anchor.excessAlphaPct !== null && (
+                <span>
+                  超额 Alpha{" "}
+                  <strong className={report.quant_anchor.excessAlphaPct >= 0 ? "text-[var(--cyan)]" : "text-amber-400"}>
+                    {report.quant_anchor.excessAlphaPct > 0 ? "+" : ""}
+                    {report.quant_anchor.excessAlphaPct.toFixed(2)}%
+                  </strong>
+                </span>
+              )}
+              <span className="text-red-300">最大回撤 {report.quant_anchor.mddPct.toFixed(2)}%</span>
+              <span className="text-[var(--ink-muted)]">日胜率 {report.quant_anchor.dailyWinRatePct.toFixed(1)}%</span>
+              {report.quant_anchor.profitFactor !== null && (
+                <span className="text-[var(--accent)]">盈亏比 PF {report.quant_anchor.profitFactor.toFixed(2)}</span>
+              )}
+              {report.quant_anchor.peakPositionPct !== null && (
+                <span className={report.quant_anchor.peakPositionPct > 100 ? "text-amber-300" : "text-[var(--ink-muted)]"}>
+                  峰值仓位 {report.quant_anchor.peakPositionPct.toFixed(0)}%（融资 {report.quant_anchor.marginDays} 天）
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {report.warnings.length > 0 && (
           <div className="mt-4 rounded-lg border border-[var(--amber)]/30 bg-[var(--amber-soft)] p-3 text-xs text-[var(--amber)]">
             <div className="font-medium">证据核验提示：</div>
@@ -246,6 +289,13 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                     <div className="mt-2 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)]/45 px-3 py-2 text-xs leading-5 text-[var(--ink)]">
                       <strong className="text-[var(--cyan)]">认知演进 / 冲突说明：</strong>
                       {rule.conflict_note}
+                    </div>
+                  )}
+
+                  {rule.quant_warning && (
+                    <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
+                      <strong className="text-amber-300">⚠ 实盘绩效核验预警：</strong>
+                      {rule.quant_warning}
                     </div>
                   )}
 

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookOpen,
   Calendar,
+  CandlestickChart,
   CheckCircle2,
   FolderGit2,
   Hash,
@@ -23,14 +24,17 @@ export default function HomeWorkspace() {
   const [vaultDir, setVaultDir] = useState<string>("");
   const [provider, setProvider] = useState<MaskedProviderStatus | null>(null);
   const [manualsCount, setManualsCount] = useState<number>(0);
+  const [monthlyReturnMap, setMonthlyReturnMap] = useState<Record<string, number>>({});
+  const [colorScheme, setColorScheme] = useState<"cn" | "global">("cn");
   const [loadingSample, setLoadingSample] = useState(false);
   const [notice, setNotice] = useState("");
 
   async function refresh() {
-    const [vRes, pRes, mRes] = await Promise.all([
+    const [vRes, pRes, mRes, lRes] = await Promise.all([
       fetch("/api/vault", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/provider", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/manuals", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/ledger?mode=lite", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ ok: false })),
     ]);
     if (vRes.ok) {
       setVault(vRes.index);
@@ -38,6 +42,12 @@ export default function HomeWorkspace() {
     }
     if (pRes.ok) setProvider(pRes.status);
     if (mRes.ok) setManualsCount(Array.isArray(mRes.manuals) ? mRes.manuals.length : 0);
+    if (lRes.ok && Array.isArray(lRes.monthly)) {
+      const mMap: Record<string, number> = {};
+      for (const item of lRes.monthly) mMap[item.month] = item.returnPct;
+      setMonthlyReturnMap(mMap);
+      if (lRes.settings?.colorScheme === "global") setColorScheme("global");
+    }
   }
 
   useEffect(() => {
@@ -136,6 +146,13 @@ export default function HomeWorkspace() {
               >
                 <Network className="h-3.5 w-3.5" />
                 进入全息星图
+              </Link>
+              <Link
+                href="/ledger"
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-400/45 bg-amber-500/10 px-3.5 py-2 text-xs font-medium text-amber-300 transition hover:border-amber-400 hover:bg-amber-500/20"
+              >
+                <CandlestickChart className="h-3.5 w-3.5" />
+                实盘账本 / K线买卖点
               </Link>
               <Link
                 href="/vault?import=cloud"
@@ -244,6 +261,22 @@ export default function HomeWorkspace() {
                         <span className="rounded bg-[var(--accent-soft)] px-1 text-[10px] text-[var(--accent)]">
                           {m.count}
                         </span>
+                        {monthlyReturnMap[m.month] !== undefined && (
+                          <span
+                            className={
+                              monthlyReturnMap[m.month] >= 0
+                                ? colorScheme === "cn"
+                                  ? "font-semibold text-red-400"
+                                  : "font-semibold text-emerald-400"
+                                : colorScheme === "cn"
+                                  ? "font-semibold text-emerald-400"
+                                  : "font-semibold text-red-400"
+                            }
+                          >
+                            {monthlyReturnMap[m.month] >= 0 ? "+" : ""}
+                            {monthlyReturnMap[m.month].toFixed(1)}%
+                          </span>
+                        )}
                       </Link>
                     ))}
                   </div>

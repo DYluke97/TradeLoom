@@ -1,19 +1,21 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Cloud, Hash, KeyRound, PlugZap, Save, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Cloud, Hash, KeyRound, PlugZap, Save, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import CloudConnectorsPanel from "@/components/CloudConnectorsPanel";
 import ConceptTaxonomyEditor from "@/components/ConceptTaxonomyEditor";
 import MarkdownView from "@/components/MarkdownView";
+import SkillStudioPanel from "@/components/SkillStudioPanel";
 import { parseMarkdown } from "@/lib/markdown";
 import type { MaskedProviderStatus } from "@/lib/provider";
 import type { SkillSpec } from "@/lib/skills";
 
 type Preset = { id: string; label: string; url: string; model: string };
-type SettingsTab = "llm" | "concepts" | "connectors";
+type SettingsTab = "llm" | "skills" | "concepts" | "connectors";
 
 function resolveTab(param: string | null): SettingsTab {
+  if (param === "skills") return "skills";
   if (param === "concepts") return "concepts";
   if (param === "connectors") return "connectors";
   return "llm";
@@ -37,7 +39,7 @@ export default function SettingsWorkspace() {
 
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t === "concepts" || t === "connectors" || t === "llm") {
+    if (t === "skills" || t === "concepts" || t === "connectors" || t === "llm") {
       setActiveTab(t);
     }
   }, [searchParams]);
@@ -110,6 +112,7 @@ export default function SettingsWorkspace() {
   }
 
   const activeSkill = skills.find((s) => s.id === activeSkillId) ?? skills[1] ?? skills[0];
+  const customSkillCount = skills.filter((s) => !s.builtin).length;
 
   return (
     <div className="space-y-5">
@@ -125,7 +128,25 @@ export default function SettingsWorkspace() {
           }`}
         >
           <KeyRound className="h-3.5 w-3.5" />
-          大模型 API 与分析 Skill
+          大模型 API
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("skills")}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium transition ${
+            activeTab === "skills"
+              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_0_12px_rgba(124,77,255,0.2)]"
+              : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+          }`}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          分析 Skill 工坊
+          {customSkillCount > 0 && (
+            <span className="rounded-full bg-[var(--cyan-soft)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--cyan)]">
+              +{customSkillCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -155,7 +176,9 @@ export default function SettingsWorkspace() {
         </button>
       </div>
 
-      {activeTab === "concepts" ? (
+      {activeTab === "skills" ? (
+        <SkillStudioPanel initialSkills={skills} onSkillsChange={setSkills} />
+      ) : activeTab === "concepts" ? (
         <ConceptTaxonomyEditor />
       ) : activeTab === "connectors" ? (
         <CloudConnectorsPanel />
@@ -262,14 +285,21 @@ export default function SettingsWorkspace() {
             </form>
           </section>
 
-          {/* Right: Built-in & Custom Skills Inspector */}
+          {/* Right: Built-in & Custom Skills Quick Preview */}
           <section className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-                <h2 className="text-sm font-semibold text-[#f1f2f5]">内置与可扩展 Skill 库（skills/*.md）</h2>
+                <h2 className="text-sm font-semibold text-[#f1f2f5]">已装载分析 Skill（{skills.length}）</h2>
               </div>
-              <span className="font-mono text-[11px] text-[var(--ink-dim)]">支持自由新增 .md 文件</span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("skills")}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--accent)]/50 bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent)] transition hover:brightness-110"
+              >
+                新建 / 克隆魔改 Skill
+                <ArrowRight className="h-3 w-3" />
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -280,13 +310,18 @@ export default function SettingsWorkspace() {
                     key={s.id}
                     type="button"
                     onClick={() => setActiveSkillId(s.id)}
-                    className={`rounded-md border px-3 py-1.5 text-xs transition ${
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition ${
                       activeSkill?.id === s.id
                         ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
                         : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
                     }`}
                   >
-                    {s.name}
+                    <span>{s.name}</span>
+                    {!s.builtin && (
+                      <span className="rounded bg-[var(--cyan-soft)] px-1 py-0.2 text-[9px] text-[var(--cyan)]">
+                        自定义
+                      </span>
+                    )}
                   </button>
                 ))}
             </div>

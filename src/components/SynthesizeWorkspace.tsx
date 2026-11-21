@@ -51,7 +51,14 @@ export default function SynthesizeWorkspace() {
         const docs = (v.index.documents ?? []) as VaultDoc[];
         setSelectedIds(docs.slice(0, 12).map((d) => d.doc_id));
       }
-      if (s.ok) setSkills(s.skills);
+      if (s.ok && Array.isArray(s.skills)) {
+        setSkills(s.skills);
+        const paramSkill =
+          typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("skill") : null;
+        if (paramSkill && s.skills.some((sk: SkillSpec) => sk.id === paramSkill)) {
+          setSkillId(paramSkill);
+        }
+      }
       if (p.ok) setProvider(p.status);
       if (m.ok && Array.isArray(m.manuals)) setSavedManuals(m.manuals);
     });
@@ -426,12 +433,20 @@ export default function SynthesizeWorkspace() {
         {/* Step 2: Skill Picker + Precheck + Run */}
         <section className="flex flex-col justify-between space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-[var(--accent)]" />
-              <h2 className="text-sm font-semibold text-[#f1f2f5]">2. 选择内置分析 Skill 与阶段命名</h2>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-[var(--accent)]" />
+                <h2 className="text-sm font-semibold text-[#f1f2f5]">2. 选择分析 Skill 与阶段命名</h2>
+              </div>
+              <Link
+                href="/settings?tab=skills"
+                className="text-[11px] font-medium text-[var(--cyan)] hover:underline"
+              >
+                自定义 / 管理 Skill →
+              </Link>
             </div>
 
-            <div className="space-y-2">
+            <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
               {skills.map((sk) => {
                 const active = sk.id === skillId;
                 return (
@@ -446,8 +461,15 @@ export default function SynthesizeWorkspace() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
-                      <span className="font-mono text-[10px] text-[var(--ink-dim)]">{sk.id}</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
+                        {!sk.builtin && (
+                          <span className="shrink-0 rounded bg-[var(--cyan-soft)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]">
+                            自定义
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] text-[var(--ink-dim)]">{sk.id}</span>
                     </div>
                     <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">{sk.summary}</p>
                   </button>

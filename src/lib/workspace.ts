@@ -6,6 +6,7 @@ export type WorkspacePaths = {
   sources: string;
   vault: string;
   manuals: string;
+  skills: string;
   configFile: string;
   conceptsFile: string;
   connectorsFile: string;
@@ -23,6 +24,7 @@ export function getWorkspacePaths(): WorkspacePaths {
     sources,
     vault: path.join(root, "vault"),
     manuals: path.join(root, "manuals"),
+    skills: path.join(root, "skills"),
     configFile: path.join(root, "config.json"),
     conceptsFile: path.join(root, "concepts.json"),
     connectorsFile: path.join(root, "connectors.json"),
@@ -36,6 +38,7 @@ export async function ensureWorkspace(): Promise<WorkspacePaths> {
     mkdir(p.sources, { recursive: true }),
     mkdir(p.vault, { recursive: true }),
     mkdir(p.manuals, { recursive: true }),
+    mkdir(p.skills, { recursive: true }),
   ]);
   return p;
 }

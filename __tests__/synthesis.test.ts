@@ -89,7 +89,17 @@ describe("stage precheck & evidence-grounded synthesis", () => {
     const prompt = buildSynthesisPrompt({
       docs: packedDocs,
       evidence,
-      skill: { id: "general", name: "综合阶段归纳", summary: "", tags: [], builtin: true, fileName: null, content: "" },
+      skill: {
+        id: "general",
+        name: "综合阶段归纳",
+        summary: "",
+        tags: [],
+        builtin: true,
+        editable: false,
+        source: "builtin",
+        fileName: null,
+        content: "",
+      },
       stageTitle: "2025 上半年总纲",
     });
     expect(prompt.system).toContain("Map-Reduce");

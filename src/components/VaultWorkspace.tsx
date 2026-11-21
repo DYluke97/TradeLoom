@@ -487,12 +487,12 @@ export default function VaultWorkspace() {
               onClick={() => setCenterMode("graph")}
               className={`flex items-center gap-1 rounded-t border-x border-t px-2.5 py-1 text-xs transition ${
                 centerMode === "graph"
-                  ? "border-[var(--border)] bg-[var(--bg)] font-medium text-[var(--accent)]"
-                  : "border-transparent text-[var(--ink-dim)] hover:text-[var(--ink-muted)]"
+                  ? "border-[var(--cyan)]/45 bg-[var(--bg)] font-medium text-[var(--cyan)] shadow-[0_-4px_14px_rgba(34,211,238,0.16)]"
+                  : "border-transparent text-[var(--ink-dim)] hover:text-[var(--cyan)]"
               }`}
             >
               <Network className="h-3 w-3" />
-              力导向图谱
+              全息星图
             </button>
           </div>
 

@@ -156,13 +156,13 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
       {/* Main Desktop Area: Left Ribbon + Workspace */}
       <div className="flex min-h-0 flex-1">
         {/* 44px Left Obsidian Ribbon Bar */}
-        <aside className="flex w-11 shrink-0 flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg-deep)] py-2.5 select-none">
+        <aside className="flex w-11 shrink-0 flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg-deep)]/95 py-2.5 select-none">
           <div className="flex flex-col items-center gap-1.5">
-            {/* Faceted Obsidian-inspired TradeLoom Prism Brand */}
+            {/* Faceted Holographic Obsidian-inspired TradeLoom Prism Brand */}
             <Link
               href="/"
-              title="TradeLoom · 交易复盘双链工作台"
-              className="mb-2 flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-[#a882ff] to-[#6c5ce7] text-[11px] font-bold tracking-tight text-white shadow-[0_0_12px_rgba(168,130,255,0.35)]"
+              title="TradeLoom · 交易复盘星图工作台"
+              className="mb-2 flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-[#b388ff] via-[#7c4dff] to-[#22d3ee] text-[11px] font-bold tracking-tight text-white shadow-[0_0_16px_rgba(179,136,255,0.48),0_0_8px_rgba(34,211,238,0.3)] ring-1 ring-white/20 transition hover:scale-105"
             >
               TL
             </Link>
@@ -176,25 +176,25 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   title={label}
                   className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
                     active
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                      ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_12px_rgba(179,136,255,0.2)]"
+                      : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
                   }`}
                 >
                   {active && (
-                    <span className="absolute -left-[6px] top-1.5 bottom-1.5 w-[2.5px] rounded-r bg-[var(--accent)]" />
+                    <span className="absolute -left-[6px] top-1 bottom-1 w-[2.5px] rounded-r bg-gradient-to-b from-[var(--cyan)] via-[var(--accent)] to-[var(--accent-strong)] shadow-[0_0_10px_rgba(34,211,238,0.85)]" />
                   )}
                   <Icon className="h-[17px] w-[17px]" />
                 </Link>
               );
             })}
 
-            <div className="my-1.5 h-px w-5 bg-[var(--border)]" />
+            <div className="my-1.5 h-px w-5 bg-gradient-to-r from-transparent via-[var(--border-strong)] to-transparent" />
 
             {/* Graph View Ribbon Shortcut */}
             <Link
               href="/vault?view=graph"
-              title="打开全局关系图谱 (Graph View)"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
+              title="打开全局全息图谱 (Graph View)"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--cyan)]/80 transition hover:bg-[var(--cyan-soft)] hover:text-[var(--cyan)] hover:shadow-[0_0_12px_rgba(34,211,238,0.25)]"
             >
               <Network className="h-[17px] w-[17px]" />
             </Link>
@@ -217,12 +217,12 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
               title="模型 API 与 Skill 设置"
               className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
                 pathname.startsWith("/settings")
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_12px_rgba(179,136,255,0.2)]"
+                  : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
               }`}
             >
               {pathname.startsWith("/settings") && (
-                <span className="absolute -left-[6px] top-1.5 bottom-1.5 w-[2.5px] rounded-r bg-[var(--accent)]" />
+                <span className="absolute -left-[6px] top-1 bottom-1 w-[2.5px] rounded-r bg-gradient-to-b from-[var(--cyan)] to-[var(--accent)] shadow-[0_0_10px_rgba(34,211,238,0.85)]" />
               )}
               <Settings className="h-[17px] w-[17px]" />
             </Link>
@@ -232,7 +232,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
         {/* Right Column: Top Obsidian Tab Bar + Viewport */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* 36px Obsidian Top Tab Bar */}
-          <header className="flex h-9 shrink-0 items-end justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-deep)] px-2 pt-1 select-none">
+          <header className="flex h-9 shrink-0 items-end justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-deep)]/95 px-2 pt-1 select-none">
             <nav className="flex items-end gap-0.5 overflow-x-auto">
               {WORKSPACE_TABS.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -242,16 +242,16 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                     href={href}
                     className={`group relative flex h-8 items-center gap-1.5 whitespace-nowrap rounded-t-md px-3 text-xs transition ${
                       active
-                        ? "border-x border-t border-[var(--border)] bg-[var(--bg)] font-medium text-[var(--ink)]"
-                        : "text-[var(--ink-dim)] hover:bg-[var(--surface)]/70 hover:text-[var(--ink-muted)]"
+                        ? "border-x border-t border-[var(--border-strong)] bg-[var(--bg)] font-medium text-[#f8fafc] shadow-[0_-4px_14px_rgba(124,77,255,0.12)]"
+                        : "text-[var(--ink-dim)] hover:bg-[var(--surface)]/75 hover:text-[var(--ink-muted)]"
                     }`}
                   >
                     {active && (
-                      <span className="absolute inset-x-0 top-0 h-[2px] rounded-t-md bg-[var(--accent)]" />
+                      <span className="absolute inset-x-0 top-0 h-[2px] rounded-t-md bg-gradient-to-r from-[var(--cyan)] via-[var(--accent)] to-[#ec4899] shadow-[0_0_8px_rgba(34,211,238,0.7)]" />
                     )}
                     <Icon
                       className={`h-3.5 w-3.5 ${
-                        active ? "text-[var(--accent)]" : "text-[var(--ink-dim)] group-hover:text-[var(--ink-muted)]"
+                        active ? "text-[var(--cyan)]" : "text-[var(--ink-dim)] group-hover:text-[var(--ink-muted)]"
                       }`}
                     />
                     <span>{label}</span>
@@ -264,11 +264,11 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
               <button
                 type="button"
                 onClick={() => setSwitcherOpen(true)}
-                className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--surface)]/90 px-2.5 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--cyan)]/60 hover:text-[var(--ink)] hover:shadow-[0_0_12px_rgba(34,211,238,0.15)]"
               >
-                <Search className="h-3 w-3 text-[var(--accent)]" />
+                <Search className="h-3 w-3 text-[var(--cyan)]" />
                 <span>快速跳转笔记 / 主题...</span>
-                <kbd className="rounded border border-[var(--border-strong)] bg-[var(--bg-deep)] px-1 py-0.2 font-mono text-[10px] text-[var(--ink-dim)]">
+                <kbd className="rounded border border-[var(--border-strong)] bg-[var(--bg-deep)] px-1 py-0.2 font-mono text-[10px] text-[var(--cyan)]/80">
                   Ctrl K
                 </kbd>
               </button>
@@ -276,7 +276,11 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
           </header>
 
           {/* Main Workspace Viewport */}
-          <main className={`min-h-0 flex-1 ${isVaultPage ? "overflow-hidden" : "overflow-y-auto"}`}>
+          <main
+            className={`min-h-0 flex-1 ${
+              isVaultPage ? "overflow-hidden" : "scifi-viewport-bg overflow-y-auto"
+            }`}
+          >
             {isVaultPage ? (
               children
             ) : (
@@ -289,45 +293,49 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
       {/* 24px Bottom Obsidian Status Bar */}
       <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg-deep)] px-3 text-[11px] text-[var(--ink-dim)] select-none">
         <div className="flex items-center gap-3 truncate">
-          <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-            TradeLoom Vault
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider text-[var(--cyan)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--cyan)] shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+            NEURAL VAULT
           </span>
-          <span className="hidden sm:inline">
+          <span className="hidden text-[var(--ink-muted)] sm:inline">
             {vault
               ? `${vault.counts.total} 篇复盘 · ${vault.counts.years} 年 · ${vault.counts.topics} 主题 · ${vault.counts.links} 条双链 · ${vault.counts.manuals} 本手册`
               : "正在索引知识库..."}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex shrink-0 items-center gap-3">
           <Link
             href="/settings"
-            className="inline-flex items-center gap-1 hover:text-[var(--ink)]"
+            className="inline-flex items-center gap-1.5 hover:text-[var(--ink)]"
           >
             <span
               className={`h-1.5 w-1.5 rounded-full ${
-                provider?.configured ? "bg-[var(--emerald)]" : "bg-[var(--amber)]"
+                provider?.configured
+                  ? "bg-[var(--emerald)] shadow-[0_0_8px_rgba(52,211,153,0.9)]"
+                  : "bg-[var(--amber)] shadow-[0_0_8px_rgba(251,191,36,0.8)]"
               }`}
             />
             <span>{provider?.configured ? `LLM: ${provider.model}` : "未配置 LLM API"}</span>
           </Link>
-          <span className="hidden md:inline">MIT · Local-First</span>
+          <span className="hidden font-mono text-[10px] text-[var(--ink-dim)] md:inline">
+            MIT · LOCAL-FIRST
+          </span>
         </div>
       </footer>
 
       {/* Obsidian Ctrl+K Quick Switcher Modal */}
       {switcherOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[12vh] backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-[#04060c]/75 pt-[12vh] backdrop-blur-sm"
           onClick={() => setSwitcherOpen(false)}
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] shadow-2xl"
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-[var(--cyan)]/35 bg-[#0f1422]/95 shadow-[0_24px_64px_rgba(0,0,0,0.75),0_0_30px_rgba(34,211,238,0.12)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 border-b border-[var(--border)] px-3.5 py-2.5">
-              <Search className="h-4 w-4 text-[var(--accent)]" />
+              <Search className="h-4 w-4 text-[var(--cyan)]" />
               <input
                 ref={inputRef}
                 value={query}

@@ -1,14 +1,17 @@
 "use client";
 
 import {
+  ArrowUpRight,
   Compass,
   Layers,
+  Lock,
   Maximize2,
   Minimize2,
   Network,
   RotateCcw,
   SlidersHorizontal,
   Sparkles,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -16,15 +19,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
 
 const NODE_COLORS: Record<VaultNodeType, string> = {
-  overview: "#a882ff",
-  manual: "#4ade80",
-  card: "#eceef4",
-  topic: "#56c2d6",
-  timeline: "#e0b354",
+  overview: "#b388ff",
+  manual: "#34d399",
+  card: "#f1f5f9",
+  topic: "#22d3ee",
+  timeline: "#fbbf24",
+};
+
+const NODE_GLOW: Record<VaultNodeType, string> = {
+  overview: "rgba(179,136,255,0.55)",
+  manual: "rgba(52,211,153,0.5)",
+  card: "rgba(226,232,240,0.45)",
+  topic: "rgba(34,211,238,0.52)",
+  timeline: "rgba(251,191,36,0.5)",
 };
 
 const NODE_LABELS: Record<VaultNodeType, string> = {
-  overview: "总览",
+  overview: "核心总览",
   manual: "交易手册",
   card: "复盘卡片",
   topic: "主题节点",
@@ -66,10 +77,6 @@ function shortLabel(title: string, max = 14): string {
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
-/**
- * Evenly distributes items on a ring while preserving preferred angular order
- * so connected clusters sit in the same sector without ever overlapping.
- */
 function placeOnRing(
   items: Array<{ file: VaultFileItem; degree: number; preferredAngle: number }>,
   cx: number,
@@ -101,7 +108,7 @@ function placeOnRing(
       vy: 0,
       fx: null,
       fy: null,
-      r: Math.min(10, 5 + Math.sqrt(item.degree) * 0.72),
+      r: Math.min(10.5, 5.2 + Math.sqrt(item.degree) * 0.72),
       degree: item.degree,
       isCenter: item.file.rel === activeRel,
     };
@@ -122,7 +129,6 @@ function buildGraphTopology(
   const cx = width / 2;
   const cy = height / 2;
 
-  // ── LOCAL GRAPH (Right Sidebar): Structured dual-ring around active note ──
   if (mode === "local") {
     const linkInfo = index.links[activeRel] ?? { out: [], in: [] };
     const centerFile = fileMap.get(activeRel);
@@ -154,7 +160,6 @@ function buildGraphTopology(
     const innerR = Math.min(width, height) * 0.34;
     const outerR = Math.min(width, height) * 0.45;
 
-    // Group neighbors by semantic type so local graph also has clear structure
     const typeOrder: Record<VaultNodeType, number> = {
       overview: 0,
       manual: 1,
@@ -187,7 +192,7 @@ function buildGraphTopology(
         vy: 0,
         fx: null,
         fy: null,
-        r: Math.min(7, 4.5 + Math.sqrt(deg) * 0.55),
+        r: Math.min(7.2, 4.6 + Math.sqrt(deg) * 0.55),
         degree: deg,
         isCenter: false,
       });
@@ -210,12 +215,12 @@ function buildGraphTopology(
         kind: "rings",
         cx,
         cy,
-        rings: [{ r: innerR, label: "", color: "rgba(168,130,255,0.12)" }],
+        rings: [{ r: innerR, label: "", color: "rgba(34,211,238,0.18)" }],
       },
     };
   }
 
-  // ── GLOBAL GRAPH: Structured Knowledge Architecture ──
+  // Global Graph: Structured Orbital or Swimlane Architecture
   const candidates = index.files
     .filter((f) => filterType === "all" || f.nodeType === filterType)
     .map((f) => ({
@@ -234,24 +239,22 @@ function buildGraphTopology(
   };
   for (const c of candidates) buckets[c.file.nodeType].push(c);
 
-  // Order review cards & timelines chronologically so the architecture tells a chronological story
   buckets.card.sort((a, b) => (a.file.eventDate ?? "9999").localeCompare(b.file.eventDate ?? "9999"));
   buckets.timeline.sort((a, b) => (a.file.eventDate ?? "9999").localeCompare(b.file.eventDate ?? "9999"));
   buckets.topic.sort((a, b) => b.degree - a.degree);
 
-  let nodes: SimNode[] = [];
+  const nodes: SimNode[] = [];
   let guide: GuideOverlay | null = null;
 
   if (layoutMode === "layered") {
-    // 4-Column Architectural Swimlanes: Timeline -> Review Cards -> Topics -> Manuals/Overview
     const colSpecs: Array<{ key: string; label: string; color: string; x: number; items: typeof candidates }> = [
-      { key: "timeline", label: "① 时间轴（年/月/日）", color: "#e0b354", x: width * 0.14, items: buckets.timeline },
-      { key: "card", label: "② 复盘原件卡片", color: "#eceef4", x: width * 0.38, items: buckets.card },
-      { key: "topic", label: "③ 主题与概念枢纽", color: "#56c2d6", x: width * 0.66, items: buckets.topic },
+      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "#fbbf24", x: width * 0.14, items: buckets.timeline },
+      { key: "card", label: "02 // 复盘原件卡片", color: "#f1f5f9", x: width * 0.38, items: buckets.card },
+      { key: "topic", label: "03 // 主题与概念星核", color: "#22d3ee", x: width * 0.66, items: buckets.topic },
       {
         key: "manual",
-        label: "④ 总览 & 交易手册",
-        color: "#4ade80",
+        label: "04 // 总览 & 交易手册",
+        color: "#34d399",
         x: width * 0.89,
         items: [...buckets.overview, ...buckets.manual],
       },
@@ -261,7 +264,6 @@ function buildGraphTopology(
     for (const col of colSpecs) {
       const count = col.items.length;
       if (count === 0) continue;
-      // Split large columns (e.g. 20+ topics) into 2 staggered sub-lanes for generous breathing room
       const useTwoLanes = count > 10;
       col.items.forEach((item, idx) => {
         const lane = useTwoLanes ? (idx % 2 === 0 ? -52 : 52) : 0;
@@ -282,7 +284,7 @@ function buildGraphTopology(
           vy: 0,
           fx: null,
           fy: null,
-          r: Math.min(10.5, 5 + Math.sqrt(item.degree) * 0.72),
+          r: Math.min(10.5, 5.2 + Math.sqrt(item.degree) * 0.72),
           degree: item.degree,
           isCenter: item.file.rel === activeRel,
         });
@@ -294,13 +296,10 @@ function buildGraphTopology(
       columns: colSpecs.map((c) => ({ x: c.x, label: c.label, color: c.color })),
     };
   } else {
-    // Orbital Concentric Architecture:
-    // Center: Overview | Inner Ring: Manuals + Cards | Mid Ring: Topics | Outer Ring: Timeline
     const rCard = 165;
     const rTopic = 295;
     const rTimeline = 415;
 
-    // 1) Overview center
     if (buckets.overview.length > 0) {
       const ov = buckets.overview[0];
       nodes.push({
@@ -315,40 +314,39 @@ function buildGraphTopology(
         vy: 0,
         fx: null,
         fy: null,
-        r: 11,
+        r: 12,
         degree: ov.degree,
         isCenter: ov.file.rel === activeRel,
       });
     }
 
-    // 2) Manuals on tight inner halo (if any)
     if (buckets.manual.length > 0) {
-      const manualNodes = placeOnRing(
-        buckets.manual.map((m, i) => ({ ...m, preferredAngle: (i / buckets.manual.length) * Math.PI * 2 })),
-        cx,
-        cy,
-        88,
-        activeRel,
+      nodes.push(
+        ...placeOnRing(
+          buckets.manual.map((m, i) => ({ ...m, preferredAngle: (i / buckets.manual.length) * Math.PI * 2 })),
+          cx,
+          cy,
+          88,
+          activeRel,
+        ),
       );
-      nodes.push(...manualNodes);
     }
 
-    // 3) Review Cards on Inner-Mid Ring (chronologically clockwise)
     const cardAngleMap = new Map<string, number>();
-    const cardNodes = placeOnRing(
-      buckets.card.map((c, i) => {
-        const angle = (i / Math.max(buckets.card.length, 1)) * Math.PI * 2 - Math.PI / 2;
-        cardAngleMap.set(c.file.rel, angle);
-        return { ...c, preferredAngle: angle };
-      }),
-      cx,
-      cy,
-      rCard,
-      activeRel,
+    nodes.push(
+      ...placeOnRing(
+        buckets.card.map((c, i) => {
+          const angle = (i / Math.max(buckets.card.length, 1)) * Math.PI * 2 - Math.PI / 2;
+          cardAngleMap.set(c.file.rel, angle);
+          return { ...c, preferredAngle: angle };
+        }),
+        cx,
+        cy,
+        rCard,
+        activeRel,
+      ),
     );
-    nodes.push(...cardNodes);
 
-    // Helper: compute average angular sector of connected review cards so topics & timelines sit near their cards
     const preferredAngleFor = (rel: string, fallbackIdx: number, total: number): number => {
       const link = index.links[rel];
       if (!link) return (fallbackIdx / Math.max(total, 1)) * Math.PI * 2;
@@ -367,47 +365,46 @@ function buildGraphTopology(
       return Math.atan2(sy / hits, sx / hits);
     };
 
-    // 4) Topics on Mid Ring (staggered if dense so labels never overlap)
-    const topicNodes = placeOnRing(
-      buckets.topic.map((t, i) => ({
-        ...t,
-        preferredAngle: preferredAngleFor(t.file.rel, i, buckets.topic.length),
-      })),
-      cx,
-      cy,
-      rTopic,
-      activeRel,
-      true,
+    nodes.push(
+      ...placeOnRing(
+        buckets.topic.map((t, i) => ({
+          ...t,
+          preferredAngle: preferredAngleFor(t.file.rel, i, buckets.topic.length),
+        })),
+        cx,
+        cy,
+        rTopic,
+        activeRel,
+        true,
+      ),
     );
-    nodes.push(...topicNodes);
 
-    // 5) Timeline (Years/Months/Days) on Outer Ring
-    const timelineNodes = placeOnRing(
-      buckets.timeline.map((t, i) => ({
-        ...t,
-        preferredAngle: preferredAngleFor(t.file.rel, i, buckets.timeline.length),
-      })),
-      cx,
-      cy,
-      rTimeline,
-      activeRel,
-      true,
+    nodes.push(
+      ...placeOnRing(
+        buckets.timeline.map((t, i) => ({
+          ...t,
+          preferredAngle: preferredAngleFor(t.file.rel, i, buckets.timeline.length),
+        })),
+        cx,
+        cy,
+        rTimeline,
+        activeRel,
+        true,
+      ),
     );
-    nodes.push(...timelineNodes);
 
     guide = {
       kind: "rings",
       cx,
       cy,
       rings: [
-        { r: rCard, label: "复盘卡片层", color: "rgba(236,238,244,0.10)" },
-        { r: rTopic, label: "主题概念星环", color: "rgba(86,194,214,0.12)" },
-        { r: rTimeline, label: "时间轴外轨", color: "rgba(224,179,84,0.12)" },
+        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "rgba(241,245,249,0.16)" },
+        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "rgba(34,211,238,0.22)" },
+        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "rgba(251,191,36,0.20)" },
       ],
     };
   }
 
-  // Build deduplicated edges
   const shown = new Set(nodes.map((n) => n.rel));
   const nodeTypeByRel = new Map(nodes.map((n) => [n.rel, n.nodeType]));
   const edges: SimEdge[] = [];
@@ -450,20 +447,17 @@ export default function ObsidianGraph({
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("orbital");
   const [hoveredRel, setHoveredRel] = useState<string | null>(null);
+  const [lockedRel, setLockedRel] = useState<string | null>(null);
   const [draggingRel, setDraggingRel] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<VaultNodeType | "all">("all");
   const [showSettings, setShowSettings] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(mode === "global");
 
   // Tactile Damped Physics Controls
-  // archPull: elastic memory pulling nodes softly back to architectural positions (0 = free-floating, 1 = firm structure)
-  // damping: viscous resistance when pushing/pulling nodes (higher = silkier honey-like drag feel)
-  // springPull: how strongly connected neighbors follow when you drag a node
   const [archPull, setArchPull] = useState(mode === "global" ? 0.045 : 0.06);
   const [damping, setDamping] = useState(0.8);
   const [springPull, setSpringPull] = useState(0.032);
 
-  // Camera pan + zoom (slightly zoomed out to 0.94 in Global so full orbital rings breathe comfortably)
   const defaultTransform = useMemo(
     () =>
       mode === "global"
@@ -491,6 +485,7 @@ export default function ObsidianGraph({
     startClientY: number;
     origX: number;
     origY: number;
+    moved: boolean;
   } | null>(null);
 
   const transformRef = useRef(transform);
@@ -498,6 +493,15 @@ export default function ObsidianGraph({
 
   const physicsRef = useRef({ archPull, damping, springPull });
   physicsRef.current = { archPull, damping, springPull };
+
+  // Esc key clears locked inspection state
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLockedRel(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const startLoop = useCallback(() => {
     if (rafRef.current !== null) return;
@@ -514,23 +518,20 @@ export default function ObsidianGraph({
       const byRel = new Map<string, SimNode>(nodes.map((n) => [n.rel, n]));
       const minSpacing = mode === "global" ? 68 : 34;
 
-      // 1) Architectural Restoring Force (keeps clear structure + smooth viscous rebound after push/pull)
+      // 1) Architectural Restoring Force
       for (const n of nodes) {
         if (n.fx !== null && n.fy !== null) continue;
-        const dx = n.homeX - n.x;
-        const dy = n.homeY - n.y;
-        n.vx += dx * kHome;
-        n.vy += dy * kHome;
+        n.vx += (n.homeX - n.x) * kHome;
+        n.vy += (n.homeY - n.y) * kHome;
       }
 
-      // 2) Elastic Edge Coupling (pulling a node smoothly tugs its connected neighborhood with damping)
+      // 2) Elastic Edge Coupling
       for (const e of edges) {
-        if (!e.structural && mode === "global") continue; // Don't let Overview hub yank the entire vault inward
+        if (!e.structural && mode === "global") continue;
         const a = byRel.get(e.from);
         const b = byRel.get(e.to);
         if (!a || !b) continue;
 
-        // Rest length is the architectural distance between their home positions so structure stays crisp!
         const restDist = Math.max(
           minSpacing * 1.15,
           Math.hypot(b.homeX - a.homeX, b.homeY - a.homeY),
@@ -539,7 +540,6 @@ export default function ObsidianGraph({
         const dy = b.y - a.y;
         const dist = Math.hypot(dx, dy) || 1;
         const stretch = dist - restDist;
-        // Stronger coupling when one end is actively dragged so the web stretches organically
         const activeBoost = a.fx !== null || b.fx !== null ? 2.4 : 1.0;
         const force = stretch * kEdge * activeBoost;
         const fx = (dx / dist) * force;
@@ -555,7 +555,7 @@ export default function ObsidianGraph({
         }
       }
 
-      // 3) Soft Label-Aware Push Collision (dragging a node pushes nearby nodes aside smoothly without overlap)
+      // 3) Soft Label-Aware Push Collision
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
@@ -580,12 +580,11 @@ export default function ObsidianGraph({
         }
       }
 
-      // 4) Viscous Damped Integration (silky, weighty Obsidian feel)
+      // 4) Viscous Damped Integration
       const velocityRetention = Math.max(0.55, Math.min(0.92, damp));
       let kineticEnergy = 0;
       for (const n of nodes) {
         if (n.fx !== null && n.fy !== null) {
-          // Slight inertial easing even on the grabbed node for tactile resistance
           n.x += (n.fx - n.x) * 0.55;
           n.y += (n.fy - n.y) * 0.55;
           n.vx = 0;
@@ -617,15 +616,14 @@ export default function ObsidianGraph({
     rafRef.current = requestAnimationFrame(step);
   }, [mode]);
 
-  // Rebuild architectural layout whenever inputs change
   useEffect(() => {
     const topo = buildGraphTopology(index, activeRel, mode, layoutMode, width, height, filterType);
     nodesRef.current = topo.nodes;
     edgesRef.current = topo.edges;
     guideRef.current = topo.guide;
+    setLockedRel(null);
     setTransform(defaultTransform);
     setRenderTick((t) => (t + 1) % 100000);
-    // Run a brief gentle settle pass for collision perfection
     startLoop();
     return () => {
       if (rafRef.current !== null) {
@@ -671,6 +669,30 @@ export default function ObsidianGraph({
     [width, height],
   );
 
+  // Compute 1-hop locked subgraph set
+  const lockedCluster = useMemo(() => {
+    if (!lockedRel) return null;
+    const set = new Set<string>([lockedRel]);
+    for (const e of edgesRef.current) {
+      if (e.from === lockedRel) set.add(e.to);
+      if (e.to === lockedRel) set.add(e.from);
+    }
+    return set;
+  }, [lockedRel]);
+
+  // Active highlight source: locked node takes priority over casual hover (unless actively dragging another node)
+  const focusRel = draggingRel ?? lockedRel ?? hoveredRel;
+
+  const connectedToFocus = useMemo(() => {
+    if (!focusRel) return null;
+    const set = new Set<string>([focusRel]);
+    for (const e of edgesRef.current) {
+      if (e.from === focusRel) set.add(e.to);
+      if (e.to === focusRel) set.add(e.from);
+    }
+    return set;
+  }, [focusRel]);
+
   const handleBgPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
     if ((e.target as Element).closest("[data-graph-node]")) return;
@@ -680,6 +702,7 @@ export default function ObsidianGraph({
       startClientY: e.clientY,
       origX: transformRef.current.x,
       origY: transformRef.current.y,
+      moved: false,
     };
   };
 
@@ -719,6 +742,8 @@ export default function ObsidianGraph({
     }
 
     if (panRef.current && svgRef.current) {
+      const dist = Math.hypot(e.clientX - panRef.current.startClientX, e.clientY - panRef.current.startClientY);
+      if (dist > 4) panRef.current.moved = true;
       const rect = svgRef.current.getBoundingClientRect();
       const dx = ((e.clientX - panRef.current.startClientX) / Math.max(rect.width, 1)) * width;
       const dy = ((e.clientY - panRef.current.startClientY) / Math.max(rect.height, 1)) * height;
@@ -740,12 +765,27 @@ export default function ObsidianGraph({
       }
       dragNodeRef.current = null;
       setDraggingRel(null);
-      startLoop(); // Smooth damped elastic glide back to architectural layer
+      startLoop();
+
+      // Two-step click behavior:
+      // 1st click -> lock & illuminate this node's connected structure (do NOT jump yet)
+      // 2nd click on ANY highlighted node in that illuminated cluster -> navigate to its detail page!
       if (!moved) {
-        onSelectNode(rel);
+        if (lockedRel && lockedCluster?.has(rel)) {
+          setLockedRel(null);
+          onSelectNode(rel);
+        } else {
+          setLockedRel(rel);
+        }
       }
+    } else if (panRef.current) {
+      // Single click on empty background unlocks highlighted cluster
+      if (!panRef.current.moved) {
+        setLockedRel(null);
+      }
+      panRef.current = null;
     }
-    panRef.current = null;
+
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -764,6 +804,7 @@ export default function ObsidianGraph({
   };
 
   const resetArchitecture = () => {
+    setLockedRel(null);
     setTransform(defaultTransform);
     for (const n of nodesRef.current) {
       n.fx = null;
@@ -776,41 +817,35 @@ export default function ObsidianGraph({
   const edges = edgesRef.current;
   const guide = guideRef.current;
   const nodeMap = new Map(nodes.map((n) => [n.rel, n]));
-  const focusRel = draggingRel ?? hoveredRel;
-
-  const connectedToFocus = useMemo(() => {
-    if (!focusRel) return null;
-    const set = new Set<string>([focusRel]);
-    for (const e of edgesRef.current) {
-      if (e.from === focusRel) set.add(e.to);
-      if (e.to === focusRel) set.add(e.from);
-    }
-    return set;
-  }, [focusRel]);
+  const lockedNode = lockedRel ? nodeMap.get(lockedRel) ?? null : null;
+  const lockedLinkStats = lockedRel ? index?.links[lockedRel] ?? { out: [], in: [] } : null;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header / Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
-        <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)]">
-          <Network className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span>{mode === "global" ? "分层架构图谱（Graph View）" : "局部架构图谱（Local Graph）"}</span>
-          <span className="font-mono text-[10px] text-[var(--ink-dim)]">
-            {nodes.length} 节点 · {edges.length} 连线
+      {/* Sci-Fi HUD Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-2 backdrop-blur-md">
+        <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink)]">
+          <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)] shadow-[0_0_10px_rgba(34,211,238,0.28)]">
+            <Network className="h-3 w-3" />
+          </span>
+          <span className="tracking-wide">
+            {mode === "global" ? "全息星轨双链图谱" : "局部神经星图"}
+          </span>
+          <span className="rounded border border-[var(--border)] bg-[var(--bg-deep)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--cyan)]">
+            {nodes.length} NODES · {edges.length} LINKS
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-1">
           {mode === "global" && (
             <>
-              {/* Architecture Mode Switch: Orbital Rings vs Layered Swimlanes */}
               <div className="mr-1 inline-flex rounded border border-[var(--border)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
                 <button
                   type="button"
                   onClick={() => setLayoutMode("orbital")}
                   className={`inline-flex items-center gap-1 rounded px-2 py-0.5 transition ${
                     layoutMode === "orbital"
-                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)] shadow-[inset_0_0_8px_rgba(168,130,255,0.25)]"
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
@@ -822,7 +857,7 @@ export default function ObsidianGraph({
                   onClick={() => setLayoutMode("layered")}
                   className={`inline-flex items-center gap-1 rounded px-2 py-0.5 transition ${
                     layoutMode === "layered"
-                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)] shadow-[inset_0_0_8px_rgba(168,130,255,0.25)]"
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
@@ -839,7 +874,7 @@ export default function ObsidianGraph({
                     onClick={() => setFilterType(t)}
                     className={`rounded px-1.5 py-0.5 transition ${
                       filterType === t
-                        ? "bg-[var(--surface-2)] font-medium text-[var(--ink)]"
+                        ? "border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] font-medium text-[var(--cyan)]"
                         : "text-[var(--ink-dim)] hover:text-[var(--ink-muted)]"
                     }`}
                   >
@@ -854,7 +889,7 @@ export default function ObsidianGraph({
             type="button"
             onClick={() => zoomBy(1.2)}
             title="放大"
-            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
@@ -862,15 +897,15 @@ export default function ObsidianGraph({
             type="button"
             onClick={() => zoomBy(0.84)}
             title="缩小"
-            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={resetArchitecture}
-            title="重置视角并回正架构"
-            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+            title="重置视角并解除锁定"
+            className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
@@ -894,7 +929,7 @@ export default function ObsidianGraph({
             <button
               type="button"
               onClick={onToggleExpand}
-              title={mode === "global" ? "返回阅读视图" : "展开全局架构图谱"}
+              title={mode === "global" ? "返回阅读视图" : "展开全息星轨图谱"}
               className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
             >
               {mode === "global" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -903,7 +938,7 @@ export default function ObsidianGraph({
         </div>
       </div>
 
-      {/* Interactive Physics SVG Canvas */}
+      {/* Interactive Sci-Fi Holographic Canvas */}
       <div className="obsidian-graph-bg relative flex-1 overflow-hidden">
         {nodes.length === 0 ? (
           <div className="flex h-full min-h-[180px] items-center justify-center text-xs text-[var(--ink-dim)]">
@@ -920,12 +955,42 @@ export default function ObsidianGraph({
             onPointerCancel={handlePointerUp}
             className="h-full w-full cursor-grab select-none active:cursor-grabbing touch-none"
             role="img"
-            aria-label="Obsidian Structured Force-Directed Knowledge Graph"
+            aria-label="Holographic Force-Directed Knowledge Graph"
           >
+            <defs>
+              <filter id="neon-glow-strong" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="4.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="neon-glow-soft" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <radialGradient id="core-nebula" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(168,130,255,0.22)" />
+                <stop offset="55%" stopColor="rgba(34,211,238,0.06)" />
+                <stop offset="100%" stopColor="rgba(6,8,14,0)" />
+              </radialGradient>
+            </defs>
+
             <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-              {/* Subtle Architectural Guide Overlay */}
+              {/* Ambient Holographic Orbital Architecture Guides */}
               {guide?.kind === "rings" && (
                 <g className="pointer-events-none">
+                  <circle cx={guide.cx} cy={guide.cy} r={mode === "global" ? 450 : 120} fill="url(#core-nebula)" />
+                  {/* Subtle crosshairs */}
+                  {mode === "global" && (
+                    <g opacity={0.14} stroke="#38bdf8" strokeWidth={0.7} strokeDasharray="3 8">
+                      <line x1={guide.cx - 460} y1={guide.cy} x2={guide.cx + 460} y2={guide.cy} />
+                      <line x1={guide.cx} y1={guide.cy - 460} x2={guide.cx} y2={guide.cy + 460} />
+                    </g>
+                  )}
                   {guide.rings.map((ring, idx) => (
                     <g key={idx}>
                       <circle
@@ -934,17 +999,19 @@ export default function ObsidianGraph({
                         r={ring.r}
                         fill="none"
                         stroke={ring.color}
-                        strokeWidth={1}
-                        strokeDasharray="4 6"
+                        strokeWidth={1.1}
+                        strokeDasharray={idx === 1 ? "8 5 2 5" : "4 7"}
+                        className={idx === 1 && mode === "global" ? "graph-radar-orbit" : undefined}
                       />
                       {ring.label && (
                         <text
                           x={guide.cx}
-                          y={guide.cy - ring.r - 6}
+                          y={guide.cy - ring.r - 8}
                           textAnchor="middle"
-                          fill="rgba(154,155,166,0.42)"
-                          fontSize={10}
-                          letterSpacing={1.5}
+                          fill="rgba(148,163,184,0.52)"
+                          fontSize={9.5}
+                          fontFamily="monospace"
+                          letterSpacing={2}
                         >
                           {ring.label}
                         </text>
@@ -963,18 +1030,21 @@ export default function ObsidianGraph({
                         y1={42}
                         x2={col.x}
                         y2={height - 28}
-                        stroke="rgba(255,255,255,0.05)"
+                        stroke={col.color}
+                        opacity={0.14}
                         strokeWidth={1}
-                        strokeDasharray="4 6"
+                        strokeDasharray="4 7"
                       />
                       <text
                         x={col.x}
                         y={28}
                         textAnchor="middle"
                         fill={col.color}
-                        opacity={0.72}
-                        fontSize={11.5}
+                        opacity={0.85}
+                        fontSize={11}
+                        fontFamily="monospace"
                         fontWeight={600}
+                        letterSpacing={1}
                       >
                         {col.label}
                       </text>
@@ -983,49 +1053,70 @@ export default function ObsidianGraph({
                 </g>
               )}
 
-              {/* Edges */}
+              {/* Neural Energy Edges */}
               <g>
                 {edges.map((e, i) => {
                   const a = nodeMap.get(e.from);
                   const b = nodeMap.get(e.to);
                   if (!a || !b) return null;
-                  const highlighted = focusRel && (e.from === focusRel || e.to === focusRel);
-                  const dimmed = focusRel && !highlighted;
-                  const baseOpacity = e.structural ? 0.2 : 0.08;
+                  const highlighted = Boolean(focusRel && (e.from === focusRel || e.to === focusRel));
+                  const dimmed = Boolean(focusRel && !highlighted);
+                  const baseOpacity = e.structural ? 0.24 : 0.09;
+
                   return (
-                    <line
-                      key={`${e.from}-${e.to}-${i}`}
-                      x1={a.x}
-                      y1={a.y}
-                      x2={b.x}
-                      y2={b.y}
-                      stroke={
-                        highlighted
-                          ? "#a882ff"
-                          : e.direction === "out"
-                            ? "rgba(168,130,255,0.45)"
-                            : e.direction === "in"
-                              ? "rgba(74,222,128,0.42)"
-                              : `rgba(180,184,200,${baseOpacity})`
-                      }
-                      strokeWidth={(highlighted ? 1.8 : 0.9) / Math.sqrt(transform.k)}
-                      opacity={dimmed ? 0.06 : 1}
-                    />
+                    <g key={`${e.from}-${e.to}-${i}`}>
+                      <line
+                        x1={a.x}
+                        y1={a.y}
+                        x2={b.x}
+                        y2={b.y}
+                        stroke={
+                          highlighted
+                            ? "#22d3ee"
+                            : e.direction === "out"
+                              ? "rgba(179,136,255,0.48)"
+                              : e.direction === "in"
+                                ? "rgba(52,211,153,0.44)"
+                                : `rgba(148,163,184,${baseOpacity})`
+                        }
+                        strokeWidth={(highlighted ? 2.1 : 0.9) / Math.sqrt(transform.k)}
+                        opacity={dimmed ? 0.05 : highlighted ? 0.92 : 1}
+                        filter={highlighted ? "url(#neon-glow-soft)" : undefined}
+                      />
+                      {/* Animated neon energy pulse along highlighted links */}
+                      {highlighted && (
+                        <line
+                          x1={a.x}
+                          y1={a.y}
+                          x2={b.x}
+                          y2={b.y}
+                          stroke="#e879f9"
+                          strokeWidth={1.6 / Math.sqrt(transform.k)}
+                          opacity={0.95}
+                          className="graph-energy-edge pointer-events-none"
+                        />
+                      )}
+                    </g>
                   );
                 })}
               </g>
 
-              {/* Draggable Nodes with Crisp Labels */}
+              {/* Interactive Glowing Nodes */}
               <g>
                 {nodes.map((n) => {
+                  const isLockedAnchor = lockedRel === n.rel;
+                  const isInLockedSubgraph = Boolean(lockedCluster?.has(n.rel));
                   const isFocused = focusRel === n.rel;
-                  const dimmed = connectedToFocus && !connectedToFocus.has(n.rel);
-                  const fill = n.isCenter ? "#a882ff" : NODE_COLORS[n.nodeType];
+                  const dimmed = Boolean(connectedToFocus && !connectedToFocus.has(n.rel));
+                  const fill = n.isCenter ? "#b388ff" : NODE_COLORS[n.nodeType];
+                  const glow = n.isCenter ? NODE_GLOW.overview : NODE_GLOW[n.nodeType];
+
                   const showLabel =
                     showAllLabels ||
                     n.isCenter ||
                     isFocused ||
-                    transform.k >= 1.28 ||
+                    isInLockedSubgraph ||
+                    transform.k >= 1.25 ||
                     (mode === "local" ? nodes.length <= 14 : n.nodeType !== "timeline" || n.degree >= 4);
 
                   return (
@@ -1037,27 +1128,62 @@ export default function ObsidianGraph({
                       onMouseLeave={() => setHoveredRel(null)}
                       onPointerDown={(e) => handleNodePointerDown(e, n.rel)}
                       className="cursor-pointer"
-                      opacity={dimmed ? 0.16 : 1}
+                      opacity={dimmed ? 0.14 : 1}
                     >
-                      {(n.isCenter || isFocused) && (
-                        <circle r={n.r + 6} fill="rgba(168,130,255,0.24)" />
+                      {/* Pulsing Sci-Fi Lock Target Reticle */}
+                      {isLockedAnchor && (
+                        <g className="pointer-events-none">
+                          <circle
+                            r={n.r + 12}
+                            fill="none"
+                            stroke="#22d3ee"
+                            strokeWidth={1.3}
+                            strokeDasharray="5 4"
+                            className="graph-pulse-halo"
+                          />
+                          <circle r={n.r + 7} fill={glow} opacity={0.38} />
+                        </g>
                       )}
+
+                      {/* Highlighted neighbor ring (clickable to enter detail!) */}
+                      {!isLockedAnchor && isInLockedSubgraph && (
+                        <circle
+                          r={n.r + 5.5}
+                          fill="none"
+                          stroke="#b388ff"
+                          strokeWidth={1.1}
+                          opacity={0.85}
+                          className="pointer-events-none"
+                        />
+                      )}
+
+                      {/* Ambient neon aura */}
+                      {(n.isCenter || isFocused || isInLockedSubgraph) && (
+                        <circle r={n.r + 5} fill={glow} opacity={0.3} className="pointer-events-none" />
+                      )}
+
+                      {/* Core Node Sphere */}
                       <circle
-                        r={isFocused ? n.r + 1.8 : n.r}
+                        r={isLockedAnchor ? n.r + 2.5 : isFocused ? n.r + 1.6 : n.r}
                         fill={fill}
-                        stroke={n.isCenter || isFocused ? "#ffffff" : "#161619"}
-                        strokeWidth={n.isCenter || isFocused ? 1.6 : 1.2}
+                        stroke={isLockedAnchor ? "#22d3ee" : isFocused || n.isCenter ? "#ffffff" : "#07090f"}
+                        strokeWidth={isLockedAnchor ? 2 : isFocused || n.isCenter ? 1.5 : 1.1}
+                        filter={isLockedAnchor || isFocused || n.isCenter ? "url(#neon-glow-strong)" : "url(#neon-glow-soft)"}
                       />
+
+                      {/* Specular Inner Core Dot */}
+                      <circle r={Math.max(1.4, n.r * 0.28)} fill="#ffffff" opacity={0.78} className="pointer-events-none" />
+
                       {showLabel && (
                         <text
-                          y={n.r + (mode === "global" ? 14 : 11)}
+                          y={n.r + (mode === "global" ? 15 : 12)}
                           textAnchor="middle"
-                          fill={n.isCenter || isFocused ? "#ffffff" : "#c2c5d0"}
+                          fill={isLockedAnchor ? "#22d3ee" : isFocused || isInLockedSubgraph || n.isCenter ? "#ffffff" : "#cbd5e1"}
                           fontSize={(mode === "global" ? 11 : 9.2) / Math.pow(transform.k, 0.35)}
-                          fontWeight={n.isCenter || isFocused ? 600 : 400}
+                          fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 400}
                           paintOrder="stroke"
-                          stroke="#141417"
-                          strokeWidth={3.2}
+                          stroke="#06080e"
+                          strokeWidth={3.6}
                           strokeLinejoin="round"
                           className="pointer-events-none"
                         >
@@ -1072,15 +1198,64 @@ export default function ObsidianGraph({
           </svg>
         )}
 
+        {/* Holographic Locked-Node HUD Inspector (2-step click feedback!) */}
+        {lockedNode && (
+          <div className="absolute left-3 top-3 max-w-[300px] rounded-lg border border-[var(--cyan)]/45 bg-[#090d18]/92 p-3 text-xs shadow-[0_0_24px_rgba(34,211,238,0.18)] backdrop-blur-md">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--cyan)]">
+                  <Lock className="h-3 w-3" />
+                  <span>结构已锁定 · {NODE_LABELS[lockedNode.nodeType]}</span>
+                </div>
+                <div className="mt-1 truncate text-xs font-semibold text-white">{lockedNode.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLockedRel(null)}
+                title="解除锁定 (Esc)"
+                className="rounded p-0.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3 font-mono text-[10px] text-[var(--ink-muted)]">
+              <span>出链 {lockedLinkStats?.out.length ?? 0}</span>
+              <span>·</span>
+              <span>反链 {lockedLinkStats?.in.length ?? 0}</span>
+              <span>·</span>
+              <span className="text-[var(--accent)]">关联节点 {(lockedCluster?.size ?? 1) - 1}</span>
+            </div>
+
+            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-[var(--border)] pt-2">
+              <span className="text-[10px] text-[var(--ink-muted)]">
+                再次单击任意高亮节点进入详情
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = lockedNode.rel;
+                  setLockedRel(null);
+                  onSelectNode(target);
+                }}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-[var(--cyan-soft)] px-2 py-1 text-[11px] font-medium text-[var(--cyan)] ring-1 ring-[var(--cyan)]/40 transition hover:bg-[var(--cyan)]/25"
+              >
+                进入详情
+                <ArrowUpRight className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Damped Push-Pull Physics Tuning Popover */}
         {mode === "global" && showSettings && (
-          <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)]/95 p-3.5 text-xs shadow-xl backdrop-blur">
+          <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[#0b1020]/95 p-3.5 text-xs shadow-[0_0_24px_rgba(124,77,255,0.2)] backdrop-blur-md">
             <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
+                <Sparkles className="h-3.5 w-3.5 text-[var(--cyan)]" />
                 推拉阻尼与架构弹性
               </span>
-              <span className="font-mono text-[10px] text-[var(--ink-dim)]">{Math.round(transform.k * 100)}%</span>
+              <span className="font-mono text-[10px] text-[var(--cyan)]">{Math.round(transform.k * 100)}%</span>
             </div>
 
             <label className="block space-y-1 text-[11px] text-[var(--ink-muted)]">
@@ -1098,7 +1273,7 @@ export default function ObsidianGraph({
                   setArchPull(Number(e.target.value));
                   startLoop();
                 }}
-                className="w-full accent-[var(--accent)]"
+                className="w-full accent-[var(--cyan)]"
               />
             </label>
 
@@ -1117,7 +1292,7 @@ export default function ObsidianGraph({
                   setDamping(Number(e.target.value));
                   startLoop();
                 }}
-                className="w-full accent-[var(--accent)]"
+                className="w-full accent-[var(--cyan)]"
               />
             </label>
 
@@ -1136,7 +1311,7 @@ export default function ObsidianGraph({
                   setSpringPull(Number(e.target.value));
                   startLoop();
                 }}
-                className="w-full accent-[var(--accent)]"
+                className="w-full accent-[var(--cyan)]"
               />
             </label>
 
@@ -1146,25 +1321,28 @@ export default function ObsidianGraph({
                 type="checkbox"
                 checked={showAllLabels}
                 onChange={(e) => setShowAllLabels(e.target.checked)}
-                className="accent-[var(--accent)]"
+                className="accent-[var(--cyan)]"
               />
             </label>
           </div>
         )}
 
-        {/* Legend & Gesture Hint */}
+        {/* Bottom HUD Legend & 2-Step Gesture Guide */}
         <div className="pointer-events-none absolute bottom-2 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2.5 rounded bg-[#141417]/85 px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-2.5 rounded border border-[var(--border)] bg-[#070a12]/88 px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
             {(["overview", "card", "topic", "timeline", "manual"] as const).map((t) => (
               <span key={t} className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: NODE_COLORS[t] }} />
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: NODE_COLORS[t], boxShadow: `0 0 6px ${NODE_GLOW[t]}` }}
+                />
                 {NODE_LABELS[t]}
               </span>
             ))}
           </div>
 
-          <div className="hidden rounded bg-[#141417]/80 px-2.5 py-1 text-[10px] text-[var(--ink-dim)] sm:block">
-            按住节点阻尼推拉（松手平滑归位）· 拖拽空白平移 · 滚轮缩放 · 单击打开笔记
+          <div className="hidden rounded border border-[var(--border)] bg-[#070a12]/85 px-2.5 py-1 text-[10px] text-[var(--ink-muted)] sm:block">
+            单击锁定关联结构 · 再次单击高亮节点进详情 · 拖拽节点阻尼推拉 · 滚轮缩放
           </div>
         </div>
       </div>

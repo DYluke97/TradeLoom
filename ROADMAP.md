@@ -62,7 +62,7 @@ flowchart LR
 
 ---
 
-## Sprint 3（第三优先级 · 硬核护城河）：实盘交割单 / 净值曲线 × 复盘笔记交叉证伪
+## Sprint 3（第三优先级 · 硬核护城河 · ✅ 已完成于 v0.7.0）：实盘交割单 / 净值曲线 × 复盘笔记交叉证伪
 
 **目标**：打通「主观文字复盘」与「客观账户盈亏」的断层，在纯本地离线前提下实现机构级投研归因（金融痛点 #1 + #2）。
 
@@ -89,3 +89,10 @@ flowchart LR
 ### Step 4.2：本地敏感凭证可选主密码加密（AES-256-GCM）
 - **改动文件**：[provider.ts](file:///E:/DSH%20BOT/%E6%8A%95%E7%A0%94%E5%86%B3%E7%AD%96%E7%9C%8B%E6%9D%BF/tradeloom/src/lib/provider.ts)、[cloud-connectors.ts](file:///E:/DSH%20BOT/%E6%8A%95%E7%A0%94%E5%86%B3%E7%AD%96%E7%9C%8B%E6%9D%BF/tradeloom/src/lib/cloud-connectors.ts)
 - **具体做法**：允许用户在多人共用电脑场景下设置本地解锁口令，对 `config.json` 与 `connectors.json` 中的 API Key / Token 做 AES-256-GCM 静态加密落盘。
+
+### Step 4.3：A 股行情实时性升级与完全离线兜底（待做）
+- **涉及模块**：`src/lib/market.ts`、`src/app/api/market/kline/route.ts`、`src/components/LedgerWorkspace.tsx`、`src/components/StockKlineChart.tsx`
+- **具体做法**：
+  1. **A 股交易时段感知缓存**：统一采用北京时间（`Asia/Shanghai`）替代 UTC 日期；盘中交易时段（`09:30~15:10`）将最新日 K 缓存 TTL 自动缩短至 **60 秒**；收盘后（`15:10` 之后）若本地缓存生成时间早于当日 `15:05`，自动触发一次精准收盘价同步，盘后与周末彻底零外网请求。
+  2. **持仓实时现价与未实现浮盈快照**：接入腾讯批量实时快照接口，在 `/ledger` 持仓列表一键或自动刷新所有当前持仓股的最新价、当日涨跌幅与实时浮动盈亏。
+  3. **无网 / 内网环境的离线行情 CSV 兜底**：支持导入通达信 / 同花顺导出的个股日线 `.csv` 至 `workspace/ledger/market-cache/`，满足完全断网或企业隔离内网场景下的个股 K 线与买卖点复盘需求。

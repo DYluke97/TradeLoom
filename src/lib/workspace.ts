@@ -8,6 +8,7 @@ export type WorkspacePaths = {
   manuals: string;
   configFile: string;
   conceptsFile: string;
+  connectorsFile: string;
 };
 
 export function getWorkspacePaths(): WorkspacePaths {
@@ -24,6 +25,7 @@ export function getWorkspacePaths(): WorkspacePaths {
     manuals: path.join(root, "manuals"),
     configFile: path.join(root, "config.json"),
     conceptsFile: path.join(root, "concepts.json"),
+    connectorsFile: path.join(root, "connectors.json"),
   };
 }
 

@@ -103,7 +103,9 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
 
   const switcherItems = useMemo<SwitcherItem[]>(() => {
     const commands: SwitcherItem[] = [
-      { id: "cmd-graph", label: "打开全局力导向关系图谱 (Graph View)", sublabel: "拖拽节点、滚轮缩放查看全库双链星图", href: "/vault?view=graph", kind: "command" },
+      { id: "cmd-graph", label: "打开全局全息星图 (Graph View)", sublabel: "两段式单击锁定结构 + 阻尼推拉探索双链", href: "/vault?view=graph", kind: "command" },
+      { id: "cmd-cloud-import", label: "云端复盘采集（粘贴 / URL 抓取 / 浏览器剪藏）", sublabel: "从飞书 / Notion / 有道 / 印象 / 雪球 / 语雀快速入库", href: "/vault?import=cloud", kind: "command" },
+      { id: "cmd-connectors", label: "配置云端平台直连同步器（Notion / 飞书 / 语雀 / 滴答清单）", sublabel: "BYOK 本地凭证直连拉取云端复盘并重建双链", href: "/settings?tab=connectors", kind: "command" },
       { id: "cmd-concepts", label: "自定义主题词典与双链重排", sublabel: "编辑你自己的交易主题关键词并一键重织双链", href: "/settings?tab=concepts", kind: "command" },
       { id: "cmd-synth", label: "按时间线阶段提炼个人交易手册", sublabel: "选择复盘样本 + 内置短线/基本面 Skill", href: "/synthesize", kind: "command" },
       { id: "cmd-manuals", label: "查看已沉淀的个人交易手册", sublabel: "包含方法演变时间轴与逐字原文溯源", href: "/manuals", kind: "command" },

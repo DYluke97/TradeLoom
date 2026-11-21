@@ -7,6 +7,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Cloud,
   Edit3,
   FileText,
   Folder,
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import CloudImportModal from "@/components/CloudImportModal";
 import MarkdownView from "@/components/MarkdownView";
 import ObsidianGraph from "@/components/ObsidianGraph";
 import type { ParsedMarkdown } from "@/lib/markdown";
@@ -79,6 +81,7 @@ export default function VaultWorkspace() {
   const searchParams = useSearchParams();
   const paramCard = searchParams.get("card");
   const paramView = searchParams.get("view");
+  const paramImport = searchParams.get("import");
 
   const [index, setIndex] = useState<VaultIndex | null>(null);
   const [activeCard, setActiveCard] = useState<string>(paramCard || "00-总览.md");
@@ -91,6 +94,7 @@ export default function VaultWorkspace() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnlinked, setShowUnlinked] = useState(true);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
+  const [cloudImportOpen, setCloudImportOpen] = useState(paramImport === "cloud");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
@@ -110,6 +114,12 @@ export default function VaultWorkspace() {
       setCenterMode("graph");
     }
   }, [paramView]);
+
+  useEffect(() => {
+    if (paramImport === "cloud") {
+      setCloudImportOpen(true);
+    }
+  }, [paramImport]);
 
   const loadIndex = useCallback(async () => {
     const res = await fetch("/api/vault", { cache: "no-store" });
@@ -348,13 +358,23 @@ export default function VaultWorkspace() {
             </button>
             <button
               type="button"
+              onClick={() => setCloudImportOpen(true)}
+              disabled={busy}
+              title="云端采集：富文本粘贴 / 网页链接抓取 / 浏览器一键剪藏"
+              className="ml-0.5 inline-flex items-center gap-1 rounded border border-[var(--cyan)]/45 bg-[var(--cyan-soft)] px-2 py-1 text-[11px] font-medium text-[var(--cyan)] transition hover:border-[var(--cyan)] hover:bg-[var(--cyan)]/20"
+            >
+              <Cloud className="h-3 w-3" />
+              云端
+            </button>
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={busy}
-              title="导入 .md / .txt / .docx / .html / .pdf"
+              title="导入本地文件 .md / .txt / .docx / .html / .pdf"
               className="ml-0.5 inline-flex items-center gap-1 rounded bg-[var(--accent-strong)] px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--accent)]"
             >
               <Upload className="h-3 w-3" />
-              导入
+              本地
             </button>
             <input
               ref={fileInputRef}
@@ -799,6 +819,16 @@ export default function VaultWorkspace() {
           )}
         </div>
       </aside>
+
+      <CloudImportModal
+        open={cloudImportOpen}
+        onClose={() => setCloudImportOpen(false)}
+        onImported={(nextIndex, cardRel, message) => {
+          setIndex(nextIndex);
+          setStatusMsg(message);
+          if (cardRel) openCard(cardRel);
+        }}
+      />
     </div>
   );
 }

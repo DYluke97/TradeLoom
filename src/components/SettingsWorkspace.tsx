@@ -1,8 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Hash, KeyRound, PlugZap, Save, Sparkles } from "lucide-react";
+import { CheckCircle2, Cloud, Hash, KeyRound, PlugZap, Save, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import CloudConnectorsPanel from "@/components/CloudConnectorsPanel";
 import ConceptTaxonomyEditor from "@/components/ConceptTaxonomyEditor";
 import MarkdownView from "@/components/MarkdownView";
 import { parseMarkdown } from "@/lib/markdown";
@@ -10,11 +11,17 @@ import type { MaskedProviderStatus } from "@/lib/provider";
 import type { SkillSpec } from "@/lib/skills";
 
 type Preset = { id: string; label: string; url: string; model: string };
+type SettingsTab = "llm" | "concepts" | "connectors";
+
+function resolveTab(param: string | null): SettingsTab {
+  if (param === "concepts") return "concepts";
+  if (param === "connectors") return "connectors";
+  return "llm";
+}
 
 export default function SettingsWorkspace() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "concepts" ? "concepts" : "llm";
-  const [activeTab, setActiveTab] = useState<"llm" | "concepts">(initialTab);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => resolveTab(searchParams.get("tab")));
 
   const [status, setStatus] = useState<MaskedProviderStatus | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -29,8 +36,10 @@ export default function SettingsWorkspace() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("tab") === "concepts") setActiveTab("concepts");
-    else if (searchParams.get("tab") === "llm") setActiveTab("llm");
+    const t = searchParams.get("tab");
+    if (t === "concepts" || t === "connectors" || t === "llm") {
+      setActiveTab(t);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -130,10 +139,25 @@ export default function SettingsWorkspace() {
           <Hash className="h-3.5 w-3.5" />
           自定义主题词典 & 双链编排
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("connectors")}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium transition ${
+            activeTab === "connectors"
+              ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan)] shadow-[0_0_12px_rgba(34,211,238,0.18)]"
+              : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--cyan)]"
+          }`}
+        >
+          <Cloud className="h-3.5 w-3.5" />
+          云端平台连接器（飞书 / Notion / 语雀 / 滴答）
+        </button>
       </div>
 
       {activeTab === "concepts" ? (
         <ConceptTaxonomyEditor />
+      ) : activeTab === "connectors" ? (
+        <CloudConnectorsPanel />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           {/* Left: BYOK LLM API Settings */}

@@ -137,6 +137,19 @@ export default function HomeWorkspace() {
                 <Network className="h-3.5 w-3.5" />
                 进入全息星图
               </Link>
+              <Link
+                href="/vault?import=cloud"
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--emerald)]/40 bg-[var(--emerald-soft)] px-3.5 py-2 text-xs font-medium text-[var(--emerald)] transition hover:border-[var(--emerald)]"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                云端粘贴 / 链接抓取
+              </Link>
+              <Link
+                href="/settings?tab=connectors"
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)]/85 px-3.5 py-2 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)]/50 hover:text-[var(--cyan)]"
+              >
+                云端平台连接器（飞书/Notion/语雀/滴答）
+              </Link>
               <button
                 type="button"
                 onClick={handleLoadSamples}

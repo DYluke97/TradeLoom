@@ -30,6 +30,16 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[var(--accent)]">
                 {report.skill_name}
               </span>
+              {report.source_mode === "manuals" && (
+                <span className="rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2.5 py-0.5 text-[var(--cyan)]">
+                  Map-Reduce 阶段二次综合
+                </span>
+              )}
+              {report.source_mode === "mixed" && (
+                <span className="rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2.5 py-0.5 text-[var(--cyan)]">
+                  阶段手册 + 原文混合综合
+                </span>
+              )}
               <span>模型：{report.model}</span>
               <span>·</span>
               <span>

@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPrecheck,
+  buildSynthesisPrompt,
   exportReportToObsidianMarkdown,
   parseSynthesisResponse,
+  sliceEvidence,
+  stripCloudMetadataHeader,
   type MaterializedDoc,
   type SynthesisReport,
 } from "@/lib/synthesis";
 
-const makeDoc = (id: string, date: string, body: string): MaterializedDoc => ({
+const makeDoc = (id: string, date: string, body: string, extra?: Partial<MaterializedDoc>): MaterializedDoc => ({
   doc_id: id,
   title: `复盘 ${date}`,
   kind: "收盘复盘",
@@ -20,6 +23,7 @@ const makeDoc = (id: string, date: string, body: string): MaterializedDoc => ({
   body,
   status: "ready",
   reason: null,
+  ...extra,
 });
 
 describe("stage precheck & evidence-grounded synthesis", () => {
@@ -34,6 +38,63 @@ describe("stage precheck & evidence-grounded synthesis", () => {
     expect(snapshot.over_limit_ids).toEqual(["d3"]);
     expect(snapshot.date_range).toEqual({ from: "2025-02-10", to: "2025-04-10" });
     expect(evidence.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("strips cloud-import metadata headers before slicing evidence so quotes stay pure body text", () => {
+    const raw = [
+      "# 2024要点小结",
+      "",
+      "> 来源平台：雪球 · 复盘日期：`2024-12-30`",
+      "> 原始链接：https://xueqiu.com/1755110761/318625491",
+      "",
+      "---",
+      "",
+      "> 作者：Velaciela",
+      "",
+      "连续上涨后，高估值高成交高热度时要保持警惕，适度保留现金配置。",
+    ].join("\n");
+
+    const cleaned = stripCloudMetadataHeader(raw);
+    expect(cleaned).not.toContain("来源平台");
+    expect(cleaned).not.toContain("原始链接");
+    expect(cleaned).not.toContain("作者：Velaciela");
+    expect(cleaned).toContain("连续上涨后，高估值高成交高热度时要保持警惕");
+
+    const slices = sliceEvidence(makeDoc("d-cloud", "2024-12-30", raw));
+    expect(slices).toHaveLength(1);
+    expect(slices[0].quote).not.toContain("来源平台");
+    expect(slices[0].quote).toContain("适度保留现金配置");
+  });
+
+  it("supports hierarchical Map-Reduce precheck & prompt over stage manuals with full outer date span", () => {
+    const stage1 = makeDoc("manual-q1", "2025-01-03", "【阶段总览】Q1以冰点试错控仓为主。", {
+      kind: "阶段手册",
+      carrier: "manual",
+      event_date_end: "2025-03-31",
+      card: "40-交易手册/manual-q1.md",
+      title: "2025 Q1 阶段手册",
+    });
+    const stage2 = makeDoc("manual-q2", "2025-04-02", "【阶段总览】Q2确立主升浪龙头聚焦纪律。", {
+      kind: "阶段手册",
+      carrier: "manual",
+      event_date_end: "2025-06-30",
+      card: "40-交易手册/manual-q2.md",
+      title: "2025 Q2 阶段手册",
+    });
+
+    const { snapshot, packedDocs, evidence } = buildPrecheck([stage2, stage1]);
+    expect(packedDocs.map((d) => d.doc_id)).toEqual(["manual-q1", "manual-q2"]);
+    expect(snapshot.date_range).toEqual({ from: "2025-01-03", to: "2025-06-30" });
+
+    const prompt = buildSynthesisPrompt({
+      docs: packedDocs,
+      evidence,
+      skill: { id: "general", name: "综合阶段归纳", summary: "", tags: [], builtin: true, fileName: null, content: "" },
+      stageTitle: "2025 上半年总纲",
+    });
+    expect(prompt.system).toContain("Map-Reduce");
+    expect(prompt.user).toContain("2025-01-03 ~ 2025-03-31");
+    expect(prompt.user).toContain("2025-04-02 ~ 2025-06-30");
   });
 
   it("rejects hallucinated evidence_ids and keeps only verbatim-verified rules", () => {
@@ -93,6 +154,7 @@ describe("stage precheck & evidence-grounded synthesis", () => {
       skill_id: "short-term",
       skill_name: "短线博弈 Skill",
       model: "deepseek-chat",
+      source_mode: "manuals",
       fingerprint: "abc",
       date_range: { from: "2025-03-01", to: "2025-03-01" },
       source_docs: [{ doc_id: "d1", title: "复盘 2025-03-01", event_date: "2025-03-01", card: "20-卡片/2025-03-01_复盘.md" }],
@@ -106,5 +168,6 @@ describe("stage precheck & evidence-grounded synthesis", () => {
     const md = exportReportToObsidianMarkdown(report);
     expect(md).toContain("[[20-卡片/2025-03-01_复盘|复盘 2025-03-01]]");
     expect(md).toContain("### M1：冰点期控仓纪律");
+    expect(md).toContain("Map-Reduce");
   });
 });

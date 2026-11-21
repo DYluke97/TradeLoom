@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, CheckSquare, Cpu, Play, ShieldCheck, Square } from "lucide-react";
+import { BookMarked, Calendar, CheckSquare, Cpu, Layers, Play, ShieldCheck, Square } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import ReportView from "@/components/ReportView";
 import type { MaskedProviderStatus } from "@/lib/provider";
@@ -9,15 +9,20 @@ import type { SkillSpec } from "@/lib/skills";
 import type { PrecheckSnapshot, SynthesisReport } from "@/lib/synthesis";
 import type { VaultDoc, VaultIndex } from "@/lib/vault-builder";
 
+type SourceTab = "docs" | "manuals";
+
 export default function SynthesizeWorkspace() {
   const [vault, setVault] = useState<VaultIndex | null>(null);
   const [skills, setSkills] = useState<SkillSpec[]>([]);
   const [provider, setProvider] = useState<MaskedProviderStatus | null>(null);
+  const [savedManuals, setSavedManuals] = useState<SynthesisReport[]>([]);
 
+  const [sourceTab, setSourceTab] = useState<SourceTab>("docs");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [kindFilter, setKindFilter] = useState("ALL");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedManualIds, setSelectedManualIds] = useState<string[]>([]);
   const [skillId, setSkillId] = useState("short-term");
   const [stageTitle, setStageTitle] = useState("");
 
@@ -27,12 +32,20 @@ export default function SynthesizeWorkspace() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
 
+  async function refreshManuals() {
+    const res = await fetch("/api/manuals", { cache: "no-store" }).then((r) => r.json());
+    if (res.ok && Array.isArray(res.manuals)) {
+      setSavedManuals(res.manuals);
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       fetch("/api/vault", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/skills", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/provider", { cache: "no-store" }).then((r) => r.json()),
-    ]).then(([v, s, p]) => {
+      fetch("/api/manuals", { cache: "no-store" }).then((r) => r.json()),
+    ]).then(([v, s, p, m]) => {
       if (v.ok) {
         setVault(v.index);
         const docs = (v.index.documents ?? []) as VaultDoc[];
@@ -40,6 +53,7 @@ export default function SynthesizeWorkspace() {
       }
       if (s.ok) setSkills(s.skills);
       if (p.ok) setProvider(p.status);
+      if (m.ok && Array.isArray(m.manuals)) setSavedManuals(m.manuals);
     });
   }, []);
 
@@ -55,21 +69,49 @@ export default function SynthesizeWorkspace() {
     });
   }, [vault, kindFilter, fromDate, toDate]);
 
+  const sortedManuals = useMemo(() => {
+    return [...savedManuals].sort((a, b) =>
+      (a.date_range?.from ?? a.created_at).localeCompare(b.date_range?.from ?? b.created_at),
+    );
+  }, [savedManuals]);
+
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedManualSet = useMemo(() => new Set(selectedManualIds), [selectedManualIds]);
+
+  const activeSelectionCount = sourceTab === "manuals" ? selectedManualIds.length : selectedIds.length;
+
+  function switchTab(next: SourceTab) {
+    setSourceTab(next);
+    setSnapshot(null);
+    setError("");
+  }
 
   function toggleId(id: string) {
     setSnapshot(null);
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function toggleManualId(id: string) {
+    setSnapshot(null);
+    setSelectedManualIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
   function selectAllFiltered() {
     setSnapshot(null);
-    setSelectedIds(filteredDocs.map((d) => d.doc_id));
+    if (sourceTab === "manuals") {
+      setSelectedManualIds(sortedManuals.map((m) => m.id));
+    } else {
+      setSelectedIds(filteredDocs.map((d) => d.doc_id));
+    }
   }
 
   function clearSelection() {
     setSnapshot(null);
-    setSelectedIds([]);
+    if (sourceTab === "manuals") {
+      setSelectedManualIds([]);
+    } else {
+      setSelectedIds([]);
+    }
   }
 
   function applyYearStage(year: string) {
@@ -89,6 +131,12 @@ export default function SynthesizeWorkspace() {
     setToDate("");
   }
 
+  function buildRequestPayload(mode: "precheck" | "run") {
+    return sourceTab === "manuals"
+      ? { mode, manualIds: selectedManualIds, skillId, stageTitle }
+      : { mode, docIds: selectedIds, skillId, stageTitle };
+  }
+
   async function handlePrecheck() {
     setError("");
     setLoadingPrecheck(true);
@@ -96,7 +144,7 @@ export default function SynthesizeWorkspace() {
       const res = await fetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "precheck", docIds: selectedIds, skillId, stageTitle }),
+        body: JSON.stringify(buildRequestPayload("precheck")),
       });
       const data = await res.json();
       if (!data.ok) setError(data.error || "预检失败");
@@ -113,11 +161,14 @@ export default function SynthesizeWorkspace() {
       const res = await fetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "run", docIds: selectedIds, skillId, stageTitle }),
+        body: JSON.stringify(buildRequestPayload("run")),
       });
       const data = await res.json();
       if (!data.ok) setError(data.error || "提炼失败");
-      else setReport(data.report);
+      else {
+        setReport(data.report);
+        refreshManuals().catch(() => {});
+      }
     } finally {
       setRunning(false);
     }
@@ -126,16 +177,22 @@ export default function SynthesizeWorkspace() {
   return (
     <div className="space-y-6">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        {/* Step 1: Timeline Sample Selector */}
+        {/* Step 1: Timeline Sample Selector OR Hierarchical Map-Reduce Manual Selector */}
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[var(--accent)]" />
-              <h2 className="text-sm font-semibold text-[#f1f2f5]">1. 按时间线阶段框选复盘样本</h2>
+              {sourceTab === "manuals" ? (
+                <Layers className="h-4 w-4 text-[var(--cyan)]" />
+              ) : (
+                <Calendar className="h-4 w-4 text-[var(--accent)]" />
+              )}
+              <h2 className="text-sm font-semibold text-[#f1f2f5]">
+                {sourceTab === "manuals" ? "1. 勾选已有阶段手册（Map-Reduce 二次综合）" : "1. 按时间线阶段框选复盘样本"}
+              </h2>
             </div>
             <div className="flex items-center gap-2 text-xs">
               <button type="button" onClick={selectAllFiltered} className="text-[var(--accent)] hover:underline">
-                全选当前筛选 ({filteredDocs.length})
+                全选 ({sourceTab === "manuals" ? sortedManuals.length : filteredDocs.length})
               </button>
               <span className="text-[var(--ink-dim)]">·</span>
               <button type="button" onClick={clearSelection} className="text-[var(--ink-muted)] hover:underline">
@@ -144,133 +201,226 @@ export default function SynthesizeWorkspace() {
             </div>
           </div>
 
-          {/* Multi-year Quick Stage Chips */}
-          {vault && vault.years.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-[var(--ink-dim)]">快速按年份框选：</span>
-              <button
-                type="button"
-                onClick={resetDateRange}
-                className={`rounded border px-2 py-0.5 text-[11px] transition ${
-                  !fromDate && !toDate
-                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
-                }`}
-              >
-                全部年份
-              </button>
-              {vault.years.map((y) => {
-                const active = fromDate === `${y}-01-01` && toDate === `${y}-12-31`;
-                return (
-                  <button
-                    key={y}
-                    type="button"
-                    onClick={() => applyYearStage(y)}
-                    className={`rounded border px-2 py-0.5 font-mono text-[11px] transition ${
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                        : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
-                    }`}
-                  >
-                    {y}年
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Date Range + Kind Filters */}
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label className="text-[11px] text-[var(--ink-dim)]">
-              起始日期
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
-              />
-            </label>
-            <label className="text-[11px] text-[var(--ink-dim)]">
-              截止日期
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
-              />
-            </label>
-            <label className="text-[11px] text-[var(--ink-dim)]">
-              笔记类型
-              <select
-                value={kindFilter}
-                onChange={(e) => setKindFilter(e.target.value)}
-                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
-              >
-                <option value="ALL">全部类型</option>
-                {(vault?.kinds ?? []).map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* Mode Toggle: Raw Reviews vs Stage Manuals Map-Reduce */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => switchTab("docs")}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                sourceTab === "docs"
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              原始复盘笔记 ({vault?.documents.length ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTab("manuals")}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                sourceTab === "manuals"
+                  ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan)]"
+                  : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--cyan)]"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              阶段手册二次综合 · Map-Reduce ({savedManuals.length})
+            </button>
           </div>
 
-          {/* Timeline Checklist */}
-          <div className="mt-4 max-h-[380px] space-y-1.5 overflow-y-auto pr-1">
-            {filteredDocs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[var(--border-strong)] p-6 text-center text-xs text-[var(--ink-muted)]">
-                暂无符合条件的复盘笔记。请先前往{" "}
-                <Link href="/vault" className="text-[var(--accent)] underline">
-                  双链知识库
-                </Link>{" "}
-                导入笔记或加载示例库。
+          {sourceTab === "manuals" ? (
+            <>
+              <div className="mt-3 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)]/45 p-3 text-xs leading-5 text-[var(--ink)]">
+                <strong>分层二次综合（Map-Reduce）</strong>：勾选多份已生成的周度 / 月度 / 季度阶段手册，跨周期对比认知升级与稳定铁律，一键合成年度总纲或终极个人交易手册，突破单次 8 万字上下文上限。
               </div>
-            ) : (
-              filteredDocs.map((doc) => {
-                const checked = selectedSet.has(doc.doc_id);
-                return (
+
+              <div className="mt-4 max-h-[390px] space-y-1.5 overflow-y-auto pr-1">
+                {sortedManuals.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[var(--border-strong)] p-6 text-center text-xs text-[var(--ink-muted)]">
+                    尚未生成任何阶段手册。请先在「原始复盘笔记」标签下分阶段生成至少 2 份月度或季度手册，再回到这里执行二次综合。
+                  </div>
+                ) : (
+                  sortedManuals.map((m) => {
+                    const checked = selectedManualSet.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleManualId(m.id)}
+                        className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition ${
+                          checked
+                            ? "border-[var(--cyan)]/65 bg-[var(--cyan-soft)]/50"
+                            : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
+                        }`}
+                      >
+                        {checked ? (
+                          <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cyan)]" />
+                        ) : (
+                          <Square className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-dim)]" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[11px] text-[var(--amber)]">
+                              {m.date_range?.from ?? "—"} ~ {m.date_range?.to ?? "—"}
+                            </span>
+                            <span className="truncate text-xs font-semibold text-[#f1f2f5]">{m.title}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ink-dim)]">
+                            <span className="inline-flex items-center gap-1 text-[var(--cyan)]">
+                              <BookMarked className="h-3 w-3" />
+                              {m.skill_name}
+                            </span>
+                            <span>·</span>
+                            <span>{m.statistics.docs_count} 样本</span>
+                            <span>·</span>
+                            <span>{m.statistics.timeline_count} 节点</span>
+                            <span>·</span>
+                            <span>{m.statistics.rules_count} 规则</span>
+                            {m.source_mode === "manuals" && (
+                              <span className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]">
+                                二次综合
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Multi-year Quick Stage Chips */}
+              {vault && vault.years.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-[var(--ink-dim)]">快速按年份框选：</span>
                   <button
-                    key={doc.doc_id}
                     type="button"
-                    onClick={() => toggleId(doc.doc_id)}
-                    className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition ${
-                      checked
-                        ? "border-[var(--accent)]/55 bg-[var(--accent-soft)]/70"
-                        : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
+                    onClick={resetDateRange}
+                    className={`rounded border px-2 py-0.5 text-[11px] transition ${
+                      !fromDate && !toDate
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
                     }`}
                   >
-                    {checked ? (
-                      <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
-                    ) : (
-                      <Square className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-dim)]" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[11px] text-[var(--amber)]">
-                          {doc.event_date ?? "未标日期"}
-                        </span>
-                        <span className="truncate text-xs font-medium text-[var(--ink)]">{doc.title}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ink-dim)]">
-                        <span>{doc.kind}</span>
-                        <span>·</span>
-                        <span>{doc.carrier.toUpperCase()}</span>
-                        {[...doc.tags, ...(doc.auto_concepts ?? [])].slice(0, 3).map((t) => (
-                          <span
-                            key={t}
-                            className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]"
-                          >
-                            #{t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    全部年份
                   </button>
-                );
-              })
-            )}
-          </div>
+                  {vault.years.map((y) => {
+                    const active = fromDate === `${y}-01-01` && toDate === `${y}-12-31`;
+                    return (
+                      <button
+                        key={y}
+                        type="button"
+                        onClick={() => applyYearStage(y)}
+                        className={`rounded border px-2 py-0.5 font-mono text-[11px] transition ${
+                          active
+                            ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                            : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
+                        }`}
+                      >
+                        {y}年
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Date Range + Kind Filters */}
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <label className="text-[11px] text-[var(--ink-dim)]">
+                  起始日期
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </label>
+                <label className="text-[11px] text-[var(--ink-dim)]">
+                  截止日期
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                </label>
+                <label className="text-[11px] text-[var(--ink-dim)]">
+                  笔记类型
+                  <select
+                    value={kindFilter}
+                    onChange={(e) => setKindFilter(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                  >
+                    <option value="ALL">全部类型</option>
+                    {(vault?.kinds ?? []).map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Timeline Checklist */}
+              <div className="mt-4 max-h-[380px] space-y-1.5 overflow-y-auto pr-1">
+                {filteredDocs.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[var(--border-strong)] p-6 text-center text-xs text-[var(--ink-muted)]">
+                    暂无符合条件的复盘笔记。请先前往{" "}
+                    <Link href="/vault" className="text-[var(--accent)] underline">
+                      双链知识库
+                    </Link>{" "}
+                    导入笔记或加载示例库。
+                  </div>
+                ) : (
+                  filteredDocs.map((doc) => {
+                    const checked = selectedSet.has(doc.doc_id);
+                    return (
+                      <button
+                        key={doc.doc_id}
+                        type="button"
+                        onClick={() => toggleId(doc.doc_id)}
+                        className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition ${
+                          checked
+                            ? "border-[var(--accent)]/55 bg-[var(--accent-soft)]/70"
+                            : "border-[var(--border)] bg-[var(--bg-deep)] hover:border-[var(--border-strong)]"
+                        }`}
+                      >
+                        {checked ? (
+                          <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
+                        ) : (
+                          <Square className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-dim)]" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[11px] text-[var(--amber)]">
+                              {doc.event_date ?? "未标日期"}
+                            </span>
+                            <span className="truncate text-xs font-medium text-[var(--ink)]">{doc.title}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ink-dim)]">
+                            <span>{doc.kind}</span>
+                            <span>·</span>
+                            <span>{doc.carrier.toUpperCase()}</span>
+                            {[...doc.tags, ...(doc.auto_concepts ?? [])].slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]"
+                              >
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
         </section>
 
         {/* Step 2: Skill Picker + Precheck + Run */}
@@ -306,11 +456,15 @@ export default function SynthesizeWorkspace() {
             </div>
 
             <label className="block text-[11px] text-[var(--ink-dim)]">
-              阶段手册标题（可选，留空自动按时间段与 Skill 命名）
+              {sourceTab === "manuals" ? "总纲手册标题（可选，留空自动按跨度命名）" : "阶段手册标题（可选，留空自动按时间段与 Skill 命名）"}
               <input
                 value={stageTitle}
                 onChange={(e) => setStageTitle(e.target.value)}
-                placeholder="例如：2025 上半年短线情绪周期演进手册"
+                placeholder={
+                  sourceTab === "manuals"
+                    ? "例如：2024–2025 个人短线交易方法论年度总纲"
+                    : "例如：2025 上半年短线情绪周期演进手册"
+                }
                 className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
               />
             </label>
@@ -338,9 +492,9 @@ export default function SynthesizeWorkspace() {
                   外发预检通过（0 Token 消耗）
                 </div>
                 <div className="text-[var(--ink)]">
-                  将纳入 <strong>{snapshot.included_ids.length}</strong> 篇复盘（共{" "}
+                  将纳入 <strong>{snapshot.included_ids.length}</strong> {sourceTab === "manuals" ? "份阶段手册" : "篇复盘"}（共{" "}
                   <strong>{snapshot.total_chars.toLocaleString()}</strong> / {snapshot.limit.toLocaleString()} 字），
-                  已切片生成 <strong>{snapshot.evidence_count}</strong> 条可核验原文证据 ID。
+                  已切片生成 <strong>{snapshot.evidence_count}</strong> 条可核验证据 ID。
                 </div>
                 <div className="font-mono text-[11px] text-[var(--ink-muted)]">
                   时间范围：{snapshot.date_range.from ?? "—"} ~ {snapshot.date_range.to ?? "—"} · 指纹：
@@ -360,19 +514,25 @@ export default function SynthesizeWorkspace() {
             <button
               type="button"
               onClick={handlePrecheck}
-              disabled={loadingPrecheck || selectedIds.length === 0}
+              disabled={loadingPrecheck || activeSelectionCount === 0}
               className="flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-2 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)]/60 disabled:opacity-50"
             >
-              {loadingPrecheck ? "预检中..." : `先做发送预检（已选 ${selectedIds.length} 篇）`}
+              {loadingPrecheck
+                ? "预检中..."
+                : `先做发送预检（已选 ${activeSelectionCount} ${sourceTab === "manuals" ? "份" : "篇"}）`}
             </button>
             <button
               type="button"
               onClick={handleRunSynthesis}
-              disabled={running || selectedIds.length === 0 || !provider?.configured}
+              disabled={running || activeSelectionCount === 0 || !provider?.configured}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
             >
               <Play className="h-3.5 w-3.5" />
-              {running ? "正在调用大模型提炼..." : "开始提炼时间轴与手册"}
+              {running
+                ? "正在调用大模型提炼..."
+                : sourceTab === "manuals"
+                  ? "二次综合生成总纲手册"
+                  : "开始提炼时间轴与手册"}
             </button>
           </div>
         </section>

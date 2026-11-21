@@ -10,7 +10,8 @@
     "start": "next start --hostname 127.0.0.1 --port 3200",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pack:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-portable-win.ps1"
   },
   "dependencies": {
     "lucide-react": "^0.544.0",

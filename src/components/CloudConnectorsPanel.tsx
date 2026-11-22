@@ -13,11 +13,14 @@ import {
   LogIn,
   LogOut,
   PlugZap,
+  QrCode,
   RefreshCw,
   Save,
   ShieldCheck,
+  Terminal,
+  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ConnectorId,
   DidaProjectSummary,
@@ -31,6 +34,7 @@ type FieldSpec = {
   placeholder: string;
   secret?: boolean;
   multiline?: boolean;
+  feishuMode?: "open_api" | "lark_cli";
 };
 
 const CONNECTOR_META: Record<
@@ -68,19 +72,27 @@ const CONNECTOR_META: Record<
   },
   feishu: {
     accent: "text-[var(--cyan)]",
-    subtitle: "通过飞书开放平台直连同步个人复盘云文档（Docx）或知识库节点（Wiki）",
+    subtitle: "支持「扫码一键创建应用 (RFC 8628)」与「本机 lark-cli 自动搜索 + 原生 Markdown 导出」双模式",
     tokenGuide:
-      "飞书官方远程 MCP 暂不支持浏览器免配置 OAuth，请使用自建应用 App ID / App Secret 并开通 docx:document:readonly / wiki:wiki:readonly 权限。",
+      "零命令行推荐用「飞书扫码一键创建应用」自动获取 App ID/Secret 并预置只读权限；若本机已安装飞书官方 CLI (lark-cli)，可切换到「本机 lark-cli 直连」直接复用个人登录态，免粘链接批量搜索并导出原生 Markdown。",
     fields: [
-      { key: "appId", label: "App ID", placeholder: "cli_a1b2c3d4..." },
-      { key: "appSecret", label: "App Secret (留空保留已存密钥)", placeholder: "输入 App Secret", secret: true },
+      { key: "appId", label: "App ID（扫码创建后自动回填）", placeholder: "cli_a1b2c3d4...", feishuMode: "open_api" },
+      { key: "appSecret", label: "App Secret（留空保留已存密钥）", placeholder: "输入 App Secret", secret: true, feishuMode: "open_api" },
+      {
+        key: "searchQuery",
+        label: "个人云文档 / 知识库搜索关键词（≤30 字；留空则拉取最近个人 Docx/Wiki）",
+        placeholder: "例如：复盘、交易计划（留空自动拉取最近文档）",
+        feishuMode: "lark_cli",
+      },
       {
         key: "docTokens",
-        label: "飞书文档/知识库链接或 Token（支持多行批量填写）",
+        label: "指定飞书文档/知识库链接或 Token（支持多行；CLI 模式下可留空走上方搜索）",
         placeholder: "每行一条，如：https://xxx.feishu.cn/docx/xxxxx 或 https://xxx.feishu.cn/wiki/xxxxx",
         multiline: true,
       },
-      { key: "domain", label: "开放平台域名", placeholder: "open.feishu.cn" },
+      { key: "cliProfile", label: "可选：lark-cli Profile 名称（留空使用默认 profile）", placeholder: "例如：default 或 bot-reader", feishuMode: "lark_cli" },
+      { key: "maxItems", label: "单次最多同步篇数", placeholder: "20", feishuMode: "lark_cli" },
+      { key: "domain", label: "开放平台域名", placeholder: "open.feishu.cn", feishuMode: "open_api" },
     ],
   },
   youdao: {
@@ -144,6 +156,25 @@ export default function CloudConnectorsPanel() {
   });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [feishuReg, setFeishuReg] = useState<{
+    sessionId: string;
+    authUrl: string;
+    userCode: string;
+    interval: number;
+    remainingSec: number;
+  } | null>(null);
+  const [feishuBrand, setFeishuBrand] = useState<"feishu" | "lark">("feishu");
+  const [larkCliInfo, setLarkCliInfo] = useState<{
+    installed: boolean;
+    loggedIn: boolean;
+    version?: string;
+    userName?: string;
+    appId?: string;
+    profile?: string;
+    message: string;
+    authUrl?: string;
+  } | null>(null);
+  const feishuPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function loadConnectors() {
     const res = await fetch("/api/connectors", { cache: "no-store" });
@@ -235,6 +266,194 @@ export default function CloudConnectorsPanel() {
     updateField("youdao", "folderId", next.join(", "));
   }
 
+  useEffect(() => {
+    if (!feishuReg) {
+      if (feishuPollTimerRef.current) {
+        clearTimeout(feishuPollTimerRef.current);
+        feishuPollTimerRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const pollOnce = async (sessionId: string, delaySec: number) => {
+      feishuPollTimerRef.current = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const res = await fetch("/api/connectors/feishu-agent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "register_poll", sessionId }),
+          });
+          const data = await res.json();
+          if (cancelled) return;
+
+          if (data.ok && data.status === "completed") {
+            setFeishuReg(null);
+            if (Array.isArray(data.connectors)) {
+              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
+              const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
+                (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
+              );
+              setConnectors(sorted);
+            }
+            setDrafts((prev) => ({
+              ...prev,
+              feishu: {
+                ...(prev.feishu ?? {}),
+                mode: "open_api",
+                appId: data.appId || "",
+                appSecret: "",
+                domain: data.domain || "open.feishu.cn",
+              },
+            }));
+            setFeedback((prev) => ({
+              ...prev,
+              feishu: {
+                ok: true,
+                text: `飞书应用扫码创建成功 (${data.appId})，文档只读权限已预置并安全保存至本地！`,
+              },
+            }));
+            return;
+          }
+
+          if (data.ok && data.status === "pending") {
+            const nextInterval = Math.max(2, Number(data.interval) || delaySec);
+            setFeishuReg((prev) =>
+              prev && prev.sessionId === sessionId
+                ? { ...prev, interval: nextInterval, remainingSec: Number(data.remainingSec) || prev.remainingSec }
+                : prev,
+            );
+            pollOnce(sessionId, nextInterval);
+            return;
+          }
+
+          setFeishuReg(null);
+          setFeedback((prev) => ({
+            ...prev,
+            feishu: { ok: false, text: data.error || "飞书扫码创建未完成，请重试" },
+          }));
+        } catch {
+          if (!cancelled) {
+            pollOnce(sessionId, Math.min(10, delaySec + 2));
+          }
+        }
+      }, delaySec * 1000);
+    };
+
+    pollOnce(feishuReg.sessionId, feishuReg.interval);
+    return () => {
+      cancelled = true;
+      if (feishuPollTimerRef.current) {
+        clearTimeout(feishuPollTimerRef.current);
+        feishuPollTimerRef.current = null;
+      }
+    };
+  }, [feishuReg?.sessionId]);
+
+  async function startFeishuQrRegistration() {
+    setBusyId("feishu:qr");
+    setFeedback((prev) => ({ ...prev, feishu: { ok: true, text: "" } }));
+    try {
+      const res = await fetch("/api/connectors/feishu-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register_start",
+          brand: feishuBrand,
+          existingAppId: drafts.feishu?.appId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.sessionId && data.authUrl) {
+        setFeishuReg({
+          sessionId: data.sessionId,
+          authUrl: data.authUrl,
+          userCode: data.userCode || "",
+          interval: Number(data.interval) || 5,
+          remainingSec: Number(data.expiresIn) || 600,
+        });
+      } else {
+        setFeedback((prev) => ({
+          ...prev,
+          feishu: { ok: false, text: data.error || "发起飞书扫码建应用失败" },
+        }));
+      }
+    } catch (err) {
+      setFeedback((prev) => ({
+        ...prev,
+        feishu: { ok: false, text: err instanceof Error ? err.message : "网络异常" },
+      }));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function checkLarkCliStatus() {
+    setBusyId("feishu:cli_status");
+    setFeedback((prev) => ({ ...prev, feishu: { ok: true, text: "" } }));
+    try {
+      const res = await fetch("/api/connectors/feishu-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cli_status", profile: drafts.feishu?.cliProfile || undefined }),
+      });
+      const data = await res.json();
+      if (data.ok && data.cli) {
+        setLarkCliInfo(data.cli);
+        setFeedback((prev) => ({
+          ...prev,
+          feishu: { ok: Boolean(data.cli.installed && data.cli.loggedIn), text: data.cli.message },
+        }));
+      } else {
+        setFeedback((prev) => ({
+          ...prev,
+          feishu: { ok: false, text: data.error || "检测本机 lark-cli 失败" },
+        }));
+      }
+    } catch (err) {
+      setFeedback((prev) => ({
+        ...prev,
+        feishu: { ok: false, text: err instanceof Error ? err.message : "网络异常" },
+      }));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function startLarkCliLogin() {
+    setBusyId("feishu:cli_login");
+    setFeedback((prev) => ({ ...prev, feishu: { ok: true, text: "" } }));
+    try {
+      const res = await fetch("/api/connectors/feishu-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cli_login", profile: drafts.feishu?.cliProfile || undefined }),
+      });
+      const data = await res.json();
+      if (data.ok && data.authUrl) {
+        setLarkCliInfo((prev) => ({
+          ...(prev ?? { installed: true, loggedIn: false, message: data.message }),
+          authUrl: data.authUrl,
+          message: data.message,
+        }));
+        setFeedback((prev) => ({ ...prev, feishu: { ok: true, text: data.message } }));
+      } else {
+        setFeedback((prev) => ({
+          ...prev,
+          feishu: { ok: false, text: data.error || "发起 CLI 浏览器授权失败" },
+        }));
+      }
+    } catch (err) {
+      setFeedback((prev) => ({
+        ...prev,
+        feishu: { ok: false, text: err instanceof Error ? err.message : "网络异常" },
+      }));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function startMcpOAuth(id: "dida365" | "notion") {
     setBusyId(`${id}:oauth`);
     setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
@@ -268,8 +487,8 @@ export default function CloudConnectorsPanel() {
     setBusyId(`${id}:${action}`);
     setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
     try {
-      // Auto-persist filter/checkbox changes before syncing so user clicks work immediately
-      if (action === "sync") {
+      // Auto-persist filter/mode changes before syncing (or testing Feishu CLI mode)
+      if (action === "sync" || (action === "test" && id === "feishu" && drafts.feishu?.mode === "lark_cli")) {
         await fetch("/api/connectors", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -347,7 +566,8 @@ export default function CloudConnectorsPanel() {
             <strong className="text-[var(--cyan)]">官方远程 MCP + 一键 OAuth 登录</strong>；
             <strong className="text-[#38bdf8]">有道云笔记</strong> 已支持{" "}
             <strong className="text-[var(--cyan)]">官方远程 MCP (SSE)</strong>（仅需 1 个 API Key，无需装 OpenClaw）；
-            <strong className="text-[var(--ink)]">飞书 / 语雀</strong> 支持官方 API 直连；
+            <strong className="text-[var(--cyan)]">飞书</strong> 支持「扫码一键建应用 + 本机 lark-cli」双模式直连；
+            <strong className="text-[var(--ink)]">语雀</strong> 支持官方 API v2；
             <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
         </div>
@@ -458,6 +678,184 @@ export default function CloudConnectorsPanel() {
                         {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                         断开授权
                       </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Feishu Dual-Mode Agent Bar: QR One-Click App Creation + Local lark-cli Bridge */}
+                {c.id === "feishu" && (
+                  <div className="space-y-2.5 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/35 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="inline-flex rounded-md border border-[var(--border-strong)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => updateField("feishu", "mode", "open_api")}
+                          className={`rounded px-2.5 py-1 transition ${
+                            (drafts.feishu?.mode ?? "open_api") !== "lark_cli"
+                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                          }`}
+                        >
+                          扫码建应用 / Open API
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField("feishu", "mode", "lark_cli")}
+                          className={`rounded px-2.5 py-1 transition ${
+                            drafts.feishu?.mode === "lark_cli"
+                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                          }`}
+                        >
+                          本机 lark-cli 直连
+                        </button>
+                      </div>
+
+                      {c.configured && (
+                        <button
+                          type="button"
+                          disabled={busyId !== null}
+                          onClick={() => runAction("feishu", "disconnect")}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                          清除配置
+                        </button>
+                      )}
+                    </div>
+
+                    {(drafts.feishu?.mode ?? "open_api") !== "lark_cli" ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="inline-flex rounded-md border border-[var(--border-strong)] bg-[var(--bg-deep)] p-0.5 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => setFeishuBrand("feishu")}
+                              className={`rounded px-2 py-0.5 transition ${
+                                feishuBrand === "feishu"
+                                  ? "bg-[var(--cyan)]/20 font-medium text-[var(--cyan)]"
+                                  : "text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                              }`}
+                            >
+                              国内飞书
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setFeishuBrand("lark")}
+                              className={`rounded px-2 py-0.5 transition ${
+                                feishuBrand === "lark"
+                                  ? "bg-[var(--cyan)]/20 font-medium text-[var(--cyan)]"
+                                  : "text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                              }`}
+                            >
+                              国际 Lark
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={busyId !== null || feishuReg !== null}
+                            onClick={startFeishuQrRegistration}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(124,77,255,0.28)] transition hover:bg-[var(--accent)] disabled:opacity-50"
+                          >
+                            {busyId === "feishu:qr" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <QrCode className="h-3.5 w-3.5" />
+                            )}
+                            飞书扫码一键创建应用
+                          </button>
+                        </div>
+
+                        {feishuReg && (
+                          <div className="space-y-2 rounded-lg border border-[var(--cyan)]/45 bg-[var(--bg-deep)] p-3 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 font-medium text-[var(--cyan)]">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                等待你在飞书确认（约剩余 {feishuReg.remainingSec}s）
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setFeishuReg(null)}
+                                className="inline-flex items-center gap-0.5 text-[11px] text-[var(--ink-dim)] hover:text-red-300"
+                              >
+                                <X className="h-3 w-3" />
+                                取消
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <a
+                                href={feishuReg.authUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--cyan)] px-3 py-1 text-xs font-semibold text-[#06131f] transition hover:brightness-110"
+                              >
+                                打开飞书授权确认页
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              {feishuReg.userCode && (
+                                <span className="rounded border border-[var(--border-strong)] bg-[var(--surface-2)] px-2 py-1 font-mono text-[11px] text-[var(--ink)]">
+                                  确认码：{feishuReg.userCode}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] leading-5 text-[var(--ink-dim)]">
+                              点击上方按钮在浏览器或手机飞书中确认创建后，TradeLoom 会自动拉回 App ID 与 App Secret 并保存。
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={busyId !== null}
+                            onClick={checkLarkCliStatus}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0284c7] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0ea5e9] disabled:opacity-50"
+                          >
+                            {busyId === "feishu:cli_status" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Terminal className="h-3.5 w-3.5" />
+                            )}
+                            检测本机 lark-cli 状态
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId !== null}
+                            onClick={startLarkCliLogin}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/45 bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--cyan)] transition hover:bg-[var(--cyan-soft)] disabled:opacity-50"
+                          >
+                            {busyId === "feishu:cli_login" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <LogIn className="h-3.5 w-3.5" />
+                            )}
+                            发起 CLI 个人授权
+                          </button>
+                        </div>
+                        {larkCliInfo?.authUrl && (
+                          <div className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--cyan)]/40 bg-[var(--bg-deep)] p-2 text-xs">
+                            <a
+                              href={larkCliInfo.authUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 font-medium text-[var(--cyan)] hover:underline"
+                            >
+                              点此打开飞书 CLI 个人授权页面
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                        <p className="text-[11px] leading-5 text-[var(--ink-dim)]">
+                          未安装？在终端执行{" "}
+                          <code className="rounded bg-[var(--bg-deep)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--cyan)]">
+                            npx @larksuite/cli@latest install
+                          </code>{" "}
+                          并登录后，点「保存配置 → 拉取同步并重建双链」即可自动检索并导出原生 Markdown。
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -617,7 +1015,13 @@ export default function CloudConnectorsPanel() {
                 )}
 
                 <div className="space-y-2.5">
-                  {meta.fields.map((f) => (
+                  {meta.fields
+                    .filter((f) => {
+                      if (c.id !== "feishu" || !f.feishuMode) return true;
+                      const activeMode = drafts.feishu?.mode === "lark_cli" ? "lark_cli" : "open_api";
+                      return f.feishuMode === activeMode;
+                    })
+                    .map((f) => (
                     <div key={f.key}>
                       <label className="block text-[11px] text-[var(--ink-muted)]">{f.label}</label>
                       {f.multiline ? (
@@ -686,7 +1090,7 @@ export default function CloudConnectorsPanel() {
                   </button>
                   <button
                     type="button"
-                    disabled={busyId !== null || !c.configured}
+                    disabled={busyId !== null || (!c.configured && !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))}
                     onClick={() => runAction(c.id, "test")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
                   >
@@ -699,7 +1103,7 @@ export default function CloudConnectorsPanel() {
                   </button>
                   <button
                     type="button"
-                    disabled={busyId !== null || !c.configured}
+                    disabled={busyId !== null || (!c.configured && !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))}
                     onClick={() => runAction(c.id, "sync")}
                     className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#7c4dff] to-[#22d3ee] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_14px_rgba(34,211,238,0.25)] transition hover:brightness-110 disabled:opacity-50"
                   >

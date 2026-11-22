@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { importPastedReview } from "./cloud-ingest";
 import {
+  detectLarkCliStatus,
+  fetchLarkCliDocMarkdown,
+  searchLarkCliDocs,
+} from "./feishu-agent";
+import {
   consumePendingOAuthSession,
   createPkcePair,
   discoverMcpOAuth,
@@ -50,11 +55,17 @@ export type NotionConnectorConfig = {
   tokenEndpoint?: string;
 };
 
+export type FeishuAuthMode = "open_api" | "lark_cli";
+
 export type FeishuConnectorConfig = {
   appId: string;
   appSecret: string;
   docTokens: string; // Comma or newline separated Feishu docx/wiki URLs or tokens
   domain?: string; // open.feishu.cn (default) or open.larksuite.com
+  mode?: FeishuAuthMode; // "open_api" (default, supports QR one-click app creation) or "lark_cli"
+  cliProfile?: string; // optional lark-cli --profile name
+  searchQuery?: string; // optional search keyword (<=30 chars) for lark-cli drive +search
+  maxItems?: number; // default 20
 };
 
 export type YuqueConnectorConfig = {
@@ -148,16 +159,28 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
     },
     {
       id: "feishu",
-      name: "飞书文档 (Feishu)",
-      badge: "Open API",
-      configured: Boolean(store.feishu?.appId && store.feishu?.appSecret),
-      maskedSecret: maskSecret(store.feishu?.appSecret ?? ""),
-      authMode: "api_token",
+      name: "飞书文档 (Feishu / Lark)",
+      badge: store.feishu?.mode === "lark_cli" ? "飞书 CLI" : "扫码建应用 / API",
+      configured:
+        store.feishu?.mode === "lark_cli"
+          ? true
+          : Boolean(store.feishu?.appId && store.feishu?.appSecret),
+      maskedSecret:
+        store.feishu?.mode === "lark_cli"
+          ? store.feishu?.cliProfile
+            ? `profile:${store.feishu.cliProfile}`
+            : "本机 lark-cli"
+          : maskSecret(store.feishu?.appSecret ?? ""),
+      authMode: store.feishu?.mode === "lark_cli" ? "mcp_api_key" : "api_token",
       supportsMcpOAuth: false,
       fields: {
+        mode: store.feishu?.mode || "open_api",
         appId: store.feishu?.appId ?? "",
         docTokens: store.feishu?.docTokens ?? "",
         domain: store.feishu?.domain || "open.feishu.cn",
+        cliProfile: store.feishu?.cliProfile ?? "",
+        searchQuery: store.feishu?.searchQuery ?? "",
+        maxItems: String(store.feishu?.maxItems ?? 20),
       },
       lastSync: store.lastSync?.feishu,
     },
@@ -232,18 +255,29 @@ export async function saveConnectorConfig(
       maxItems: Math.min(100, Math.max(1, Number(payload.maxItems) || 25)),
     };
   } else if (id === "feishu") {
-    const appId = (payload.appId ?? "").trim();
+    const mode: FeishuAuthMode = payload.mode === "lark_cli" ? "lark_cli" : "open_api";
+    const appId = (payload.appId ?? "").trim() || store.feishu?.appId || "";
     const appSecret = (payload.appSecret ?? "").trim() || store.feishu?.appSecret || "";
-    if (!appId || !appSecret) return { ok: false, error: "请填写飞书 App ID 和 App Secret" };
-    const domain = (payload.domain ?? "open.feishu.cn").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    if (mode === "open_api" && (!appId || !appSecret)) {
+      return { ok: false, error: "请先点击「飞书扫码一键创建应用」，或手动填写 App ID 和 App Secret" };
+    }
+    const domain = (payload.domain ?? store.feishu?.domain ?? "open.feishu.cn")
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "") || "open.feishu.cn";
     if (domain !== "open.feishu.cn" && domain !== "open.larksuite.com") {
       return { ok: false, error: "飞书域名仅支持 open.feishu.cn 或 open.larksuite.com" };
     }
     store.feishu = {
+      ...(store.feishu ?? {}),
+      mode,
       appId,
       appSecret,
-      docTokens: (payload.docTokens ?? "").trim(),
+      docTokens: (payload.docTokens ?? store.feishu?.docTokens ?? "").trim(),
       domain,
+      cliProfile: (payload.cliProfile ?? store.feishu?.cliProfile ?? "").trim(),
+      searchQuery: (payload.searchQuery ?? store.feishu?.searchQuery ?? "").trim(),
+      maxItems: Math.min(60, Math.max(1, Number(payload.maxItems) || store.feishu?.maxItems || 20)),
     };
   } else if (id === "yuque") {
     const token = (payload.token ?? "").trim() || store.yuque?.token || "";
@@ -301,6 +335,25 @@ export async function saveConnectorConfig(
 
   await writeStore(store);
   return { ok: true, connectors: await getMaskedConnectors() };
+}
+
+export async function saveFeishuCredentialsFromRegistration(args: {
+  appId: string;
+  appSecret: string;
+  domain: "open.feishu.cn" | "open.larksuite.com";
+}): Promise<MaskedConnectorSummary[]> {
+  const store = await readStore();
+  store.feishu = {
+    ...(store.feishu ?? { docTokens: "" }),
+    mode: "open_api",
+    appId: args.appId,
+    appSecret: args.appSecret,
+    domain: args.domain,
+    docTokens: store.feishu?.docTokens ?? "",
+    maxItems: store.feishu?.maxItems ?? 20,
+  };
+  await writeStore(store);
+  return getMaskedConnectors();
 }
 
 export async function disconnectConnector(
@@ -1102,7 +1155,16 @@ export async function testConnector(
 
     if (id === "feishu") {
       const cfg = store.feishu;
-      if (!cfg?.appId || !cfg?.appSecret) return { ok: false, error: "请先保存飞书 App ID 和 App Secret" };
+      if (cfg?.mode === "lark_cli") {
+        const status = await detectLarkCliStatus(cfg.cliProfile);
+        if (!status.installed || !status.loggedIn) {
+          return { ok: false, error: status.message };
+        }
+        return { ok: true, message: status.message, connectors: await getMaskedConnectors() };
+      }
+      if (!cfg?.appId || !cfg?.appSecret) {
+        return { ok: false, error: "请先扫码一键创建飞书应用，或保存 App ID 和 App Secret" };
+      }
       const domain = cfg.domain || "open.feishu.cn";
       const res = await fetch(`https://${domain}/open-apis/auth/v3/tenant_access_token/internal`, {
         method: "POST",
@@ -1287,13 +1349,71 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
       }
     } else if (id === "feishu") {
       const cfg = store.feishu;
-      if (!cfg?.appId || !cfg?.appSecret) return { ok: false, error: "请先保存飞书配置" };
+      if (cfg?.mode === "lark_cli") {
+        const cliStatus = await detectLarkCliStatus(cfg.cliProfile);
+        if (!cliStatus.installed || !cliStatus.loggedIn) {
+          return { ok: false, error: cliStatus.message };
+        }
+
+        const rawTokens = (cfg.docTokens ?? "")
+          .split(/[\n,;]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const limit = Math.min(60, Math.max(1, cfg.maxItems || 20));
+
+        const targets: Array<{ target: string; title?: string; url?: string; eventDate?: string }> = [];
+        if (rawTokens.length > 0) {
+          for (const entry of rawTokens.slice(0, limit)) {
+            targets.push({
+              target: entry,
+              url: entry.startsWith("http") ? entry : undefined,
+            });
+          }
+        } else {
+          const searchRes = await searchLarkCliDocs({
+            query: cfg.searchQuery ?? "",
+            maxItems: limit,
+            profile: cfg.cliProfile,
+          });
+          if (!searchRes.ok) {
+            return { ok: false, error: `lark-cli 搜索个人云文档失败：${searchRes.error}` };
+          }
+          for (const hit of searchRes.docs.slice(0, limit)) {
+            targets.push({
+              target: hit.url || hit.token,
+              title: hit.title,
+              url: hit.url,
+              eventDate: hit.editTime ? toBeijingDateStr(hit.editTime) : undefined,
+            });
+          }
+        }
+
+        for (const item of targets) {
+          const fetched = await fetchLarkCliDocMarkdown(item.target, cfg.cliProfile);
+          if (!fetched.ok || !fetched.markdown) continue;
+          const title = fetched.title || item.title || `飞书复盘_${item.target.slice(-8)}`;
+          const dateMatch = /\b(20\d{2}-\d{2}-\d{2})\b/.exec(`${title}\n${fetched.markdown.slice(0, 400)}`);
+          const saved = await importPastedReview(
+            {
+              title,
+              content: fetched.markdown,
+              eventDate: item.eventDate || (dateMatch ? dateMatch[1] : undefined),
+              sourcePlatform: "飞书文档 (lark-cli)",
+              sourceUrl: item.url,
+              folder: "_云端_飞书",
+            },
+            { skipRebuild: true },
+          );
+          if (saved.ok) synced++;
+        }
+      } else {
+      if (!cfg?.appId || !cfg?.appSecret) return { ok: false, error: "请先扫码一键创建飞书应用，或保存飞书 App ID / Secret" };
       const rawTokens = cfg.docTokens
         .split(/[\n,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
       if (rawTokens.length === 0) {
-        return { ok: false, error: "请至少填写 1 个飞书文档链接或文档 Token（支持多行批量填写）" };
+        return { ok: false, error: "Open API 模式请填写飞书文档/知识库链接；如需自动搜索个人全部文档，请切换为「本机 lark-cli 直连」模式" };
       }
 
       const domain = cfg.domain || "open.feishu.cn";
@@ -1354,6 +1474,7 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
           { skipRebuild: true },
         );
         if (saved.ok) synced++;
+      }
       }
     } else if (id === "yuque") {
       const cfg = store.yuque;

@@ -1,6 +1,17 @@
 import { createHash } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { gunzipSync } from "node:zlib";
+import {
+  beginFeishuAppRegistration,
+  encodeFeishuAddons,
+  extractLarkCliDocBody,
+  extractLarkCliDocsFromSearch,
+  parseLarkCliJson,
+  pollFeishuAppRegistration,
+  stripHighlightTags,
+  TRADELOOM_FEISHU_ADDONS,
+} from "../src/lib/feishu-agent";
 import { describe, expect, it } from "vitest";
 import {
   cleanYoudaoNoteTitle,
@@ -237,5 +248,114 @@ describe("YoudaoNote Official MCP-over-SSE client & helpers", () => {
       (sseRes as http.ServerResponse | null)?.end();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+});
+
+describe("Feishu Agent Integration (RFC 8628 One-Click Registration + lark-cli parsers)", () => {
+  it("encodes Feishu addons with exact gzip + base64url pipeline", () => {
+    const encoded = encodeFeishuAddons(TRADELOOM_FEISHU_ADDONS);
+    expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
+    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((encoded.length + 3) % 4);
+    const decoded = JSON.parse(gunzipSync(Buffer.from(padded, "base64")).toString("utf8"));
+    expect(decoded.preset).toBe(false);
+    expect(decoded.scopes.tenant).toContain("docx:document:readonly");
+    expect(decoded.scopes.user).toContain("offline_access");
+  });
+
+  it("runs full RFC 8628 begin -> pending -> completed app registration flow", async () => {
+    let pollCount = 0;
+    const server = http.createServer((req, res) => {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        const form = new URLSearchParams(body);
+        const action = form.get("action");
+        if (action === "begin") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              device_code: "dev_code_123",
+              user_code: "ABCD-1234",
+              verification_uri_complete: "https://open.feishu.cn/page/launcher?user_code=ABCD-1234",
+              expires_in: 600,
+              interval: 2,
+            }),
+          );
+          return;
+        }
+        if (action === "poll") {
+          pollCount++;
+          if (pollCount === 1) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "authorization_pending" }));
+            return;
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              client_id: "cli_test_app_001",
+              client_secret: "sec_test_secret_999",
+              user_info: { open_id: "ou_test", tenant_brand: "feishu" },
+            }),
+          );
+          return;
+        }
+        res.writeHead(404);
+        res.end();
+      });
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const { port } = server.address() as AddressInfo;
+
+    try {
+      const started = await beginFeishuAppRegistration({
+        brand: "feishu",
+        baseUrlOverride: `http://127.0.0.1:${port}`,
+      });
+      expect(started.userCode).toBe("ABCD-1234");
+      expect(started.authUrl).toContain("source=node-sdk%2Ftradeloom");
+      expect(started.authUrl).toContain("addons=");
+
+      const p1 = await pollFeishuAppRegistration(started.sessionId);
+      expect(p1.status).toBe("pending");
+
+      const p2 = await pollFeishuAppRegistration(started.sessionId);
+      expect(p2).toMatchObject({
+        status: "completed",
+        appId: "cli_test_app_001",
+        appSecret: "sec_test_secret_999",
+        domain: "open.feishu.cn",
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("parses lark-cli JSON envelopes, search hits, highlight tags, and fetched markdown", () => {
+    expect(stripHighlightTags("2026年 <h>复盘</h> <hb>总结</hb>")).toBe("2026年 复盘 总结");
+
+    const env = parseLarkCliJson(
+      'notice: hour snap\n{"ok":true,"identity":"user","data":{"results":[{"doc_token":"doxcn123","title_highlighted":"<h>复盘</h>笔记","doc_type":"docx","url":"https://abc.feishu.cn/docx/doxcn123","edit_time_iso":"2026-11-22T09:00:00+08:00"},{"doc_token":"shtcn999","title":"财务表","doc_type":"sheet"}]}}',
+    );
+    expect(env?.ok).toBe(true);
+    const hits = extractLarkCliDocsFromSearch(env?.data);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      token: "doxcn123",
+      title: "复盘笔记",
+      docType: "docx",
+      url: "https://abc.feishu.cn/docx/doxcn123",
+    });
+
+    const docEnv = parseLarkCliJson(
+      JSON.stringify({ ok: true, data: { title: "11月交易纪律", markdown: "# 核心纪律\n\n- 严控回撤" } }),
+    );
+    expect(extractLarkCliDocBody(docEnv, "")).toEqual({
+      title: "11月交易纪律",
+      markdown: "# 核心纪律\n\n- 严控回撤",
+    });
   });
 });

@@ -269,7 +269,10 @@ export async function startConnectorMcpOAuth(args: {
   try {
     const region: "cn" | "global" = args.region === "global" ? "global" : "cn";
     const mcpUrl = resolveMcpUrl(args.id, region);
-    const redirectUri = `${args.origin.replace(/\/+$/, "")}/api/connectors/oauth/callback`;
+    // Normalize 127.0.0.1 -> localhost for OAuth redirect_uri because Dida365's WAF rejects IP literals with 403 Forbidden
+    const normalizedOrigin = args.origin.replace(/\/+$/, "");
+    const callbackOrigin = normalizedOrigin.replace(/^(https?:\/\/)127\.0\.0\.1(?=[:/]|$)/i, "$1localhost");
+    const redirectUri = `${callbackOrigin}/api/connectors/oauth/callback`;
     const discovery = await discoverMcpOAuth(mcpUrl);
     const { clientId, clientSecret } = await registerDynamicOAuthClient({
       registrationEndpoint: discovery.registrationEndpoint,
@@ -284,6 +287,7 @@ export async function startConnectorMcpOAuth(args: {
       mcpUrl,
       region,
       redirectUri,
+      returnOrigin: normalizedOrigin,
       codeVerifier,
       clientId,
       clientSecret,
@@ -317,7 +321,7 @@ export async function startConnectorMcpOAuth(args: {
 export async function completeConnectorMcpOAuth(args: {
   state: string;
   code: string;
-}): Promise<{ ok: true; connectorId: McpOAuthConnectorId; discoveredCount?: number } | { ok: false; error: string }> {
+}): Promise<{ ok: true; connectorId: McpOAuthConnectorId; discoveredCount?: number; returnOrigin?: string } | { ok: false; error: string }> {
   try {
     const session = await consumePendingOAuthSession(args.state);
     if (!session) {
@@ -363,7 +367,7 @@ export async function completeConnectorMcpOAuth(args: {
         /* non-fatal */
       }
       await writeStore(store);
-      return { ok: true, connectorId: "dida365", discoveredCount };
+      return { ok: true, connectorId: "dida365", discoveredCount, returnOrigin: session.returnOrigin };
     }
 
     store.notion = {
@@ -378,7 +382,7 @@ export async function completeConnectorMcpOAuth(args: {
       mcpUrl: session.mcpUrl || MCP_ENDPOINTS.notion,
     };
     await writeStore(store);
-    return { ok: true, connectorId: "notion" };
+    return { ok: true, connectorId: "notion", returnOrigin: session.returnOrigin };
   } catch (err) {
     return {
       ok: false,

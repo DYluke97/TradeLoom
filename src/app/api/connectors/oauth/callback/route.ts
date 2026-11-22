@@ -33,9 +33,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectTarget);
   }
 
-  redirectTarget.searchParams.set("oauth_ok", res.connectorId);
+  const finalTarget = new URL("/settings", res.returnOrigin || baseOrigin);
+  finalTarget.searchParams.set("tab", "connectors");
+  finalTarget.searchParams.set("oauth_ok", res.connectorId);
   if (typeof res.discoveredCount === "number") {
-    redirectTarget.searchParams.set("oauth_count", String(res.discoveredCount));
+    finalTarget.searchParams.set("oauth_count", String(res.discoveredCount));
   }
-  return NextResponse.redirect(redirectTarget);
+  return NextResponse.redirect(finalTarget);
 }

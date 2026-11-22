@@ -27,6 +27,7 @@ export type PendingOAuthSession = {
   mcpUrl: string;
   region?: "cn" | "global";
   redirectUri: string;
+  returnOrigin?: string;
   codeVerifier: string;
   clientId: string;
   clientSecret?: string;
@@ -148,6 +149,7 @@ export async function discoverMcpOAuth(mcpUrl: string): Promise<OAuthDiscovery> 
 export async function registerDynamicOAuthClient(args: {
   registrationEndpoint: string;
   redirectUri: string;
+  returnOrigin?: string;
   grantTypesSupported: string[];
 }): Promise<{ clientId: string; clientSecret?: string }> {
   const grantTypes = ["authorization_code"];
@@ -224,6 +226,7 @@ export async function exchangeOAuthCode(args: {
   tokenEndpoint: string;
   code: string;
   redirectUri: string;
+  returnOrigin?: string;
   codeVerifier: string;
   clientId: string;
   clientSecret?: string;

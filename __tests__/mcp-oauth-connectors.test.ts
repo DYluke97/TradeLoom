@@ -38,6 +38,12 @@ import {
   parseImaNotes,
 } from "../src/lib/tencent-ima";
 import {
+  encodePowerShellScript,
+  formatOneNoteLocalError,
+  parseOneNoteHierarchyXml,
+  parseOneNotePageXmlToMarkdown,
+} from "../src/lib/onenote-local";
+import {
   createPkcePair,
   MCP_ENDPOINTS,
   McpSseClient,
@@ -665,5 +671,90 @@ describe("Tencent ima Official OpenAPI connector (Notes + Knowledge Base)", () =
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+});
+
+describe("Microsoft OneNote Windows Desktop COM connector", () => {
+  it("parses OneNote hierarchy XML with nested SectionGroups while excluding Recycle Bin", () => {
+    const xml = `<?xml version="1.0"?>
+<one:Notebooks xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote">
+  <one:Notebook name="投研笔记" nickname="实盘复盘" ID="{NB-1}">
+    <one:Section name="每日复盘" ID="{SEC-1}">
+      <one:Page ID="{PAGE-1}" name="2026-11-22 半导体跟踪" dateTime="2026-11-22T08:00:00.000Z" lastModifiedTime="2026-11-22T14:30:00.000Z" pageLevel="1" />
+    </one:Section>
+    <one:SectionGroup name="行业研究" ID="{SG-1}">
+      <one:Section name="AI算力" ID="{SEC-2}">
+        <one:Page ID="{PAGE-2}" name="光模块订单跟踪" lastModifiedTime="2026-11-21T10:00:00.000Z" />
+      </one:Section>
+    </one:SectionGroup>
+    <one:SectionGroup name="OneNote_RecycleBin" ID="{SG-BIN}" isRecycleBin="true">
+      <one:Section name="已删除页面" ID="{SEC-BIN}" isInRecycleBin="true">
+        <one:Page ID="{PAGE-DEL}" name="应被忽略的废稿" />
+      </one:Section>
+    </one:SectionGroup>
+  </one:Notebook>
+</one:Notebooks>`;
+
+    const parsed = parseOneNoteHierarchyXml(xml);
+    expect(parsed.notebooks).toEqual([{ id: "{NB-1}", name: "实盘复盘", nickname: "实盘复盘" }]);
+    expect(parsed.sections).toHaveLength(2);
+    expect(parsed.sections[1]).toMatchObject({ id: "{SEC-2}", name: "AI算力", groupPath: "行业研究" });
+    expect(parsed.pages).toHaveLength(2);
+    expect(parsed.pages.some((p) => p.id === "{PAGE-DEL}")).toBe(false);
+    expect(parsed.folders.map((f) => f.id)).toEqual(["nb:{NB-1}", "sec:{SEC-1}", "sec:{SEC-2}"]);
+  });
+
+  it("converts OneNote page XML (lists, checkboxes, inline formatting, tables, attachments) to clean Markdown", () => {
+    const pageXml = `<?xml version="1.0"?>
+<one:Page xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote" ID="{PAGE-1}" name="2026-11-22 复盘">
+  <one:Title><one:OE><one:T><![CDATA[2026-11-22 复盘]]></one:T></one:OE></one:Title>
+  <one:Outline>
+    <one:OEChildren>
+      <one:OE>
+        <one:T><![CDATA[今日核心结论：<span style="font-weight:bold">严守回撤红线</span>，参考 <a href="https://example.com/report">研报链接</a>]]></one:T>
+      </one:OE>
+      <one:OE>
+        <one:List><one:Bullet bullet="2" /></one:List>
+        <one:T><![CDATA[仓位控制在 60% 以下]]></one:T>
+      </one:OE>
+      <one:OE>
+        <one:Tag index="0" completed="true" />
+        <one:T><![CDATA[完成尾盘核对]]></one:T>
+      </one:OE>
+      <one:OE>
+        <one:Table>
+          <one:Row>
+            <one:Cell><one:OEChildren><one:OE><one:T><![CDATA[标的]]></one:T></one:OE></one:OEChildren></one:Cell>
+            <one:Cell><one:OEChildren><one:OE><one:T><![CDATA[操作]]></one:T></one:OE></one:OEChildren></one:Cell>
+          </one:Row>
+          <one:Row>
+            <one:Cell><one:OEChildren><one:OE><one:T><![CDATA[600519]]></one:T></one:OE></one:OEChildren></one:Cell>
+            <one:Cell><one:OEChildren><one:OE><one:T><![CDATA[观望]]></one:T></one:OE></one:OEChildren></one:Cell>
+          </one:Row>
+        </one:Table>
+      </one:OE>
+      <one:OE>
+        <one:InsertedFile preferredName="交割单.csv" />
+      </one:OE>
+    </one:OEChildren>
+  </one:Outline>
+</one:Page>`;
+
+    const md = parseOneNotePageXmlToMarkdown(pageXml);
+    expect(md).toContain("**严守回撤红线**");
+    expect(md).toContain("[研报链接](https://example.com/report)");
+    expect(md).toContain("- 仓位控制在 60% 以下");
+    expect(md).toContain("- [x] 完成尾盘核对");
+    expect(md).toContain("| 标的 | 操作 |");
+    expect(md).toContain("| 600519 | 观望 |");
+    expect(md).toContain("[附件: 交割单.csv]");
+    expect(md).not.toContain("2026-11-22 复盘");
+  });
+
+  it("translates COM installation, privilege mismatch, and non-Windows errors into clear user guidance", () => {
+    expect(formatOneNoteLocalError(new Error("NON_WINDOWS_PLATFORM"))).toContain("Windows");
+    expect(formatOneNoteLocalError(new Error("Retrieving the COM class factory failed: 80040154"))).toContain("UWP");
+    expect(formatOneNoteLocalError(new Error("HRESULT: 0x800706BE RPC failed"))).toContain("权限级别不一致");
+    expect(encodePowerShellScript("Write-Host 1")).toBe(Buffer.from("Write-Host 1", "utf16le").toString("base64"));
   });
 });

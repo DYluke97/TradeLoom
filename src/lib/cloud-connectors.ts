@@ -33,6 +33,11 @@ import {
   type TencentDocsScope,
 } from "./tencent-docs-mcp";
 import {
+  fetchLocalOneNoteHierarchy,
+  fetchOneNoteLocalPages,
+  formatOneNoteLocalError,
+} from "./onenote-local";
+import {
   discoverImaWorkspace,
   fetchImaItems,
   IMA_DEFAULT_BASE_URL,
@@ -40,7 +45,15 @@ import {
 } from "./tencent-ima";
 import { ensureWorkspace, fileExists, getWorkspacePaths, writeAtomic } from "./workspace";
 
-export type ConnectorId = "notion" | "feishu" | "yuque" | "dida365" | "youdao" | "tencent_docs" | "ima";
+export type ConnectorId =
+  | "notion"
+  | "feishu"
+  | "yuque"
+  | "dida365"
+  | "youdao"
+  | "tencent_docs"
+  | "ima"
+  | "onenote";
 export type ConnectorAuthMode = "api_token" | "mcp_oauth" | "mcp_api_key";
 
 export type DidaProjectSummary = {
@@ -151,6 +164,14 @@ export type ImaConnectorConfig = {
   discoveredRepos?: YuqueRepoSummary[];
 };
 
+export type OneNoteConnectorConfig = {
+  enabled?: boolean;
+  notebookFilter?: string; // Comma-separated nb:<id> / sec:<id> / notebook or section names (blank = all open notebooks)
+  keyword?: string; // Optional title/body keyword filter
+  maxItems?: number; // default 30
+  discoveredFolders?: YoudaoFolderSummary[];
+};
+
 export type ConnectorsStore = {
   notion?: NotionConnectorConfig;
   feishu?: FeishuConnectorConfig;
@@ -159,6 +180,7 @@ export type ConnectorsStore = {
   youdao?: YoudaoConnectorConfig;
   tencent_docs?: TencentDocsConnectorConfig;
   ima?: ImaConnectorConfig;
+  onenote?: OneNoteConnectorConfig;
   lastSync?: Partial<Record<ConnectorId, { at: string; synced: number; message: string }>>;
 };
 
@@ -330,6 +352,22 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
       },
       lastSync: store.lastSync?.ima,
     },
+    {
+      id: "onenote",
+      name: "Microsoft OneNote (本机桌面版)",
+      badge: "本机 COM 直连 · 免注册免费",
+      configured: Boolean(store.onenote?.enabled || (store.onenote?.discoveredFolders?.length ?? 0) > 0),
+      maskedSecret: "本机直连 · 无需密钥",
+      authMode: "api_token",
+      supportsMcpOAuth: false,
+      discoveredFolders: store.onenote?.discoveredFolders ?? [],
+      fields: {
+        notebookFilter: store.onenote?.notebookFilter ?? "",
+        keyword: store.onenote?.keyword ?? "",
+        maxItems: String(store.onenote?.maxItems ?? 30),
+      },
+      lastSync: store.lastSync?.onenote,
+    },
   ];
 }
 
@@ -475,6 +513,14 @@ export async function saveConnectorConfig(
       keyword: (payload.keyword ?? "").trim(),
       maxItems: Math.min(80, Math.max(1, Number(payload.maxItems) || 30)),
       baseUrl,
+    };
+  } else if (id === "onenote") {
+    store.onenote = {
+      ...(store.onenote ?? {}),
+      enabled: true,
+      notebookFilter: (payload.notebookFilter ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      maxItems: Math.min(80, Math.max(1, Number(payload.maxItems) || 30)),
     };
   }
 
@@ -1565,6 +1611,40 @@ export async function testConnector(
       }
     }
 
+    if (id === "onenote") {
+      try {
+        const hierarchy = await fetchLocalOneNoteHierarchy();
+        store.onenote = {
+          ...(store.onenote ?? {}),
+          enabled: true,
+          discoveredFolders: hierarchy.folders,
+          maxItems: store.onenote?.maxItems ?? 30,
+        };
+        await writeStore(store);
+
+        if (hierarchy.notebooks.length === 0) {
+          return {
+            ok: true,
+            message:
+              "已连上 Windows 桌面版 OneNote，但当前未检测到已打开的笔记本。请先在桌面版 OneNote 中打开并同步您的笔记本，再点此按钮刷新。",
+            connectors: await getMaskedConnectors(),
+          };
+        }
+
+        const preview = hierarchy.notebooks
+          .slice(0, 5)
+          .map((n) => n.name)
+          .join("、");
+        return {
+          ok: true,
+          message: `已直连 Windows 桌面版 OneNote：发现 ${hierarchy.notebooks.length} 个笔记本（${preview}${hierarchy.notebooks.length > 5 ? " 等" : ""}）、${hierarchy.sections.length} 个分区、共 ${hierarchy.pages.length} 篇笔记（已自动忽略回收站）`,
+          connectors: await getMaskedConnectors(),
+        };
+      } catch (err) {
+        return { ok: false, error: formatOneNoteLocalError(err) };
+      }
+    }
+
     return { ok: false, error: "未知连接器类型" };
   } catch (err) {
     return { ok: false, error: `连接异常：${err instanceof Error ? err.message : "网络错误"}` };
@@ -2308,6 +2388,44 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
         }
       } catch (err) {
         return { ok: false, error: `同步失败：${err instanceof Error ? err.message : "腾讯 ima 接口异常"}` };
+      }
+    } else if (id === "onenote") {
+      const cfg = store.onenote ?? {};
+      try {
+        const { pages, hierarchy } = await fetchOneNoteLocalPages({
+          notebookFilter: cfg.notebookFilter,
+          keyword: cfg.keyword,
+          maxItems: cfg.maxItems ?? 30,
+        });
+
+        store.onenote = {
+          ...cfg,
+          enabled: true,
+          discoveredFolders: hierarchy.folders,
+        };
+
+        for (const page of pages) {
+          const sourcePlatform = page.groupPath
+            ? `OneNote · ${page.notebookName}/${page.groupPath}/${page.sectionName}`
+            : `OneNote · ${page.notebookName}/${page.sectionName}`;
+          const saved = await importPastedReview(
+            {
+              title: page.title,
+              content: page.content,
+              eventDate: page.eventDate,
+              sourcePlatform,
+              tags: page.tags,
+              folder: "_云端_OneNote",
+            },
+            { skipRebuild: true },
+          );
+          if (saved.ok) synced++;
+        }
+        if (hierarchy.notebooks.length === 0) {
+          extraNotice = "（当前桌面版 OneNote 未打开任何笔记本，请先打开并同步目标笔记本）";
+        }
+      } catch (err) {
+        return { ok: false, error: `同步失败：${formatOneNoteLocalError(err)}` };
       }
     }
 

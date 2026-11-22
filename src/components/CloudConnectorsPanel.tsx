@@ -148,6 +148,17 @@ const CONNECTOR_META: Record<
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
     ],
   },
+  onenote: {
+    accent: "text-[#a855f7]",
+    subtitle: "Windows 桌面版 OneNote 原生 COM 本机直连：免 Azure 注册、免复制 Token、无需 Word/Pandoc",
+    tokenGuide:
+      "全程在您的 Windows 本机离线读取桌面版 OneNote XML 正文并转为 Markdown，不经过任何第三方中转，也不受微软云端 400 次/小时限流影响；若未检测到桌面版，请按上方指引安装微软官方免费桌面版 OneNote。",
+    fields: [
+      { key: "notebookFilter", label: "同步笔记本 / 分区筛选（逗号分隔名称或 ID；留空同步全部已打开笔记本，或点上方胶囊勾选）", placeholder: "留空同步全部已打开笔记本（按最近修改优先）" },
+      { key: "keyword", label: "关键词筛选（可选，匹配标题、分区名或正文，留空同步最近页面）", placeholder: "例如：复盘、交易计划（留空同步最近页面）" },
+      { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
+    ],
+  },
 };
 
 const CLIP_PLATFORMS = [
@@ -185,6 +196,7 @@ export default function CloudConnectorsPanel() {
     youdao: {},
     tencent_docs: {},
     ima: {},
+    onenote: {},
   });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -213,7 +225,7 @@ export default function CloudConnectorsPanel() {
     const data = await res.json();
     if (data.ok && Array.isArray(data.connectors)) {
       // Show Dida365 & Notion (MCP OAuth enabled) first
-      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
+      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
       const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
         (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
       );
@@ -353,6 +365,19 @@ export default function CloudConnectorsPanel() {
     updateField("ima", "wikiId", next.join(", "));
   }
 
+  function toggleOneNoteFolder(folder: YoudaoFolderSummary) {
+    const cur = parseSelectionList(drafts.onenote?.notebookFilter ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = folder.id.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(idKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== idKey);
+    } else {
+      next = [...cur, folder.id];
+    }
+    updateField("onenote", "notebookFilter", next.join(", "));
+  }
+
   useEffect(() => {
     if (!feishuReg) {
       if (feishuPollTimerRef.current) {
@@ -378,7 +403,7 @@ export default function CloudConnectorsPanel() {
           if (data.ok && data.status === "completed") {
             setFeishuReg(null);
             if (Array.isArray(data.connectors)) {
-              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
+              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
               const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
                 (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
               );
@@ -595,7 +620,7 @@ export default function CloudConnectorsPanel() {
       const data = await res.json();
       if (data.ok) {
         if (data.connectors) {
-          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
+          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
           const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
             (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
           );
@@ -666,6 +691,7 @@ export default function CloudConnectorsPanel() {
             <strong className="text-[var(--cyan)]">飞书</strong> 支持「扫码一键建应用 + 本机 lark-cli」双模式直连；
             <strong className="text-[#60a5fa]">腾讯文档</strong> 直连官方远程 MCP（免费 2,000 次/天）；
             <strong className="text-[#c084fc]">腾讯 ima</strong> 直连官方 OpenAPI（笔记本 + 知识库双通道免费同步）；
+            <strong className="text-[#a855f7]">OneNote</strong> 支持 Windows 桌面版原生 COM 免注册零配置直连；
             <strong className="text-[var(--ink)]">语雀</strong> 支持官方 API v2；
             <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
@@ -707,6 +733,9 @@ export default function CloudConnectorsPanel() {
           const selectedImaWikiTokens = new Set(
             parseSelectionList(drafts.ima?.wikiId ?? "").map((s) => s.toLowerCase()),
           );
+          const selectedOneNoteTokens = new Set(
+            parseSelectionList(drafts.onenote?.notebookFilter ?? "").map((s) => s.toLowerCase()),
+          );
 
           return (
             <div key={c.id} className="scifi-card flex flex-col justify-between rounded-xl p-5">
@@ -730,11 +759,15 @@ export default function CloudConnectorsPanel() {
                   {c.configured ? (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] text-[var(--emerald)]">
                       <CheckCircle2 className="h-3 w-3" />
-                      {c.authMode === "mcp_oauth" ? "MCP 已授权" : `已配置 ${c.maskedSecret}`}
+                      {c.authMode === "mcp_oauth"
+                        ? "MCP 已授权"
+                        : c.id === "onenote"
+                          ? "本机直连就绪"
+                          : `已配置 ${c.maskedSecret}`}
                     </span>
                   ) : (
                     <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">
-                      未配置
+                      {c.id === "onenote" ? "免密钥 · 可直接检测" : "未配置"}
                     </span>
                   )}
                 </div>
@@ -1334,6 +1367,91 @@ export default function CloudConnectorsPanel() {
                   </>
                 )}
 
+                {/* Microsoft OneNote Windows Desktop COM Quick Guide + Discovered Notebooks/Sections */}
+                {c.id === "onenote" && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#a855f7]/35 bg-[#a855f7]/10 p-2.5">
+                      <a
+                        href="https://www.onenote.com/download"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#7e22ce] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#9333ea]"
+                      >
+                        <BookOpen className="h-3.5 w-3.5" />
+                        免费下载微软桌面版 OneNote
+                        <ExternalLink className="h-3 w-3 opacity-80" />
+                      </a>
+                      <Link
+                        href="/vault?import=cloud"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#a855f7]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[#d8b4fe] transition hover:bg-[#a855f7]/15"
+                      >
+                        非 Windows / 离线导出导入 →
+                      </Link>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-[#a855f7]/30 bg-[var(--bg-deep)]/90 p-3 text-[11px] leading-5 text-[var(--ink-muted)]">
+                      <div className="font-semibold text-[#e9d5ff]">
+                        本机直连使用指引（免 Azure 注册 · 免 Token · 无需 Word/Pandoc）
+                      </div>
+                      <ol className="list-decimal space-y-1 pl-4">
+                        <li>
+                          <strong className="text-[var(--ink)]">确认桌面版 OneNote</strong>：需安装 Windows 桌面版 OneNote（免费版或 Microsoft 365 均可；顶部菜单栏带「文件」选项即为桌面版，⚠️ 已停更的 Win10 商店 UWP 版不支持本机接口）。
+                        </li>
+                        <li>
+                          <strong className="text-[var(--ink)]">先打开并同步笔记本</strong>：请启动桌面版 OneNote，确保目标笔记本已在左侧打开并完成云端同步。
+                        </li>
+                        <li>
+                          <strong className="text-[var(--ink)]">保持同等运行权限</strong>：OneNote 与 TradeLoom 均以普通用户权限运行（勿一侧用“管理员身份运行”，否则系统会拦截 COM 通信）。
+                        </li>
+                        <li>
+                          <strong className="text-[var(--ink)]">一键检测并同步</strong>：无需填写任何密钥，直接点击下方「检测并浏览笔记本」，勾选目标笔记本/分区即可同步入库（自动跳过回收站，保留表格、列表与待办）。
+                        </li>
+                      </ol>
+
+                      {c.discoveredFolders && c.discoveredFolders.length > 0 && (
+                        <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                          <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                            <span className="inline-flex items-center gap-1">
+                              <FolderOpen className="h-3.5 w-3.5 text-[#a855f7]" />
+                              已发现本机笔记本与分区（点选指定同步；全不选 = 同步全部已打开笔记本）：
+                            </span>
+                            {selectedOneNoteTokens.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => updateField("onenote", "notebookFilter", "")}
+                                className="text-[#c084fc] hover:underline"
+                              >
+                                清空勾选
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.discoveredFolders.map((f) => {
+                              const active = selectedOneNoteTokens.has(f.id.toLowerCase());
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => toggleOneNoteFolder(f)}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                    active
+                                      ? "border-[#a855f7] bg-[#a855f7]/20 font-medium text-[#e9d5ff]"
+                                      : f.isRoot
+                                        ? "border-[#a855f7]/40 bg-[var(--surface-2)] font-medium text-[#d8b4fe] hover:border-[#a855f7]"
+                                        : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#a855f7] hover:text-[var(--ink)]"
+                                  }`}
+                                >
+                                  <span>{f.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 {/* YoudaoNote Discovered Folders Pill Selector */}
                 {c.id === "youdao" && c.discoveredFolders && c.discoveredFolders.length > 0 && (
                   <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
@@ -1533,7 +1651,12 @@ export default function CloudConnectorsPanel() {
                   </button>
                   <button
                     type="button"
-                    disabled={busyId !== null || (!c.configured && !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))}
+                    disabled={
+                      busyId !== null ||
+                      (!c.configured &&
+                        c.id !== "onenote" &&
+                        !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
+                    }
                     onClick={() => runAction(c.id, "test")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
                   >
@@ -1548,11 +1671,18 @@ export default function CloudConnectorsPanel() {
                             ? "测试并浏览空间/目录"
                             : c.id === "ima"
                               ? "测试并浏览笔记/知识库"
-                              : "测试连接"}
+                              : c.id === "onenote"
+                                ? "检测并浏览笔记本"
+                                : "测试连接"}
                   </button>
                   <button
                     type="button"
-                    disabled={busyId !== null || (!c.configured && !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))}
+                    disabled={
+                      busyId !== null ||
+                      (!c.configured &&
+                        c.id !== "onenote" &&
+                        !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
+                    }
                     onClick={() => runAction(c.id, "sync")}
                     className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#7c4dff] to-[#22d3ee] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_14px_rgba(34,211,238,0.25)] transition hover:brightness-110 disabled:opacity-50"
                   >

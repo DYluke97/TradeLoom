@@ -30,3 +30,5 @@ Thumbs.db
 
 # Portable release artifacts
 /dist/
+/release/*.zip
+/release/TradeLoom-*/

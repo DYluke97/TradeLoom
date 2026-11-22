@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  disconnectConnector,
   getMaskedConnectors,
   saveConnectorConfig,
   syncConnector,
@@ -20,7 +21,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
-      action?: "save" | "test" | "sync";
+      action?: "save" | "test" | "sync" | "disconnect";
       id?: string;
       fields?: Record<string, string>;
     };
@@ -34,6 +35,11 @@ export async function POST(request: NextRequest) {
       const saved = await saveConnectorConfig(id, body.fields ?? {});
       if (!saved.ok) return NextResponse.json(saved, { status: 400 });
       return NextResponse.json(saved);
+    }
+
+    if (body.action === "disconnect") {
+      const res = await disconnectConnector(id);
+      return NextResponse.json(res);
     }
 
     if (body.action === "test") {

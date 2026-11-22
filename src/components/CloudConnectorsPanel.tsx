@@ -6,14 +6,17 @@ import {
   CheckCircle2,
   Cloud,
   ExternalLink,
+  ListChecks,
   Loader2,
+  LogIn,
+  LogOut,
   PlugZap,
   RefreshCw,
   Save,
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ConnectorId, MaskedConnectorSummary } from "@/lib/cloud-connectors";
+import type { ConnectorId, DidaProjectSummary, MaskedConnectorSummary } from "@/lib/cloud-connectors";
 
 type FieldSpec = {
   key: string;
@@ -29,23 +32,38 @@ const CONNECTOR_META: Record<
     accent: string;
     subtitle: string;
     tokenGuide: string;
+    oauthLabel?: string;
     fields: FieldSpec[];
   }
 > = {
+  dida365: {
+    accent: "text-[var(--amber)]",
+    subtitle: "官方 MCP 一键登录直连，自动拉取收集箱、个人复盘清单与已完成历史记录",
+    tokenGuide:
+      "推荐直接点击上方「一键登录滴答清单 (MCP)」完成官方 OAuth 授权，无需建开发者应用；也可在滴答网页版「头像 → 设置 → 账户与安全 → API 口令」生成口令粘贴。",
+    oauthLabel: "一键登录滴答清单 (官方 MCP)",
+    fields: [
+      { key: "token", label: "备选：滴答网页版 API 口令 / Access Token（已一键登录可留空）", placeholder: "输入 API 口令或 Bearer Token", secret: true },
+      { key: "projectId", label: "同步清单筛选（逗号分隔清单名或 ID；留空则同步收集箱 + 全部个人清单）", placeholder: "留空同步全部个人清单，或点下方清单胶囊勾选" },
+    ],
+  },
   notion: {
     accent: "text-[#f8fafc]",
-    subtitle: "同步 Notion 复盘数据库（Database）或单页，自动保留日期属性与标签",
-    tokenGuide: "在 notion.so/my-integrations 创建 Internal Integration 获取 Token，并在目标页面右上角 Connections 添加该应用。",
+    subtitle: "支持官方 MCP 一键登录授权，或传统 Integration Token 同步数据库与页面",
+    tokenGuide:
+      "推荐点击上方「一键登录 Notion (MCP)」直接授权工作区；或使用传统方式在 notion.so/my-integrations 创建 Internal Integration Token。",
+    oauthLabel: "一键登录 Notion (官方 MCP)",
     fields: [
-      { key: "token", label: "Integration Token (留空保留已存密钥)", placeholder: "ntn_... 或 secret_...", secret: true },
-      { key: "targetId", label: "Database ID 或 Page ID（留空则拉取全部已授权页面）", placeholder: "例如：1a2b3c4d5e6f..." },
+      { key: "token", label: "备选：Integration Token（已一键登录可留空）", placeholder: "ntn_... 或 secret_...", secret: true },
+      { key: "targetId", label: "Database ID / Page ID / URL（留空则搜索全部已授权页面）", placeholder: "例如：1a2b3c4d5e6f..." },
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "25" },
     ],
   },
   feishu: {
     accent: "text-[var(--cyan)]",
     subtitle: "通过飞书开放平台直连同步个人复盘云文档（Docx）或知识库节点（Wiki）",
-    tokenGuide: "在 open.feishu.cn 创建自建应用并开通 docx:document:readonly / wiki:wiki:readonly 权限，将应用添加至文档协作者。",
+    tokenGuide:
+      "飞书官方远程 MCP 暂不支持浏览器免配置 OAuth，请使用自建应用 App ID / App Secret 并开通 docx:document:readonly / wiki:wiki:readonly 权限。",
     fields: [
       { key: "appId", label: "App ID", placeholder: "cli_a1b2c3d4..." },
       { key: "appSecret", label: "App Secret (留空保留已存密钥)", placeholder: "输入 App Secret", secret: true },
@@ -61,21 +79,12 @@ const CONNECTOR_META: Record<
   yuque: {
     accent: "text-[var(--emerald)]",
     subtitle: "直连语雀 API v2，原生 Markdown 无损拉取指定知识库的历史复盘文章",
-    tokenGuide: "在语雀右上角「账户设置 → Token」创建只读 Token；知识库路径形如 your_login/trading-review。",
+    tokenGuide:
+      "语雀官方暂未提供托管远程 MCP，请在语雀右上角「账户设置 → Token」创建个人只读 Token（需语雀会员）；知识库路径形如 your_login/trading-review。",
     fields: [
       { key: "token", label: "X-Auth-Token (留空保留已存密钥)", placeholder: "输入语雀 Personal Token", secret: true },
       { key: "namespace", label: "知识库路径（留空自动读取首个知识库）", placeholder: "例如：username/trading-notes" },
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
-    ],
-  },
-  dida365: {
-    accent: "text-[var(--amber)]",
-    subtitle: "直连滴答清单 / TickTick Open API，把每日复盘清单、检查项与交易纪律同步为双链卡片",
-    tokenGuide: "在 developer.dida365.com 创建应用完成 OAuth 授权获取 Access Token；海外版可将 API 地址改为 https://api.ticktick.com/open/v1。",
-    fields: [
-      { key: "token", label: "Open API Access Token (留空保留已存密钥)", placeholder: "输入 Bearer Access Token", secret: true },
-      { key: "projectId", label: "指定清单名称或 Project ID（留空同步全部清单）", placeholder: "例如：盘后复盘" },
-      { key: "baseUrl", label: "API 地址", placeholder: "https://api.dida365.com/open/v1" },
     ],
   },
 };
@@ -89,7 +98,7 @@ const CLIP_PLATFORMS = [
   {
     name: "有道云笔记",
     badge: "富文本粘贴 / 剪藏 / 导出 MD",
-    desc: "有道云笔记个人端未开放简单 Token API，最稳妥的方式是在网页/客户端复制后「快捷粘贴入库」（自动转 Markdown），或用浏览器剪藏一键收录。",
+    desc: "有道云笔记个人端未开放简单 Token/MCP，最稳妥的方式是在网页/客户端复制后「快捷粘贴入库」（自动转 Markdown），或用浏览器剪藏一键收录。",
   },
   {
     name: "印象笔记 (Evernote)",
@@ -97,6 +106,13 @@ const CLIP_PLATFORMS = [
     desc: "支持在客户端批量导出 .html 文件后直接拖入 TradeLoom 上传，或日常单篇使用「富文本粘贴 / 浏览器剪藏」零配置入库。",
   },
 ];
+
+function parseSelectionList(raw: string): string[] {
+  return raw
+    .split(/[\n,;，；]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export default function CloudConnectorsPanel() {
   const [connectors, setConnectors] = useState<MaskedConnectorSummary[]>([]);
@@ -113,10 +129,15 @@ export default function CloudConnectorsPanel() {
     const res = await fetch("/api/connectors", { cache: "no-store" });
     const data = await res.json();
     if (data.ok && Array.isArray(data.connectors)) {
-      setConnectors(data.connectors);
+      // Show Dida365 & Notion (MCP OAuth enabled) first
+      const order: ConnectorId[] = ["dida365", "notion", "feishu", "yuque"];
+      const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
+        (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
+      );
+      setConnectors(sorted);
       setDrafts((prev) => {
         const next = { ...prev };
-        for (const c of data.connectors as MaskedConnectorSummary[]) {
+        for (const c of sorted) {
           next[c.id] = { ...c.fields, ...(prev[c.id] ?? {}) };
         }
         return next;
@@ -126,6 +147,31 @@ export default function CloudConnectorsPanel() {
 
   useEffect(() => {
     loadConnectors();
+    if (typeof window !== "undefined") {
+      const qs = new URLSearchParams(window.location.search);
+      const okId = qs.get("oauth_ok") as ConnectorId | null;
+      const errMsg = qs.get("oauth_err");
+      const count = qs.get("oauth_count");
+      if (okId) {
+        const extra = okId === "dida365" && count ? `，已自动发现 ${count} 个清单（含收集箱），可直接勾选后拉取同步！` : "，现在可直接点击「拉取同步并重建双链」！";
+        setFeedback((prev) => ({
+          ...prev,
+          [okId]: { ok: true, text: `官方 MCP OAuth 授权登录成功${extra}` },
+        }));
+        qs.delete("oauth_ok");
+        qs.delete("oauth_count");
+        const cleanUrl = `${window.location.pathname}?${qs.toString()}`;
+        window.history.replaceState({}, "", cleanUrl);
+      } else if (errMsg) {
+        setFeedback((prev) => ({
+          ...prev,
+          dida365: { ok: false, text: errMsg },
+        }));
+        qs.delete("oauth_err");
+        const cleanUrl = `${window.location.pathname}?${qs.toString()}`;
+        window.history.replaceState({}, "", cleanUrl);
+      }
+    }
   }, []);
 
   function updateField(id: ConnectorId, key: string, value: string) {
@@ -135,10 +181,62 @@ export default function CloudConnectorsPanel() {
     }));
   }
 
-  async function runAction(id: ConnectorId, action: "save" | "test" | "sync") {
+  function toggleDidaProject(proj: DidaProjectSummary) {
+    const cur = parseSelectionList(drafts.dida365?.projectId ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const matchKey = proj.id.toLowerCase();
+    const nameKey = proj.name.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(matchKey) || lowerSet.has(nameKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== matchKey && s.toLowerCase() !== nameKey);
+    } else {
+      next = [...cur, proj.isInbox ? "inbox" : proj.name];
+    }
+    updateField("dida365", "projectId", next.join(", "));
+  }
+
+  async function startMcpOAuth(id: "dida365" | "notion") {
+    setBusyId(`${id}:oauth`);
+    setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
+    try {
+      const region = id === "dida365" && drafts.dida365?.region === "global" ? "global" : "cn";
+      const res = await fetch("/api/connectors/oauth/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, region }),
+      });
+      const data = await res.json();
+      if (data.ok && data.authUrl) {
+        window.location.href = data.authUrl;
+        return;
+      }
+      setFeedback((prev) => ({
+        ...prev,
+        [id]: { ok: false, text: data.error || "发起官方 MCP 登录失败" },
+      }));
+    } catch (err) {
+      setFeedback((prev) => ({
+        ...prev,
+        [id]: { ok: false, text: err instanceof Error ? err.message : "网络异常" },
+      }));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function runAction(id: ConnectorId, action: "save" | "test" | "sync" | "disconnect") {
     setBusyId(`${id}:${action}`);
     setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
     try {
+      // Auto-persist filter/checkbox changes before syncing so user clicks work immediately
+      if (action === "sync") {
+        await fetch("/api/connectors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, action: "save", fields: drafts[id] }),
+        });
+      }
+
       const res = await fetch("/api/connectors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -150,16 +248,30 @@ export default function CloudConnectorsPanel() {
       });
       const data = await res.json();
       if (data.ok) {
-        if (data.connectors) setConnectors(data.connectors);
+        if (data.connectors) {
+          const order: ConnectorId[] = ["dida365", "notion", "feishu", "yuque"];
+          const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
+            (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
+          );
+          setConnectors(sorted);
+        }
         if (action === "save") {
-          // Clear secret inputs after saving
           setDrafts((prev) => ({
             ...prev,
             [id]: { ...(prev[id] ?? {}), token: "", appSecret: "" },
           }));
           setFeedback((prev) => ({
             ...prev,
-            [id]: { ok: true, text: "凭证已安全保存至本地 workspace/connectors.json（不上传任何第三方服务器）。" },
+            [id]: { ok: true, text: "凭证与同步选项已安全保存至本地 workspace/connectors.json。" },
+          }));
+        } else if (action === "disconnect") {
+          setDrafts((prev) => ({
+            ...prev,
+            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", projectId: "" },
+          }));
+          setFeedback((prev) => ({
+            ...prev,
+            [id]: { ok: true, text: "已断开当前账号授权，可重新登录切换账号。" },
           }));
         } else {
           setFeedback((prev) => ({
@@ -185,14 +297,16 @@ export default function CloudConnectorsPanel() {
         <div>
           <div className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-[var(--cyan)]">
             <ShieldCheck className="h-3.5 w-3.5" />
-            LOCAL-FIRST CLOUD CONNECTORS · BYOK
+            LOCAL-FIRST CLOUD CONNECTORS · MCP OAUTH & BYOK
           </div>
           <h2 className="mt-1.5 text-base font-semibold text-[#f8fafc]">
-            主流云端笔记直连同步 & 网页剪藏接入
+            主流云端笔记直连同步 & 官方 MCP 一键登录
           </h2>
           <p className="mt-1 text-xs leading-6 text-[var(--ink-muted)]">
-            首批内置 <strong className="text-[var(--ink)]">Notion、飞书文档、语雀、滴答清单</strong> 4 大官方开放 API 连接器（所有密钥仅存于本机 <code className="text-[var(--cyan)]">workspace/connectors.json</code>）；
-            同时为 <strong className="text-[var(--ink)]">雪球、有道云笔记、印象笔记</strong> 提供零门槛粘贴 / URL 抓取 / 浏览器一键剪藏。
+            <strong className="text-[var(--amber)]">滴答清单 / TickTick</strong> 与 <strong className="text-[#f8fafc]">Notion</strong> 已支持{" "}
+            <strong className="text-[var(--cyan)]">官方远程 MCP + 一键 OAuth 登录</strong>（免建开发者应用，本地保存令牌）；
+            <strong className="text-[var(--ink)]">飞书 / 语雀</strong> 支持官方 API 直连；
+            <strong className="text-[var(--ink)]">雪球 / 有道 / 印象笔记</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
         </div>
         <Link
@@ -204,14 +318,19 @@ export default function CloudConnectorsPanel() {
         </Link>
       </div>
 
-      {/* 4 Official API Connectors */}
+      {/* 4 Official Connectors */}
       <div className="grid gap-4 lg:grid-cols-2">
         {connectors.map((c) => {
           const meta = CONNECTOR_META[c.id];
           const fb = feedback[c.id];
+          const isOAuth = busyId === `${c.id}:oauth`;
           const isSaving = busyId === `${c.id}:save`;
           const isTesting = busyId === `${c.id}:test`;
           const isSyncing = busyId === `${c.id}:sync`;
+          const isDisconnecting = busyId === `${c.id}:disconnect`;
+          const selectedDidaTokens = new Set(
+            parseSelectionList(drafts.dida365?.projectId ?? "").map((s) => s.toLowerCase()),
+          );
 
           return (
             <div key={c.id} className="scifi-card flex flex-col justify-between rounded-xl p-5">
@@ -220,7 +339,13 @@ export default function CloudConnectorsPanel() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className={`text-sm font-semibold ${meta.accent}`}>{c.name}</h3>
-                      <span className="rounded border border-[var(--border-strong)] bg-[var(--bg-deep)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-dim)]">
+                      <span
+                        className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${
+                          c.authMode === "mcp_oauth"
+                            ? "border-[var(--cyan)]/45 bg-[var(--cyan-soft)] text-[var(--cyan)]"
+                            : "border-[var(--border-strong)] bg-[var(--bg-deep)] text-[var(--ink-dim)]"
+                        }`}
+                      >
                         {c.badge}
                       </span>
                     </div>
@@ -229,7 +354,7 @@ export default function CloudConnectorsPanel() {
                   {c.configured ? (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] text-[var(--emerald)]">
                       <CheckCircle2 className="h-3 w-3" />
-                      已配置 {c.maskedSecret}
+                      {c.authMode === "mcp_oauth" ? "MCP 已授权" : `已配置 ${c.maskedSecret}`}
                     </span>
                   ) : (
                     <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">
@@ -238,9 +363,143 @@ export default function CloudConnectorsPanel() {
                   )}
                 </div>
 
+                {/* One-Click MCP OAuth Login Bar for Dida365 & Notion */}
+                {c.supportsMcpOAuth && (c.id === "dida365" || c.id === "notion") && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/50 p-2.5">
+                    {c.id === "dida365" && (
+                      <div className="inline-flex rounded-md border border-[var(--border-strong)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => updateField("dida365", "region", "cn")}
+                          className={`rounded px-2 py-0.5 transition ${
+                            (drafts.dida365?.region ?? "cn") !== "global"
+                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                          }`}
+                        >
+                          国内版 dida365
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField("dida365", "region", "global")}
+                          className={`rounded px-2 py-0.5 transition ${
+                            drafts.dida365?.region === "global"
+                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                          }`}
+                        >
+                          海外版 TickTick
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={busyId !== null}
+                      onClick={() => startMcpOAuth(c.id as "dida365" | "notion")}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(124,77,255,0.3)] transition hover:bg-[var(--accent)] disabled:opacity-50"
+                    >
+                      {isOAuth ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                      {c.configured && c.authMode === "mcp_oauth" ? "重新登录 / 切换账号" : meta.oauthLabel}
+                    </button>
+
+                    {c.configured && (
+                      <button
+                        type="button"
+                        disabled={busyId !== null}
+                        onClick={() => runAction(c.id, "disconnect")}
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                        断开授权
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/75 px-3 py-2 text-[11px] leading-5 text-[var(--ink-dim)]">
                   {meta.tokenGuide}
                 </div>
+
+                {/* Dida365 Discovered Projects Pill Selector + Options */}
+                {c.id === "dida365" && (
+                  <div className="space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--ink-muted)]">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={(drafts.dida365?.includeCompleted ?? "true") !== "false"}
+                          onChange={(e) =>
+                            updateField("dida365", "includeCompleted", e.target.checked ? "true" : "false")
+                          }
+                          className="h-3.5 w-3.5 accent-[var(--cyan)]"
+                        />
+                        <span>包含已完成的历史记录（推荐）</span>
+                      </label>
+                      <label className="inline-flex cursor-pointer items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={(drafts.dida365?.skipWelcome ?? "true") !== "false"}
+                          onChange={(e) =>
+                            updateField("dida365", "skipWelcome", e.target.checked ? "true" : "false")
+                          }
+                          className="h-3.5 w-3.5 accent-[var(--cyan)]"
+                        />
+                        <span>自动跳过官方「欢迎使用」教程</span>
+                      </label>
+                    </div>
+
+                    {c.discoveredProjects && c.discoveredProjects.length > 0 && (
+                      <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                        <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                          <span className="inline-flex items-center gap-1">
+                            <ListChecks className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                            当前账号清单（点选指定同步；全不选 = 同步全部个人清单 + 收集箱）：
+                          </span>
+                          {selectedDidaTokens.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateField("dida365", "projectId", "")}
+                              className="text-[var(--cyan)] hover:underline"
+                            >
+                              清空勾选
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.discoveredProjects.map((p) => {
+                            const active =
+                              selectedDidaTokens.has(p.id.toLowerCase()) ||
+                              selectedDidaTokens.has(p.name.toLowerCase()) ||
+                              (p.isInbox && selectedDidaTokens.has("inbox"));
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => toggleDidaProject(p)}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                  active
+                                    ? "border-[var(--cyan)] bg-[var(--cyan-soft)] font-medium text-[var(--cyan)]"
+                                    : p.isWelcome
+                                      ? "border-[var(--border)] bg-transparent text-[var(--ink-dim)] line-through opacity-65 hover:opacity-100"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]"
+                                }`}
+                              >
+                                <span>{p.name}</span>
+                                {p.kind === "NOTE" && (
+                                  <span className="rounded bg-[var(--accent)]/20 px-1 text-[9px] text-[var(--accent)]">
+                                    笔记
+                                  </span>
+                                )}
+                                {p.isWelcome && <span className="text-[9px]">(官方教程)</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2.5">
                   {meta.fields.map((f) => (
@@ -260,7 +519,11 @@ export default function CloudConnectorsPanel() {
                           value={drafts[c.id]?.[f.key] ?? ""}
                           onChange={(e) => updateField(c.id, f.key, e.target.value)}
                           placeholder={
-                            f.secret && c.configured ? `已保存 (${c.maskedSecret})，留空不修改` : f.placeholder
+                            f.secret && c.configured
+                              ? c.authMode === "mcp_oauth"
+                                ? "已通过官方 MCP OAuth 授权，留空即可"
+                                : `已保存 (${c.maskedSecret})，留空不修改`
+                              : f.placeholder
                           }
                           className="mt-1 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--cyan)] focus:outline-none"
                         />
@@ -273,7 +536,7 @@ export default function CloudConnectorsPanel() {
               <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-3.5">
                 {fb?.text && (
                   <div
-                    className={`rounded-lg border px-3 py-2 text-xs ${
+                    className={`rounded-lg border px-3 py-2 text-xs leading-5 ${
                       fb.ok
                         ? "border-[var(--emerald)]/35 bg-[var(--emerald-soft)] text-[var(--emerald)]"
                         : "border-red-500/40 bg-red-500/10 text-red-300"
@@ -313,7 +576,7 @@ export default function CloudConnectorsPanel() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
                   >
                     {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlugZap className="h-3.5 w-3.5" />}
-                    测试连接
+                    {c.id === "dida365" ? "测试并刷新清单" : "测试连接"}
                   </button>
                   <button
                     type="button"

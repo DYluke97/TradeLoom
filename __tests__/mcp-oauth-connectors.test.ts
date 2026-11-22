@@ -44,6 +44,18 @@ import {
   parseOneNotePageXmlToMarkdown,
 } from "../src/lib/onenote-local";
 import {
+  discoverYinxiangWorkspace,
+  extractYinxiangNotebooks,
+  extractYinxiangSearchNotes,
+  extractYinxiangTags,
+  fetchYinxiangItems,
+  formatYinxiangError,
+  normalizeYinxiangBaseUrl,
+  normalizeYinxiangToken,
+  YinxiangApiError,
+  yinxiangContentToMarkdown,
+} from "../src/lib/yinxiang-skill";
+import {
   createPkcePair,
   MCP_ENDPOINTS,
   McpSseClient,
@@ -756,5 +768,186 @@ describe("Microsoft OneNote Windows Desktop COM connector", () => {
     expect(formatOneNoteLocalError(new Error("Retrieving the COM class factory failed: 80040154"))).toContain("UWP");
     expect(formatOneNoteLocalError(new Error("HRESULT: 0x800706BE RPC failed"))).toContain("权限级别不一致");
     expect(encodePowerShellScript("Write-Host 1")).toBe(Buffer.from("Write-Host 1", "utf16le").toString("base64"));
+  });
+});
+
+describe("Yinxiang China Official Skill RESTful API connector", () => {
+  it("normalizes Yinxiang baseUrl and auth token cleanly", () => {
+    expect(normalizeYinxiangBaseUrl("")).toBe("https://app.yinxiang.com");
+    expect(normalizeYinxiangBaseUrl("https://app.yinxiang.com/third/skills-oauth/")).toBe("https://app.yinxiang.com");
+    expect(normalizeYinxiangBaseUrl("http://app.yinxiang.com")).toBe("");
+    expect(normalizeYinxiangToken('  "S=s1:U=abc:V=2"  ')).toBe("S=s1:U=abc:V=2");
+    expect(normalizeYinxiangToken("Bearer S=s1:U=123")).toBe("S=s1:U=123");
+    expect(normalizeYinxiangToken("auth: S=s2:U=456")).toBe("S=s2:U=456");
+  });
+
+  it("extracts notebooks, tags, and search notes across Yinxiang field variants", () => {
+    const notebooks = extractYinxiangNotebooks({
+      status: { code: 8200, msg: "OK" },
+      data: {
+        noteBookList: [
+          { guid: "nb-1", name: "每日复盘", stack: "投研" },
+          { guid: "nb-2", name: "行业研究", defaultNotebook: true },
+        ],
+      },
+    });
+    expect(notebooks).toEqual([
+      { guid: "nb-1", name: "每日复盘", stack: "投研", defaultNotebook: false },
+      { guid: "nb-2", name: "行业研究", stack: undefined, defaultNotebook: true },
+    ]);
+
+    const tags = extractYinxiangTags({
+      data: { tagList: [{ tagGuid: "t-1", tagName: "A股" }, { tagGuid: "t-2", tagName: "复盘" }] },
+    });
+    expect(tags.map((t) => t.name)).toEqual(["A股", "复盘"]);
+
+    const search = extractYinxiangSearchNotes({
+      data: {
+        total: 12,
+        noteDetailList: [
+          {
+            noteGuid: "n-1",
+            noteTitle: "2026-11-22 半导体跟踪",
+            notebookGuid: "nb-1",
+            tagNames: ["复盘", "半导体"],
+            created: 1795305600000,
+          },
+        ],
+      },
+    });
+    expect(search.total).toBe(12);
+    expect(search.notes[0]).toMatchObject({
+      guid: "n-1",
+      title: "2026-11-22 半导体跟踪",
+      notebookGuid: "nb-1",
+      tagNames: ["复盘", "半导体"],
+    });
+  });
+
+  it("converts Evernote ENML, HTML, and plain Markdown note content cleanly", () => {
+    const enml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
+<en-note>
+  <div><b>核心复盘</b>：严控单票仓位</div>
+  <div><en-todo checked="true"/>核对交割单</div>
+  <div><en-todo/>整理明日计划</div>
+  <en-media type="image/png" alt="分时图"/>
+  <en-crypt>secret</en-crypt>
+</en-note>`;
+
+    const md = yinxiangContentToMarkdown(enml);
+    expect(md).toContain("**核心复盘**");
+    expect(md).toContain("[x]");
+    expect(md).toContain("[ ]");
+    expect(md).toContain("附件：分时图");
+    expect(md).toContain("已加密内容");
+
+    expect(yinxiangContentToMarkdown("# 今日总结\r\n\r\n- 仓位 50%")).toBe("# 今日总结\n\n- 仓位 50%");
+  });
+
+  it("calls official Yinxiang Skill endpoints with auth header, source=skill, handles 1107 empty and 8403 errors", async () => {
+    const calls: Array<{ url: string; auth: string | null; body: Record<string, unknown> }> = [];
+    const mockFetch: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      calls.push({ url, auth: headers.get("auth"), body });
+
+      if (url.endsWith("/listNoteBooks")) {
+        return new Response(
+          JSON.stringify({
+            status: { code: 8200, msg: "success" },
+            data: { noteBookList: [{ guid: "nb-review", name: "每日复盘", stack: "交易" }] },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/listTags")) {
+        return new Response(
+          JSON.stringify({
+            status: { code: 8200, msg: "success" },
+            data: { tagList: [{ tagGuid: "tag-1", tagName: "复盘" }] },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/searchNotesByFilter")) {
+        if (body.keyword === "不存在的关键词") {
+          return new Response(JSON.stringify({ status: { code: 1107, msg: "no results" } }), { status: 200 });
+        }
+        return new Response(
+          JSON.stringify({
+            status: { code: 8200, msg: "success" },
+            data: {
+              total: 1,
+              noteDetailList: [
+                {
+                  noteGuid: "note-abc",
+                  noteTitle: "午盘情绪观察",
+                  notebookGuid: "nb-review",
+                  tagNames: ["复盘"],
+                  updated: 1795305600000,
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/getNoteDetail")) {
+        return new Response(
+          JSON.stringify({
+            status: { code: 8200, msg: "success" },
+            data: {
+              dataDetail: {
+                noteTitle: "午盘情绪观察",
+                content: "<en-note><div>早盘分歧转一致，<b>守住回撤线</b>。</div></en-note>",
+                tagNames: ["复盘", "情绪"],
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("Not Found", { status: 404 });
+    };
+
+    const ws = await discoverYinxiangWorkspace("S=s1:U=test", { fetchImpl: mockFetch });
+    expect(ws.folders).toEqual([{ id: "nb-review", name: "交易 / 每日复盘" }]);
+
+    const res = await fetchYinxiangItems("S=s1:U=test", {
+      notebookFilter: "每日复盘",
+      tagFilter: "复盘",
+      keyword: "情绪",
+      maxItems: 10,
+      fetchImpl: mockFetch,
+    });
+    expect(res.items).toHaveLength(1);
+    expect(res.items[0]).toMatchObject({
+      guid: "note-abc",
+      title: "午盘情绪观察",
+      notebookName: "交易/每日复盘",
+      tags: ["复盘", "情绪"],
+      sourceUrl: "https://app.yinxiang.com/Home.action#n=note-abc",
+    });
+    expect(res.items[0].content).toContain("**守住回撤线**");
+
+    const searchCall = calls.find((c) => c.url.endsWith("/searchNotesByFilter"));
+    expect(searchCall?.auth).toBe("S=s1:U=test");
+    expect(searchCall?.body.source).toBe("skill");
+    expect(searchCall?.body.notebookGuid).toBe("nb-review");
+    expect(searchCall?.body.notebookName).toBeUndefined();
+
+    // 1107 empty search should return 0 items cleanly without throwing
+    const emptyRes = await fetchYinxiangItems("S=s1:U=test", {
+      keyword: "不存在的关键词",
+      fetchImpl: mockFetch,
+    });
+    expect(emptyRes.items).toEqual([]);
+
+    // 8403 invalid token error translates cleanly
+    const errMsg = formatYinxiangError(new YinxiangApiError("Invalid authToken", { code: 8403, httpStatus: 200 }));
+    expect(errMsg).toContain("8403");
+    expect(errMsg).toContain("skills-oauth");
   });
 });

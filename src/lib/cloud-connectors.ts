@@ -43,6 +43,15 @@ import {
   IMA_DEFAULT_BASE_URL,
   normalizeImaBaseUrl,
 } from "./tencent-ima";
+import {
+  discoverYinxiangWorkspace,
+  fetchYinxiangItems,
+  formatYinxiangError,
+  normalizeYinxiangBaseUrl,
+  normalizeYinxiangToken,
+  readLocalYinxiangSkillToken,
+  YINXIANG_DEFAULT_BASE_URL,
+} from "./yinxiang-skill";
 import { ensureWorkspace, fileExists, getWorkspacePaths, writeAtomic } from "./workspace";
 
 export type ConnectorId =
@@ -53,7 +62,8 @@ export type ConnectorId =
   | "youdao"
   | "tencent_docs"
   | "ima"
-  | "onenote";
+  | "onenote"
+  | "yinxiang";
 export type ConnectorAuthMode = "api_token" | "mcp_oauth" | "mcp_api_key";
 
 export type DidaProjectSummary = {
@@ -172,6 +182,17 @@ export type OneNoteConnectorConfig = {
   discoveredFolders?: YoudaoFolderSummary[];
 };
 
+export type YinxiangConnectorConfig = {
+  token: string;
+  notebookFilter?: string; // Comma-separated notebook names or GUIDs (blank syncs all notebooks)
+  tagFilter?: string; // Comma-separated tag names (optional)
+  keyword?: string; // Optional full-text keyword search
+  maxItems?: number; // default 30 (max 100)
+  baseUrl?: string; // default https://app.yinxiang.com
+  discoveredFolders?: YoudaoFolderSummary[];
+  discoveredTags?: string[];
+};
+
 export type ConnectorsStore = {
   notion?: NotionConnectorConfig;
   feishu?: FeishuConnectorConfig;
@@ -181,6 +202,7 @@ export type ConnectorsStore = {
   tencent_docs?: TencentDocsConnectorConfig;
   ima?: ImaConnectorConfig;
   onenote?: OneNoteConnectorConfig;
+  yinxiang?: YinxiangConnectorConfig;
   lastSync?: Partial<Record<ConnectorId, { at: string; synced: number; message: string }>>;
 };
 
@@ -368,6 +390,25 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
       },
       lastSync: store.lastSync?.onenote,
     },
+    {
+      id: "yinxiang",
+      name: "印象笔记 · 国内版 (官方 Skill API)",
+      badge: "国内版会员 1 年令牌 · 免费版走 HTML 导入",
+      configured: Boolean(store.yinxiang?.token),
+      maskedSecret: maskSecret(store.yinxiang?.token ?? ""),
+      authMode: "api_token",
+      supportsMcpOAuth: false,
+      discoveredFolders: store.yinxiang?.discoveredFolders ?? [],
+      fields: {
+        notebookFilter: store.yinxiang?.notebookFilter ?? "",
+        tagFilter: store.yinxiang?.tagFilter ?? "",
+        keyword: store.yinxiang?.keyword ?? "",
+        maxItems: String(store.yinxiang?.maxItems ?? 30),
+        baseUrl: store.yinxiang?.baseUrl || YINXIANG_DEFAULT_BASE_URL,
+        localSkillTokenDetected: readLocalYinxiangSkillToken() ? "true" : "false",
+      },
+      lastSync: store.lastSync?.yinxiang,
+    },
   ];
 }
 
@@ -521,6 +562,28 @@ export async function saveConnectorConfig(
       notebookFilter: (payload.notebookFilter ?? "").trim(),
       keyword: (payload.keyword ?? "").trim(),
       maxItems: Math.min(80, Math.max(1, Number(payload.maxItems) || 30)),
+    };
+  } else if (id === "yinxiang") {
+    const incomingToken = normalizeYinxiangToken(payload.token);
+    const token = incomingToken || store.yinxiang?.token || readLocalYinxiangSkillToken() || "";
+    if (!token) {
+      return {
+        ok: false,
+        error: "请先填写印象笔记国内版 AuthToken（点击「去印象笔记获取 AuthToken」前往 app.yinxiang.com/third/skills-oauth/ 生成）",
+      };
+    }
+    const baseUrl = normalizeYinxiangBaseUrl(payload.baseUrl ?? store.yinxiang?.baseUrl);
+    if (!baseUrl) {
+      return { ok: false, error: "印象笔记接口地址必须为有效的 https:// 地址" };
+    }
+    store.yinxiang = {
+      ...(store.yinxiang ?? {}),
+      token,
+      notebookFilter: (payload.notebookFilter ?? "").trim(),
+      tagFilter: (payload.tagFilter ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      maxItems: Math.min(100, Math.max(1, Number(payload.maxItems) || 30)),
+      baseUrl,
     };
   }
 
@@ -1645,6 +1708,44 @@ export async function testConnector(
       }
     }
 
+    if (id === "yinxiang") {
+      const token = store.yinxiang?.token || readLocalYinxiangSkillToken() || "";
+      if (!token) {
+        return {
+          ok: false,
+          error: "尚未配置印象笔记国内版 AuthToken（请前往 app.yinxiang.com/third/skills-oauth/ 生成 1 年期令牌）",
+        };
+      }
+      try {
+        const { notebooks, tags, folders } = await discoverYinxiangWorkspace(token, {
+          baseUrl: store.yinxiang?.baseUrl,
+        });
+        store.yinxiang = {
+          ...(store.yinxiang ?? { token }),
+          token,
+          discoveredFolders: folders,
+          discoveredTags: tags.map((t) => t.name).slice(0, 50),
+        };
+        await writeStore(store);
+
+        const nbPreview = notebooks
+          .slice(0, 5)
+          .map((n) => n.name)
+          .join("、");
+        const tagNote = tags.length > 0 ? `，以及 ${tags.length} 个标签` : "";
+        return {
+          ok: true,
+          message:
+            notebooks.length > 0
+              ? `已通过官方 Skill API 连接印象笔记国内版：发现 ${notebooks.length} 个笔记本（${nbPreview}${notebooks.length > 5 ? " 等" : ""}）${tagNote}`
+              : "已连上印象笔记国内版官方 Skill API，暂未发现笔记本（可直接输入关键词搜索或同步）",
+          connectors: await getMaskedConnectors(),
+        };
+      } catch (err) {
+        return { ok: false, error: formatYinxiangError(err) };
+      }
+    }
+
     return { ok: false, error: "未知连接器类型" };
   } catch (err) {
     return { ok: false, error: `连接异常：${err instanceof Error ? err.message : "网络错误"}` };
@@ -2426,6 +2527,52 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
         }
       } catch (err) {
         return { ok: false, error: `同步失败：${formatOneNoteLocalError(err)}` };
+      }
+    } else if (id === "yinxiang") {
+      const cfg = store.yinxiang;
+      const token = cfg?.token || readLocalYinxiangSkillToken() || "";
+      if (!token) {
+        return { ok: false, error: "尚未配置印象笔记国内版 AuthToken" };
+      }
+      try {
+        const { items, folders, tags, warnings } = await fetchYinxiangItems(token, {
+          notebookFilter: cfg?.notebookFilter,
+          tagFilter: cfg?.tagFilter,
+          keyword: cfg?.keyword,
+          maxItems: cfg?.maxItems ?? 30,
+          baseUrl: cfg?.baseUrl,
+        });
+
+        store.yinxiang = {
+          ...(cfg ?? { token }),
+          token,
+          discoveredFolders: folders,
+          discoveredTags: tags.map((t) => t.name).slice(0, 50),
+        };
+
+        for (const item of items) {
+          const sourcePlatform = item.notebookName
+            ? `印象笔记 · ${item.notebookName}`
+            : "印象笔记 (国内版)";
+          const saved = await importPastedReview(
+            {
+              title: item.title,
+              content: item.content,
+              eventDate: item.eventDate,
+              sourceUrl: item.sourceUrl,
+              sourcePlatform,
+              tags: item.tags,
+              folder: "_云端_印象笔记",
+            },
+            { skipRebuild: true },
+          );
+          if (saved.ok) synced++;
+        }
+        if (warnings.length > 0) {
+          extraNotice = `（${warnings.join("；")}）`;
+        }
+      } catch (err) {
+        return { ok: false, error: `同步失败：${formatYinxiangError(err)}` };
       }
     }
 

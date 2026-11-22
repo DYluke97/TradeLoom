@@ -159,6 +159,19 @@ const CONNECTOR_META: Record<
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
     ],
   },
+  yinxiang: {
+    accent: "text-[#2dbe60]",
+    subtitle: "直连印象笔记国内版官方 Skill RESTful API（app.yinxiang.com）：支持笔记本点选、标签筛选与全文检索同步",
+    tokenGuide:
+      "【国内版印象笔记会员】点上方「去印象笔记获取 AuthToken」前往 app.yinxiang.com/third/skills-oauth/ 生成 1 年期令牌（以 S=s 开头，勿填老版 7 天 DeveloperToken）贴入下方保存；【免费版用户】无需开会员，直接走「客户端导出 .html 拖入 / 浏览器剪藏」无损入库。（注：仅支持国内版 yinxiang.com，与国际版 evernote.com 账号不互通）",
+    fields: [
+      { key: "token", label: "印象笔记 AuthToken（留空保留已存密钥；本机已装 yinxiang-skill 可留空自动复用）", placeholder: "粘贴从 app.yinxiang.com/third/skills-oauth/ 生成的 S=s... 令牌", secret: true },
+      { key: "notebookFilter", label: "同步笔记本筛选（逗号分隔名称或 GUID；留空同步全部笔记本，或点上方胶囊勾选）", placeholder: "例如：交易复盘、研究笔记（留空同步全部）" },
+      { key: "tagFilter", label: "标签筛选（可选，逗号分隔标签名）", placeholder: "例如：复盘, A股, 交割（留空不限标签）" },
+      { key: "keyword", label: "关键词全文检索（可选，调用官方 searchNotesByFilter 精准拉取）", placeholder: "例如：复盘、仓位管理（留空则拉取最近笔记）" },
+      { key: "maxItems", label: "单次最多同步篇数（官方单次检索上限 100）", placeholder: "30" },
+    ],
+  },
 };
 
 const CLIP_PLATFORMS = [
@@ -168,9 +181,9 @@ const CLIP_PLATFORMS = [
     desc: "公开复盘长文可直接用「网页链接抓取」；私密笔记或触发登录校验的页面，推荐用浏览器一键剪藏小书签或 Ctrl+C 富文本粘贴入库。",
   },
   {
-    name: "印象笔记 (Evernote)",
-    badge: "富文本粘贴 / 剪藏 / HTML 导入",
-    desc: "支持在客户端批量导出 .html 文件后直接拖入 TradeLoom 上传，或日常单篇使用「富文本粘贴 / 浏览器剪藏」零配置入库。",
+    name: "印象笔记 · 免费版 / 国际版",
+    badge: "HTML 批量导入 / 剪藏",
+    desc: "国内版会员可直接用上方「印象笔记 · 国内版」连接器直连同步；免费版或国际版 Evernote 用户推荐在客户端批量导出 .html 直接拖入上传，或使用一键剪藏零门槛入库。",
   },
   {
     name: "微信公众号 / 任意投研长文",
@@ -197,6 +210,7 @@ export default function CloudConnectorsPanel() {
     tencent_docs: {},
     ima: {},
     onenote: {},
+    yinxiang: {},
   });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -225,7 +239,7 @@ export default function CloudConnectorsPanel() {
     const data = await res.json();
     if (data.ok && Array.isArray(data.connectors)) {
       // Show Dida365 & Notion (MCP OAuth enabled) first
-      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
+      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yinxiang", "yuque"];
       const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
         (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
       );
@@ -378,6 +392,23 @@ export default function CloudConnectorsPanel() {
     updateField("onenote", "notebookFilter", next.join(", "));
   }
 
+  function toggleYinxiangFolder(folder: YoudaoFolderSummary) {
+    const cur = parseSelectionList(drafts.yinxiang?.notebookFilter ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = folder.id.toLowerCase();
+    const nameKey = folder.name.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(idKey) || lowerSet.has(nameKey)) {
+      next = cur.filter((s) => {
+        const sl = s.toLowerCase();
+        return sl !== idKey && sl !== nameKey;
+      });
+    } else {
+      next = [...cur, folder.id];
+    }
+    updateField("yinxiang", "notebookFilter", next.join(", "));
+  }
+
   useEffect(() => {
     if (!feishuReg) {
       if (feishuPollTimerRef.current) {
@@ -403,7 +434,7 @@ export default function CloudConnectorsPanel() {
           if (data.ok && data.status === "completed") {
             setFeishuReg(null);
             if (Array.isArray(data.connectors)) {
-              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
+              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yinxiang", "yuque"];
               const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
                 (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
               );
@@ -620,7 +651,7 @@ export default function CloudConnectorsPanel() {
       const data = await res.json();
       if (data.ok) {
         if (data.connectors) {
-          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yuque"];
+          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "onenote", "yinxiang", "yuque"];
           const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
             (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
           );
@@ -735,6 +766,9 @@ export default function CloudConnectorsPanel() {
           );
           const selectedOneNoteTokens = new Set(
             parseSelectionList(drafts.onenote?.notebookFilter ?? "").map((s) => s.toLowerCase()),
+          );
+          const selectedYinxiangTokens = new Set(
+            parseSelectionList(drafts.yinxiang?.notebookFilter ?? "").map((s) => s.toLowerCase()),
           );
 
           return (
@@ -1452,6 +1486,92 @@ export default function CloudConnectorsPanel() {
                   </>
                 )}
 
+                {/* Yinxiang China Official Skill API Dual-Path Bar + Discovered Notebooks */}
+                {c.id === "yinxiang" && (
+                  <>
+                    <div className="space-y-2 rounded-lg border border-[#2dbe60]/35 bg-[#2dbe60]/10 p-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href="https://app.yinxiang.com/third/skills-oauth/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1ea853] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(45,190,96,0.28)] transition hover:bg-[#2dbe60]"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          去印象笔记获取 AuthToken（会员 · 1 年有效）
+                          <ExternalLink className="h-3 w-3 opacity-80" />
+                        </a>
+                        <Link
+                          href="/vault?import=cloud"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#2dbe60]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[#4ade80] transition hover:bg-[#2dbe60]/15"
+                        >
+                          免会员：导出 HTML 拖入 / 剪藏 →
+                        </Link>
+                        {c.configured && (
+                          <button
+                            type="button"
+                            disabled={busyId !== null}
+                            onClick={() => runAction("yinxiang", "disconnect")}
+                            className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          >
+                            {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                            清除密钥
+                          </button>
+                        )}
+                      </div>
+                      {!c.configured && c.fields.localSkillTokenDetected === "true" && (
+                        <div className="rounded-md border border-[#2dbe60]/40 bg-[var(--bg-deep)]/85 px-2.5 py-1.5 text-[11px] text-[#4ade80]">
+                          已检测到本机印象笔记 Skill 令牌（~/.config/yinxiang-skill/token 或 YX_AUTH_TOKEN），直接点「保存配置」或「测试并浏览笔记本」即可一键复用。
+                        </div>
+                      )}
+                      <div className="text-[11px] leading-5 text-[var(--ink-dim)]">
+                        免费用户零成本方法：在印象笔记桌面端右键目标笔记本 →「导出笔记」→ 选「多个网页 (.html)」，直接整批拖入 TradeLoom 即可无损转 Markdown。
+                      </div>
+                    </div>
+
+                    {c.discoveredFolders && c.discoveredFolders.length > 0 && (
+                      <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                        <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                          <span className="inline-flex items-center gap-1">
+                            <BookOpen className="h-3.5 w-3.5 text-[#2dbe60]" />
+                            已发现印象笔记本（点选指定同步；全不选 = 同步全部笔记本）：
+                          </span>
+                          {selectedYinxiangTokens.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateField("yinxiang", "notebookFilter", "")}
+                              className="text-[#4ade80] hover:underline"
+                            >
+                              清空勾选
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.discoveredFolders.map((f) => {
+                            const active =
+                              selectedYinxiangTokens.has(f.id.toLowerCase()) ||
+                              selectedYinxiangTokens.has(f.name.toLowerCase());
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => toggleYinxiangFolder(f)}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                  active
+                                    ? "border-[#2dbe60] bg-[#2dbe60]/20 font-medium text-[#4ade80]"
+                                    : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#2dbe60] hover:text-[var(--ink)]"
+                                }`}
+                              >
+                                <span>{f.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {/* YoudaoNote Discovered Folders Pill Selector */}
                 {c.id === "youdao" && c.discoveredFolders && c.discoveredFolders.length > 0 && (
                   <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
@@ -1655,6 +1775,7 @@ export default function CloudConnectorsPanel() {
                       busyId !== null ||
                       (!c.configured &&
                         c.id !== "onenote" &&
+                        !(c.id === "yinxiang" && c.fields.localSkillTokenDetected === "true") &&
                         !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
                     }
                     onClick={() => runAction(c.id, "test")}
@@ -1673,7 +1794,9 @@ export default function CloudConnectorsPanel() {
                               ? "测试并浏览笔记/知识库"
                               : c.id === "onenote"
                                 ? "检测并浏览笔记本"
-                                : "测试连接"}
+                                : c.id === "yinxiang"
+                                  ? "测试并浏览笔记本"
+                                  : "测试连接"}
                   </button>
                   <button
                     type="button"
@@ -1681,6 +1804,7 @@ export default function CloudConnectorsPanel() {
                       busyId !== null ||
                       (!c.configured &&
                         c.id !== "onenote" &&
+                        !(c.id === "yinxiang" && c.fields.localSkillTokenDetected === "true") &&
                         !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
                     }
                     onClick={() => runAction(c.id, "sync")}

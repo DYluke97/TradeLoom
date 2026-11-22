@@ -860,7 +860,7 @@ export default function CloudConnectorsPanel() {
 
                 {/* One-Click MCP OAuth Login Bar for Dida365 & Notion */}
                 {c.supportsMcpOAuth && (c.id === "dida365" || c.id === "notion") && (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/50 p-2.5">
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                     {c.id === "dida365" && (
                       <div className="inline-flex rounded-md border border-[var(--border-strong)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
                         <button
@@ -868,7 +868,7 @@ export default function CloudConnectorsPanel() {
                           onClick={() => updateField("dida365", "region", "cn")}
                           className={`rounded px-2 py-0.5 transition ${
                             (drafts.dida365?.region ?? "cn") !== "global"
-                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              ? "bg-[var(--surface)] font-medium text-[var(--ink-strong)] shadow-2xs ring-1 ring-[var(--border-strong)]"
                               : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                           }`}
                         >
@@ -879,7 +879,7 @@ export default function CloudConnectorsPanel() {
                           onClick={() => updateField("dida365", "region", "global")}
                           className={`rounded px-2 py-0.5 transition ${
                             drafts.dida365?.region === "global"
-                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              ? "bg-[var(--surface)] font-medium text-[var(--ink-strong)] shadow-2xs ring-1 ring-[var(--border-strong)]"
                               : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                           }`}
                         >
@@ -914,7 +914,7 @@ export default function CloudConnectorsPanel() {
 
                 {/* Feishu Dual-Mode Agent Bar: QR One-Click App Creation + Local lark-cli Bridge */}
                 {c.id === "feishu" && (
-                  <div className="space-y-2.5 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/35 p-3">
+                  <div className="space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="inline-flex rounded-md border border-[var(--border-strong)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
                         <button
@@ -922,7 +922,7 @@ export default function CloudConnectorsPanel() {
                           onClick={() => updateField("feishu", "mode", "open_api")}
                           className={`rounded px-2.5 py-1 transition ${
                             (drafts.feishu?.mode ?? "open_api") !== "lark_cli"
-                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              ? "bg-[var(--surface)] font-medium text-[var(--ink-strong)] shadow-2xs ring-1 ring-[var(--border-strong)]"
                               : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                           }`}
                         >
@@ -933,7 +933,7 @@ export default function CloudConnectorsPanel() {
                           onClick={() => updateField("feishu", "mode", "lark_cli")}
                           className={`rounded px-2.5 py-1 transition ${
                             drafts.feishu?.mode === "lark_cli"
-                              ? "bg-[var(--accent-strong)] font-medium text-white"
+                              ? "bg-[var(--surface)] font-medium text-[var(--ink-strong)] shadow-2xs ring-1 ring-[var(--border-strong)]"
                               : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                           }`}
                         >
@@ -1018,7 +1018,7 @@ export default function CloudConnectorsPanel() {
                                 href={feishuReg.authUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--cyan)] px-3 py-1 text-xs font-semibold text-white transition hover:brightness-110"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent-strong)] px-3 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent)]"
                               >
                                 打开飞书授权确认页
                                 <ExternalLink className="h-3 w-3" />
@@ -1042,7 +1042,7 @@ export default function CloudConnectorsPanel() {
                             type="button"
                             disabled={busyId !== null}
                             onClick={checkLarkCliStatus}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--cyan)] disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)] disabled:opacity-50"
                           >
                             {busyId === "feishu:cli_status" ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1092,12 +1092,12 @@ export default function CloudConnectorsPanel() {
 
                 {/* YoudaoNote Official MCP Quick Action Bar */}
                 {c.id === "youdao" && (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)] p-2.5">
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                     <a
                       href="https://mopen.163.com/"
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--cyan)]"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                       去 mopen.163.com 获取 API Key
@@ -1128,7 +1128,7 @@ export default function CloudConnectorsPanel() {
                       href="https://www.yuque.com/settings/tokens"
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--emerald)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--emerald)]"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                       去语雀获取 Token（超级会员）
@@ -1218,12 +1218,12 @@ export default function CloudConnectorsPanel() {
                 {/* Tencent Docs Official Remote MCP Quick Action Bar + Scope & Folder Pills */}
                 {c.id === "tencent_docs" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                       <a
                         href="https://docs.qq.com/open/auth/mcp.html"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
                         去腾讯文档领取个人 MCP Token（免费 2,000 次/天）
@@ -1315,12 +1315,12 @@ export default function CloudConnectorsPanel() {
                 {/* Tencent ima Official OpenAPI Quick Action Bar + Dual Channel & Pill Selectors */}
                 {c.id === "ima" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                       <a
                         href="https://ima.qq.com/agent-interface"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
                         去腾讯 ima 获取 Client ID & API Key（免费）
@@ -1456,12 +1456,12 @@ export default function CloudConnectorsPanel() {
                 {/* Microsoft OneNote Windows Desktop COM Quick Guide + Discovered Notebooks/Sections */}
                 {c.id === "onenote" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                       <a
                         href="https://www.onenote.com/download"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                       >
                         <BookOpen className="h-3.5 w-3.5" />
                         免费下载微软桌面版 OneNote
@@ -1541,13 +1541,13 @@ export default function CloudConnectorsPanel() {
                 {/* Yinxiang China Official Skill API Dual-Path Bar + Discovered Notebooks */}
                 {c.id === "yinxiang" && (
                   <>
-                    <div className="space-y-2 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald)]/10 p-2.5">
+                    <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/80 p-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <a
                           href="https://app.yinxiang.com/third/skills-oauth/"
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--emerald)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--emerald)]"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                           去印象笔记获取 AuthToken（会员 · 1 年有效）
@@ -1860,7 +1860,7 @@ export default function CloudConnectorsPanel() {
                         !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
                     }
                     onClick={() => runAction(c.id, "sync")}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent)] disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-dim)] disabled:border disabled:border-[var(--border)]"
                   >
                     {isSyncing ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />

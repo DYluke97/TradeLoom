@@ -19,11 +19,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
 
 const NODE_COLORS: Record<VaultNodeType, string> = {
-  overview: "var(--accent)",
-  manual: "var(--emerald)",
+  overview: "var(--graph-node-overview)",
+  manual: "var(--graph-node-manual)",
   card: "var(--graph-node-card)",
-  topic: "var(--cyan)",
-  timeline: "var(--amber)",
+  topic: "var(--graph-node-topic)",
+  timeline: "var(--graph-node-timeline)",
 };
 
 const NODE_GLOW: Record<VaultNodeType, string> = {
@@ -215,7 +215,7 @@ function buildGraphTopology(
         kind: "rings",
         cx,
         cy,
-        rings: [{ r: innerR, label: "", color: "var(--border-strong)" }],
+        rings: [{ r: innerR, label: "", color: "var(--graph-ring)" }],
       },
     };
   }
@@ -248,13 +248,13 @@ function buildGraphTopology(
 
   if (layoutMode === "layered") {
     const colSpecs: Array<{ key: string; label: string; color: string; x: number; items: typeof candidates }> = [
-      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "var(--amber)", x: width * 0.14, items: buckets.timeline },
+      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "var(--graph-node-timeline)", x: width * 0.14, items: buckets.timeline },
       { key: "card", label: "02 // 复盘原件卡片", color: "var(--graph-node-card)", x: width * 0.38, items: buckets.card },
-      { key: "topic", label: "03 // 主题与概念星核", color: "var(--cyan)", x: width * 0.66, items: buckets.topic },
+      { key: "topic", label: "03 // 主题与概念星核", color: "var(--graph-node-topic)", x: width * 0.66, items: buckets.topic },
       {
         key: "manual",
         label: "04 // 总览 & 交易手册",
-        color: "var(--emerald)",
+        color: "var(--graph-node-manual)",
         x: width * 0.89,
         items: [...buckets.overview, ...buckets.manual],
       },
@@ -398,9 +398,9 @@ function buildGraphTopology(
       cx,
       cy,
       rings: [
-        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "var(--border-strong)" },
-        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "var(--border-strong)" },
-        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "var(--border-strong)" },
+        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "var(--graph-ring)" },
+        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "var(--graph-ring)" },
+        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "var(--graph-ring)" },
       ],
     };
   }
@@ -1088,15 +1088,17 @@ export default function ObsidianGraph({
                         y2={b.y}
                         stroke={
                           highlighted
-                            ? "var(--accent)"
+                            ? "var(--graph-edge-active)"
                             : e.direction === "out"
-                              ? "var(--accent)"
+                              ? "var(--graph-node-overview)"
                               : e.direction === "in"
-                                ? "var(--emerald)"
-                                : "var(--graph-edge)"
+                                ? "var(--graph-node-manual)"
+                                : e.structural
+                                  ? "var(--graph-edge-structural)"
+                                  : "var(--graph-edge)"
                         }
-                        strokeWidth={(highlighted ? 2.1 : 0.9) / Math.sqrt(transform.k)}
-                        opacity={dimmed ? 0.05 : highlighted ? 0.92 : 1}
+                        strokeWidth={(highlighted ? 2.4 : e.structural ? 1.35 : 1.05) / Math.sqrt(transform.k)}
+                        opacity={dimmed ? 0.08 : highlighted ? 0.95 : 1}
                         
                       />
                       {/* Animated neon energy pulse along highlighted links */}
@@ -1106,7 +1108,7 @@ export default function ObsidianGraph({
                           y1={a.y}
                           x2={b.x}
                           y2={b.y}
-                          stroke="var(--accent)"
+                          stroke="var(--graph-edge-active)"
                           strokeWidth={1.6 / Math.sqrt(transform.k)}
                           opacity={0.95}
                           className="graph-energy-edge pointer-events-none"
@@ -1124,7 +1126,7 @@ export default function ObsidianGraph({
                   const isInLockedSubgraph = Boolean(lockedCluster?.has(n.rel));
                   const isFocused = focusRel === n.rel;
                   const dimmed = Boolean(connectedToFocus && !connectedToFocus.has(n.rel));
-                  const fill = n.isCenter ? "var(--accent)" : NODE_COLORS[n.nodeType];
+                  const fill = n.isCenter ? "var(--graph-node-overview)" : NODE_COLORS[n.nodeType];
                   const glow = n.isCenter ? NODE_GLOW.overview : NODE_GLOW[n.nodeType];
 
                   const showLabel =
@@ -1152,7 +1154,7 @@ export default function ObsidianGraph({
                           <circle
                             r={n.r + 12}
                             fill="none"
-                            stroke="var(--accent)"
+                            stroke="var(--graph-edge-active)"
                             strokeWidth={1.3}
                             strokeDasharray="5 4"
                             
@@ -1166,7 +1168,7 @@ export default function ObsidianGraph({
                         <circle
                           r={n.r + 5.5}
                           fill="none"
-                          stroke="var(--accent)"
+                          stroke="var(--graph-edge-active)"
                           strokeWidth={1.1}
                           opacity={0.85}
                           className="pointer-events-none"
@@ -1180,10 +1182,10 @@ export default function ObsidianGraph({
 
                       {/* Core Node Sphere */}
                       <circle
-                        r={isLockedAnchor ? n.r + 2.5 : isFocused ? n.r + 1.6 : n.r}
+                        r={isLockedAnchor ? n.r + 3 : isFocused ? n.r + 2 : n.r + 1.4}
                         fill={fill}
-                        stroke={isLockedAnchor ? "var(--accent)" : isFocused || n.isCenter ? "#ffffff" : "#07090f"}
-                        strokeWidth={isLockedAnchor ? 2 : isFocused || n.isCenter ? 1.5 : 1.1}
+                        stroke={isLockedAnchor ? "var(--graph-edge-active)" : "var(--graph-bg)"}
+                        strokeWidth={isLockedAnchor ? 2.5 : 2}
                         
                       />
 
@@ -1194,12 +1196,12 @@ export default function ObsidianGraph({
                         <text
                           y={n.r + (mode === "global" ? 15 : 12)}
                           textAnchor="middle"
-                          fill={isLockedAnchor ? "var(--accent)" : isFocused || isInLockedSubgraph || n.isCenter ? "#ffffff" : "#cbd5e1"}
+                          fill={isLockedAnchor ? "var(--graph-edge-active)" : isFocused || isInLockedSubgraph || n.isCenter ? "var(--graph-label-strong)" : "var(--graph-label)"}
                           fontSize={(mode === "global" ? 11 : 9.2) / Math.pow(transform.k, 0.35)}
-                          fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 400}
+                          fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 500}
                           paintOrder="stroke"
                           stroke="var(--graph-bg)"
-                          strokeWidth={3.6}
+                          strokeWidth={4.2}
                           strokeLinejoin="round"
                           className="pointer-events-none"
                         >

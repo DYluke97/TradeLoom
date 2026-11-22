@@ -3,7 +3,7 @@ export const DEMO_VAULT_ID = "demo-sandbox";
 export type VaultTemplateId = "short-term" | "fundamental" | "trend-swing" | "custom";
 
 export const VAULT_ACCENT_COLORS = [
-  "#3b5bdb",
+  "#2d5f8b",
   "#0f766e",
   "#157f57",
   "#b4690e",

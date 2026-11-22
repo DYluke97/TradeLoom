@@ -298,7 +298,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
             <Link
               href="/"
               title="TradeLoom · 织脉"
-              className="mb-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-[var(--ink-strong)] text-[11px] font-bold tracking-tight text-[var(--surface)] transition hover:opacity-90"
+              className="mb-1.5 flex h-7 w-7 items-center justify-center rounded-md border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-[11px] font-bold tracking-tight text-[var(--accent)] transition hover:bg-[var(--accent)]/15"
             >
               TL
             </Link>
@@ -330,7 +330,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                       style={{ backgroundColor: activeColor }}
                     />
                   )}
-                  <Icon className="h-[17px] w-[17px]" style={active ? { color: activeColor } : undefined} />
+                  <Icon className="h-[17px] w-[17px]" strokeWidth={1.75} style={active ? { color: activeColor } : undefined} />
                 </Link>
               );
             })}
@@ -355,7 +355,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   {active && (
                     <span className="absolute -left-[7px] top-1 bottom-1 w-[3px] rounded-r bg-[var(--accent)]" />
                   )}
-                  <Icon className="h-[17px] w-[17px]" />
+                  <Icon className="h-[17px] w-[17px]" strokeWidth={1.75} />
                 </Link>
               );
             })}
@@ -369,7 +369,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
               title="快速切换知识库 / 笔记 / 命令 (Ctrl+K)"
               className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
             >
-              <Search className="h-[17px] w-[17px]" />
+              <Search className="h-[17px] w-[17px]" strokeWidth={1.75} />
             </button>
           </div>
         </aside>

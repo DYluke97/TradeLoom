@@ -176,7 +176,7 @@ export default function CreateVaultModal({
               className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-sm"
               style={{ background: `linear-gradient(135deg, ${color}, #22d3ee)` }}
             >
-              {step === 1 ? <Plus className="h-[19px] w-[19px]" /> : <Check className="h-[19px] w-[19px]" />}
+              {step === 1 ? <Plus className="h-[17px] w-[17px]" /> : <Check className="h-[17px] w-[17px]" />}
             </span>
             <div>
               <h2 className="text-sm font-semibold text-[var(--ink-strong)]">
@@ -194,7 +194,7 @@ export default function CreateVaultModal({
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
           >
-            <X className="h-[19px] w-[19px]" />
+            <X className="h-[17px] w-[17px]" />
           </button>
         </div>
 
@@ -289,10 +289,10 @@ export default function CreateVaultModal({
                 className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)]"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <FolderOpen className="h-[17px] w-[17px] text-[var(--ink-dim)]" />
+                  <FolderOpen className="h-[15px] w-[15px] text-[var(--ink-dim)]" />
                   高级选项（挂载本机已有文件夹 / 复制已有库词典）
                 </span>
-                {showAdvanced ? <ChevronUp className="h-[17px] w-[17px]" /> : <ChevronDown className="h-[17px] w-[17px]" />}
+                {showAdvanced ? <ChevronUp className="h-[15px] w-[15px]" /> : <ChevronDown className="h-[15px] w-[15px]" />}
               </button>
               {showAdvanced && (
                 <div className="space-y-3 border-t border-[var(--border)] px-3.5 py-3">
@@ -349,7 +349,7 @@ export default function CreateVaultModal({
                 disabled={busy}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
               >
-                {busy ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Sparkles className="h-[17px] w-[17px]" />}
+                {busy ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Sparkles className="h-[15px] w-[15px]" />}
                 {busy ? "正在创建知识库..." : "创建并进入下一步"}
               </button>
             </div>
@@ -426,7 +426,7 @@ export default function CreateVaultModal({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)]"
               >
                 暂不导入，先进入「{createdVault?.name}」工作台
-                <ArrowRight className="h-[17px] w-[17px]" />
+                <ArrowRight className="h-[15px] w-[15px]" />
               </button>
             </div>
           </div>

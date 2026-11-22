@@ -56,15 +56,15 @@ type DocResponse = {
 function FileNodeIcon({ type }: { type: VaultNodeType }) {
   switch (type) {
     case "timeline":
-      return <Calendar className="h-[17px] w-[17px] shrink-0 text-[var(--amber)]/85" />;
+      return <Calendar className="h-[15px] w-[15px] shrink-0 text-[var(--amber)]/85" />;
     case "topic":
-      return <Hash className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]/85" />;
+      return <Hash className="h-[15px] w-[15px] shrink-0 text-[var(--cyan)]/85" />;
     case "manual":
-      return <BookOpen className="h-[17px] w-[17px] shrink-0 text-[var(--emerald)]/85" />;
+      return <BookOpen className="h-[15px] w-[15px] shrink-0 text-[var(--emerald)]/85" />;
     case "overview":
-      return <Sparkles className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />;
+      return <Sparkles className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]" />;
     default:
-      return <FileText className="h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />;
+      return <FileText className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />;
   }
 }
 
@@ -405,7 +405,7 @@ export default function VaultWorkspace() {
               title="打包导出 Obsidian 知识库与交易手册 (.zip)"
               className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--emerald)]"
             >
-              <Download className="h-[17px] w-[17px]" />
+              <Download className="h-[15px] w-[15px]" />
             </a>
             <button
               type="button"
@@ -413,7 +413,7 @@ export default function VaultWorkspace() {
               title="管理本库关键词词典并重织双链（仅作用于当前知识库）"
               className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
             >
-              <SlidersHorizontal className="h-[17px] w-[17px]" />
+              <SlidersHorizontal className="h-[15px] w-[15px]" />
             </button>
             <button
               type="button"
@@ -425,7 +425,7 @@ export default function VaultWorkspace() {
                   : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               }`}
             >
-              <Network className="h-[17px] w-[17px]" />
+              <Network className="h-[15px] w-[15px]" />
             </button>
             <button
               type="button"
@@ -470,7 +470,7 @@ export default function VaultWorkspace() {
         {/* Inline Explorer Filter */}
         <div className="border-b border-[var(--border)] p-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-2 h-[17px] w-[17px] text-[var(--ink-dim)]" />
+            <Search className="pointer-events-none absolute left-2 top-2 h-[15px] w-[15px] text-[var(--ink-dim)]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -486,7 +486,7 @@ export default function VaultWorkspace() {
               disabled={busy}
               className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-[var(--accent)]/40 bg-[var(--accent-soft)] py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/20"
             >
-              <Sparkles className="h-[17px] w-[17px]" />
+              <Sparkles className="h-[15px] w-[15px]" />
               加载 6 篇示例复盘
             </button>
           )}
@@ -516,14 +516,14 @@ export default function VaultWorkspace() {
                 >
                   <span className="flex items-center gap-1 truncate">
                     {collapsed ? (
-                      <ChevronRight className="h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />
+                      <ChevronRight className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
                     ) : (
-                      <ChevronDown className="h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />
+                      <ChevronDown className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
                     )}
                     {collapsed ? (
-                      <Folder className="h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />
+                      <Folder className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
                     ) : (
-                      <FolderOpen className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]/80" />
+                      <FolderOpen className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]/80" />
                     )}
                     <span className="truncate">{group}</span>
                   </span>
@@ -764,7 +764,7 @@ export default function VaultWorkspace() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono">
                             <span className="inline-flex items-center gap-1.5 font-sans font-semibold text-[var(--cyan)]">
-                              <CandlestickChart className="h-[17px] w-[17px]" />
+                              <CandlestickChart className="h-[15px] w-[15px]" />
                               客观实盘锚点 · {snap.date}
                             </span>
                             {(snap.nav !== 1 || snap.dailyReturnPct !== 0) && (
@@ -851,7 +851,7 @@ export default function VaultWorkspace() {
           <div className="p-3.5">
             <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
               <span className="flex items-center gap-1.5">
-                <Link2 className="h-[17px] w-[17px] text-[var(--emerald)]" />
+                <Link2 className="h-[15px] w-[15px] text-[var(--emerald)]" />
                 反向链接 · Backlinks
               </span>
               <span className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--emerald)]">
@@ -887,9 +887,9 @@ export default function VaultWorkspace() {
             >
               <span className="flex items-center gap-1.5">
                 {showUnlinked ? (
-                  <ChevronDown className="h-[17px] w-[17px] text-[var(--amber)]" />
+                  <ChevronDown className="h-[15px] w-[15px] text-[var(--amber)]" />
                 ) : (
-                  <ChevronRight className="h-[17px] w-[17px] text-[var(--amber)]" />
+                  <ChevronRight className="h-[15px] w-[15px] text-[var(--amber)]" />
                 )}
                 未链接提及 · Unlinked
               </span>
@@ -945,7 +945,7 @@ export default function VaultWorkspace() {
           <div className="p-3.5">
             <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
               <span className="flex items-center gap-1.5">
-                <Link2 className="h-[17px] w-[17px] text-[var(--accent)]" />
+                <Link2 className="h-[15px] w-[15px] text-[var(--accent)]" />
                 正向链接 · Outgoing
               </span>
               <span className="rounded bg-[var(--surface-2)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--accent)]">
@@ -1056,7 +1056,7 @@ export default function VaultWorkspace() {
                 }}
                 className="rounded-lg p-1.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               >
-                <X className="h-[19px] w-[19px]" />
+                <X className="h-[17px] w-[17px]" />
               </button>
             </div>
             <div className="overflow-y-auto p-5">

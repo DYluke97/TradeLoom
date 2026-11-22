@@ -202,7 +202,7 @@ export default function LedgerWorkspace() {
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/50 bg-[var(--cyan-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--cyan)] transition hover:bg-[var(--cyan)]/20"
             >
-              <Plus className="h-[17px] w-[17px]" />
+              <Plus className="h-[15px] w-[15px]" />
               手动记一笔
             </button>
 
@@ -211,7 +211,7 @@ export default function LedgerWorkspace() {
               onClick={() => setCsvOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
             >
-              <FileSpreadsheet className="h-[17px] w-[17px]" />
+              <FileSpreadsheet className="h-[15px] w-[15px]" />
               导入交割单 / 净值 CSV
             </button>
 
@@ -222,7 +222,7 @@ export default function LedgerWorkspace() {
                 onClick={() => postAction({ action: "clear-demo" }, "已清空演示账本数据，你的个人记录完好保留。")}
                 className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-[var(--amber)] hover:bg-amber-500/20 disabled:opacity-50"
               >
-                <Trash2 className="h-[17px] w-[17px]" />
+                <Trash2 className="h-[15px] w-[15px]" />
                 清理演示账本
               </button>
             ) : (
@@ -237,7 +237,7 @@ export default function LedgerWorkspace() {
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--emerald)]/40 bg-[var(--emerald-soft)] px-2.5 py-1.5 text-xs text-[var(--emerald)] hover:bg-[var(--emerald)]/20 disabled:opacity-50"
               >
-                {busy ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Sparkles className="h-[17px] w-[17px]" />}
+                {busy ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Sparkles className="h-[15px] w-[15px]" />}
                 加载 A 股演示账本
               </button>
             )}
@@ -342,7 +342,7 @@ export default function LedgerWorkspace() {
                 : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <BarChart3 className="h-[17px] w-[17px]" />
+            <BarChart3 className="h-[15px] w-[15px]" />
             净值曲线 & 超额归因
           </button>
           <button
@@ -354,7 +354,7 @@ export default function LedgerWorkspace() {
                 : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <CandlestickChart className="h-[17px] w-[17px]" />
+            <CandlestickChart className="h-[15px] w-[15px]" />
             个股 K 线 & 买卖节点 ({stocks.length})
           </button>
           <button
@@ -366,7 +366,7 @@ export default function LedgerWorkspace() {
                 : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <ListChecks className="h-[17px] w-[17px]" />
+            <ListChecks className="h-[15px] w-[15px]" />
             每日台账 & 交割流水
           </button>
         </div>
@@ -382,7 +382,7 @@ export default function LedgerWorkspace() {
       {/* View Body */}
       {loading ? (
         <div className="flex h-72 items-center justify-center gap-2 text-xs text-[var(--ink-muted)]">
-          <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
+          <Loader2 className="h-[17px] w-[17px] animate-spin text-[var(--cyan)]" />
           正在同步本地实盘账本与 A 股基准行情...
         </div>
       ) : activeTab === "equity" ? (
@@ -416,7 +416,7 @@ export default function LedgerWorkspace() {
               </button>
             </div>
             <div className="relative mb-2">
-              <Search className="pointer-events-none absolute left-2.5 top-2 h-[17px] w-[17px] text-[var(--ink-dim)]" />
+              <Search className="pointer-events-none absolute left-2.5 top-2 h-[15px] w-[15px] text-[var(--ink-dim)]" />
               <input
                 value={stockFilter}
                 onChange={(e) => setStockFilter(e.target.value)}

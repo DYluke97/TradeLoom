@@ -907,7 +907,7 @@ export default function ObsidianGraph({
             title="放大"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <ZoomIn className="h-[17px] w-[17px]" />
+            <ZoomIn className="h-[15px] w-[15px]" />
           </button>
           <button
             type="button"
@@ -915,7 +915,7 @@ export default function ObsidianGraph({
             title="缩小"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <ZoomOut className="h-[17px] w-[17px]" />
+            <ZoomOut className="h-[15px] w-[15px]" />
           </button>
           <button
             type="button"
@@ -923,7 +923,7 @@ export default function ObsidianGraph({
             title="重置视角并解除锁定"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <RotateCcw className="h-[17px] w-[17px]" />
+            <RotateCcw className="h-[15px] w-[15px]" />
           </button>
 
           {mode === "global" && (
@@ -937,7 +937,7 @@ export default function ObsidianGraph({
                   : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               }`}
             >
-              <SlidersHorizontal className="h-[17px] w-[17px]" />
+              <SlidersHorizontal className="h-[15px] w-[15px]" />
             </button>
           )}
 
@@ -948,7 +948,7 @@ export default function ObsidianGraph({
               title={mode === "global" ? "返回阅读视图" : "展开全息星轨图谱"}
               className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
             >
-              {mode === "global" ? <Minimize2 className="h-[17px] w-[17px]" /> : <Maximize2 className="h-[17px] w-[17px]" />}
+              {mode === "global" ? <Minimize2 className="h-[15px] w-[15px]" /> : <Maximize2 className="h-[15px] w-[15px]" />}
             </button>
           )}
         </div>
@@ -1182,7 +1182,7 @@ export default function ObsidianGraph({
 
                       {/* Core Node Sphere */}
                       <circle
-                        r={isLockedAnchor ? n.r + 4.5 : isFocused ? n.r + 3.5 : n.r + 2.6}
+                        r={isLockedAnchor ? n.r + 3.5 : isFocused ? n.r + 2.6 : n.r + 1.8}
                         fill={fill}
                         stroke={isLockedAnchor ? "var(--graph-edge-active)" : "var(--graph-bg)"}
                         strokeWidth={isLockedAnchor ? 2.5 : 2}
@@ -1194,10 +1194,10 @@ export default function ObsidianGraph({
 
                       {showLabel && (
                         <text
-                          y={n.r + (mode === "global" ? 18 : 15)}
+                          y={n.r + (mode === "global" ? 16.5 : 13.5)}
                           textAnchor="middle"
                           fill={isLockedAnchor ? "var(--graph-edge-active)" : isFocused || isInLockedSubgraph || n.isCenter ? "var(--graph-label-strong)" : "var(--graph-label)"}
-                          fontSize={(mode === "global" ? 12.5 : 10.8) / Math.pow(transform.k, 0.35)}
+                          fontSize={(mode === "global" ? 11.8 : 10.0) / Math.pow(transform.k, 0.35)}
                           fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 500}
                           paintOrder="stroke"
                           stroke="var(--graph-bg)"
@@ -1233,7 +1233,7 @@ export default function ObsidianGraph({
                 title="解除锁定 (Esc)"
                 className="rounded p-0.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
               >
-                <X className="h-[17px] w-[17px]" />
+                <X className="h-[15px] w-[15px]" />
               </button>
             </div>
 
@@ -1270,7 +1270,7 @@ export default function ObsidianGraph({
           <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] p-3.5 text-xs backdrop-blur-md">
             <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="h-[17px] w-[17px] text-[var(--cyan)]" />
+                <Sparkles className="h-[15px] w-[15px] text-[var(--cyan)]" />
                 推拉阻尼与架构弹性
               </span>
               <span className="font-mono text-[10px] text-[var(--cyan)]">{Math.round(transform.k * 100)}%</span>

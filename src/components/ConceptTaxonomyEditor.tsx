@@ -153,7 +153,7 @@ export default function ConceptTaxonomyEditor() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <div className="flex items-center gap-2">
-              <Hash className="h-[19px] w-[19px] text-[var(--cyan)]" />
+              <Hash className="h-[17px] w-[17px] text-[var(--cyan)]" />
               <h2 className="text-sm font-semibold text-[var(--ink-strong)]">自定义主题词典 & Obsidian 双链重排</h2>
               <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[10px] text-[var(--accent)]">
                 已启用 {enabledCount}/{rules.length} 组
@@ -172,7 +172,7 @@ export default function ConceptTaxonomyEditor() {
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)] disabled:opacity-50"
             >
-              <RotateCcw className="h-[17px] w-[17px]" />
+              <RotateCcw className="h-[15px] w-[15px]" />
               恢复默认 10 组
             </button>
             <button
@@ -181,7 +181,7 @@ export default function ConceptTaxonomyEditor() {
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
             >
-              {busy ? <RefreshCw className="h-[17px] w-[17px] animate-spin" /> : <Save className="h-[17px] w-[17px]" />}
+              {busy ? <RefreshCw className="h-[15px] w-[15px] animate-spin" /> : <Save className="h-[15px] w-[15px]" />}
               {busy ? "正在重排双链..." : "保存词典并重新编排双链"}
             </button>
           </div>
@@ -190,7 +190,7 @@ export default function ConceptTaxonomyEditor() {
         {notice && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-3.5 py-2 text-xs text-[var(--emerald)]">
             <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="h-[17px] w-[17px] shrink-0" />
+              <CheckCircle2 className="h-[15px] w-[15px] shrink-0" />
               {notice}
             </span>
             <Link href="/vault?view=graph" className="font-medium underline">
@@ -233,7 +233,7 @@ export default function ConceptTaxonomyEditor() {
             type="submit"
             className="inline-flex h-[32px] w-full items-center justify-center gap-1 rounded-md border border-[var(--accent)]/50 bg-[var(--accent-soft)] px-3.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/25 sm:w-auto"
           >
-            <Plus className="h-[17px] w-[17px]" />
+            <Plus className="h-[15px] w-[15px]" />
             添加主题
           </button>
         </div>
@@ -284,7 +284,7 @@ export default function ConceptTaxonomyEditor() {
                   title="删除该主题规则"
                   className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--rose-soft)] hover:text-[var(--rose)]"
                 >
-                  <Trash2 className="h-[17px] w-[17px]" />
+                  <Trash2 className="h-[15px] w-[15px]" />
                 </button>
               </div>
             </div>

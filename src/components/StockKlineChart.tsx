@@ -323,7 +323,7 @@ export default function StockKlineChart({
       <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--chart-bg)] p-2">
         {loading && bars.length === 0 ? (
           <div className="flex h-[340px] items-center justify-center gap-2 text-xs text-[var(--ink-muted)]">
-            <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
+            <Loader2 className="h-[17px] w-[17px] animate-spin text-[var(--cyan)]" />
             正在拉取 {stock.name} ({stock.symbol}) 前复权日K线...
           </div>
         ) : err && bars.length === 0 ? (

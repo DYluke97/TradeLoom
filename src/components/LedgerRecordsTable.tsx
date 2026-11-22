@@ -165,7 +165,7 @@ export default function LedgerRecordsTable({
                         title="删除该日记录"
                         className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                       >
-                        <Trash2 className="h-[17px] w-[17px]" />
+                        <Trash2 className="h-[15px] w-[15px]" />
                       </button>
                     </td>
                   </tr>
@@ -230,7 +230,7 @@ export default function LedgerRecordsTable({
                       onClick={() => onDeleteTrade(t.id)}
                       className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                     >
-                      <Trash2 className="h-[17px] w-[17px]" />
+                      <Trash2 className="h-[15px] w-[15px]" />
                     </button>
                   </td>
                 </tr>

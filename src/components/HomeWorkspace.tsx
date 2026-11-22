@@ -128,7 +128,7 @@ export default function HomeWorkspace() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-xs text-[var(--ink-muted)]">
-          <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
+          <Loader2 className="h-[17px] w-[17px] animate-spin text-[var(--cyan)]" />
           正在载入本地复盘知识库...
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function HomeWorkspace() {
           <div className="pointer-events-none absolute -top-24 left-1/2 h-56 w-96 -translate-x-1/2 rounded-full bg-[var(--accent)]/15 blur-3xl" />
           <div className="relative">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-soft)] px-3 py-1 text-[11px] font-medium text-[var(--cyan)]">
-              <ShieldCheck className="h-[17px] w-[17px]" />
+              <ShieldCheck className="h-[15px] w-[15px]" />
               本地离线优先 · 数据 100% 留在你自己的电脑
             </div>
             <h1 className="mt-4 text-2xl font-bold tracking-tight text-[var(--ink-strong)] sm:text-3xl">
@@ -164,7 +164,7 @@ export default function HomeWorkspace() {
             <div className="mx-auto mt-5 grid max-w-2xl gap-2.5 text-left sm:grid-cols-3">
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--cyan)]">
-                  <Network className="h-[17px] w-[17px]" />
+                  <Network className="h-[15px] w-[15px]" />
                   1. 复盘自动成网
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -173,7 +173,7 @@ export default function HomeWorkspace() {
               </div>
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-muted)]">
-                  <CandlestickChart className="h-[17px] w-[17px]" />
+                  <CandlestickChart className="h-[15px] w-[15px]" />
                   2. 实盘账本防嘴盘
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -182,7 +182,7 @@ export default function HomeWorkspace() {
               </div>
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
-                  <BookOpen className="h-[17px] w-[17px]" />
+                  <BookOpen className="h-[15px] w-[15px]" />
                   3. 多库并行提炼
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -211,15 +211,15 @@ export default function HomeWorkspace() {
               </p>
               <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--ink-muted)]">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--cyan)]" />
                   <span>6 篇完整 A 股复盘样本 + 已织好的双链知识星图</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--cyan)]" />
                   <span>配套示例交割单与净值曲线（含个股买卖点回放）</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--cyan)]" />
                   <span>1 份免配大模型即可预览的《双轨实盘交易手册 v1.0》</span>
                 </li>
               </ul>
@@ -232,7 +232,7 @@ export default function HomeWorkspace() {
                 onClick={handleEnterDemo}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--cyan)] px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 transition hover:brightness-110 disabled:opacity-50"
               >
-                {creatingDemo ? <Loader2 className="h-[19px] w-[19px] animate-spin" /> : <Play className="h-[19px] w-[19px]" />}
+                {creatingDemo ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Play className="h-[17px] w-[17px]" />}
                 {creatingDemo ? "正在构建独立体验示范库（含账本与手册）..." : "一键进入体验示范库"}
               </button>
               <p className="text-center text-[11px] text-[var(--ink-dim)]">
@@ -257,15 +257,15 @@ export default function HomeWorkspace() {
               </p>
               <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--ink-muted)]">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]" />
                   <span>4 套开箱模板：短线情绪 / 价值基本面 / 趋势波段 / 通用空白</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]" />
                   <span>支持直接拖入 Word/PDF/MD/HTML，或挂载本机已有 Obsidian 目录</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]" />
                   <span>支持飞书、Notion、语雀、滴答、腾讯文档、ima、有道、OneNote、印象笔记</span>
                 </li>
               </ul>
@@ -277,7 +277,7 @@ export default function HomeWorkspace() {
                 onClick={() => setCreateOpen(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-strong)] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[var(--accent)] transition hover:brightness-110"
               >
-                <Plus className="h-[19px] w-[19px]" />
+                <Plus className="h-[17px] w-[17px]" />
                 创建我的第 1 个知识库
               </button>
               <p className="text-center text-[11px] text-[var(--ink-dim)]">
@@ -364,14 +364,14 @@ export default function HomeWorkspace() {
                 href={primaryCta.href}
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110"
               >
-                <PrimaryIcon className="h-[17px] w-[17px]" />
+                <PrimaryIcon className="h-[15px] w-[15px]" />
                 {primaryCta.label}
               </Link>
               <Link
                 href={secondaryCta.href}
                 className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)]/90 px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)]"
               >
-                <SecondaryIcon className="h-[17px] w-[17px]" />
+                <SecondaryIcon className="h-[15px] w-[15px]" />
                 {secondaryCta.label}
               </Link>
               <a
@@ -379,7 +379,7 @@ export default function HomeWorkspace() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/60 px-3 py-2 text-xs text-[var(--ink-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
                 title="打包下载本库的独立标准 Obsidian 知识库 (.zip)"
               >
-                <Download className="h-[17px] w-[17px]" />
+                <Download className="h-[15px] w-[15px]" />
                 导出本库 Obsidian
               </a>
             </div>
@@ -445,7 +445,7 @@ export default function HomeWorkspace() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
-                <Sparkles className="h-[19px] w-[19px] text-[var(--cyan)]" />
+                <Sparkles className="h-[17px] w-[17px] text-[var(--cyan)]" />
                 新手上手路线（已完成 {steps.completedCount} / {steps.totalCount} 步）
               </div>
               <p className="mt-0.5 text-[11px] text-[var(--ink-dim)]">
@@ -472,7 +472,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--cyan)]">STEP 1</span>
-                  {steps.hasReviews && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
+                  {steps.hasReviews && <CheckCircle2 className="h-[17px] w-[17px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">导入你的复盘素材</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -508,7 +508,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--ink-muted)]">STEP 2 · 可选</span>
-                  {steps.hasLedgerOrSkipped && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
+                  {steps.hasLedgerOrSkipped && <CheckCircle2 className="h-[17px] w-[17px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">绑定本库实盘交割账本</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -550,7 +550,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--accent)]">STEP 3 · 全库通用</span>
-                  {steps.hasLlm && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
+                  {steps.hasLlm && <CheckCircle2 className="h-[17px] w-[17px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">接入你的 AI 大模型</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -581,7 +581,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--ink-strong)]">STEP 4</span>
-                  {steps.hasManual && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
+                  {steps.hasManual && <CheckCircle2 className="h-[17px] w-[17px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">生成本库交易手册</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -611,7 +611,7 @@ export default function HomeWorkspace() {
           <div className="scifi-card rounded-xl p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink)]">
-                <Calendar className="h-[19px] w-[19px] text-[var(--ink-muted)]" />
+                <Calendar className="h-[17px] w-[17px] text-[var(--ink-muted)]" />
                 本库复盘时间轴（点击直达年/月整理目录）
               </div>
               <Link href="/synthesize" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -653,7 +653,7 @@ export default function HomeWorkspace() {
               <div className="scifi-card rounded-xl border-[var(--border)] p-5">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
-                    <BookOpen className="h-[19px] w-[19px]" />
+                    <BookOpen className="h-[17px] w-[17px]" />
                     本库最新交易手册
                   </span>
                   <Link href="/manuals" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -671,7 +671,7 @@ export default function HomeWorkspace() {
                   className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink-strong)] transition hover:bg-[var(--surface-3)]"
                 >
                   打开阅读与溯源
-                  <ArrowRight className="h-[17px] w-[17px]" />
+                  <ArrowRight className="h-[15px] w-[15px]" />
                 </Link>
               </div>
             )}
@@ -679,7 +679,7 @@ export default function HomeWorkspace() {
             <div className="scifi-card rounded-xl p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink)]">
-                  <Hash className="h-[19px] w-[19px] text-[var(--cyan)]" />
+                  <Hash className="h-[17px] w-[17px] text-[var(--cyan)]" />
                   本库高频关键词节点
                 </div>
                 <Link href="/vault?concepts=1" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -710,7 +710,7 @@ export default function HomeWorkspace() {
       <section className="scifi-card rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
-            <FolderKanban className="h-[19px] w-[19px] text-[var(--accent)]" />
+            <FolderKanban className="h-[17px] w-[17px] text-[var(--accent)]" />
             多知识库并行工作台（共 {overview?.vaults.length ?? 1} 个独立双链库）
           </div>
           <div className="flex items-center gap-2">
@@ -765,7 +765,7 @@ export default function HomeWorkspace() {
                   </div>
                 </div>
                 {switchingId === v.id ? (
-                  <Loader2 className="h-[17px] w-[17px] shrink-0 animate-spin text-[var(--cyan)]" />
+                  <Loader2 className="h-[15px] w-[15px] shrink-0 animate-spin text-[var(--cyan)]" />
                 ) : !isCur ? (
                   <span className="shrink-0 text-[11px] text-[var(--cyan)]">切换 →</span>
                 ) : null}

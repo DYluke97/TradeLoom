@@ -268,7 +268,7 @@ export default function CloudImportModal({
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex items-center gap-2">
-            <Cloud className="h-[19px] w-[19px] text-[var(--cyan)]" />
+            <Cloud className="h-[17px] w-[17px] text-[var(--cyan)]" />
             <h2 className="text-sm font-semibold text-[var(--ink-strong)]">云端复盘采集 · 粘贴 / URL 抓取 / 剪藏</h2>
           </div>
           <button
@@ -276,7 +276,7 @@ export default function CloudImportModal({
             onClick={onClose}
             className="rounded p-1 text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
           >
-            <X className="h-[19px] w-[19px]" />
+            <X className="h-[17px] w-[17px]" />
           </button>
         </div>
 
@@ -294,7 +294,7 @@ export default function CloudImportModal({
                 : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <ClipboardPaste className="h-[17px] w-[17px]" />
+            <ClipboardPaste className="h-[15px] w-[15px]" />
             快捷粘贴（富文本自动转 MD）
           </button>
           <button
@@ -309,7 +309,7 @@ export default function CloudImportModal({
                 : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <Globe className="h-[17px] w-[17px]" />
+            <Globe className="h-[15px] w-[15px]" />
             网页链接抓取（URL）
           </button>
           <button
@@ -324,7 +324,7 @@ export default function CloudImportModal({
                 : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
-            <Bookmark className="h-[17px] w-[17px]" />
+            <Bookmark className="h-[15px] w-[15px]" />
             浏览器剪藏 & 云端直连
           </button>
         </div>
@@ -452,7 +452,7 @@ export default function CloudImportModal({
                   disabled={busy || (!content.trim() && !capturedHtml.trim())}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
+                  {busy && <Loader2 className="h-[15px] w-[15px] animate-spin" />}
                   {busy ? "正在转 Markdown 并构建双链..." : "一键入库并编排双链"}
                 </button>
               </div>
@@ -487,7 +487,7 @@ export default function CloudImportModal({
                   )}
                 </div>
                 <div className="relative mt-1">
-                  <Link2 className="pointer-events-none absolute left-3 top-2.5 h-[17px] w-[17px] text-[var(--accent)]" />
+                  <Link2 className="pointer-events-none absolute left-3 top-2.5 h-[15px] w-[15px] text-[var(--accent)]" />
                   <textarea
                     rows={parsedUrlCount > 1 ? 5 : 3}
                     required
@@ -594,7 +594,7 @@ export default function CloudImportModal({
                   disabled={busy || !urlInput.trim()}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
+                  {busy && <Loader2 className="h-[15px] w-[15px] animate-spin" />}
                   {busy
                     ? parsedUrlCount > 1
                       ? `正在防限流排队抓取 ${Math.min(parsedUrlCount, 50)} 篇...`
@@ -630,7 +630,7 @@ export default function CloudImportModal({
                     title="按住此按钮拖到浏览器书签栏"
                     className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--cyan)]/60 bg-[var(--accent-soft)] px-3.5 py-2 text-xs font-semibold text-[var(--ink-strong)] active:cursor-grabbing"
                   >
-                    <Bookmark className="h-[17px] w-[17px] text-[var(--cyan)]" />
+                    <Bookmark className="h-[15px] w-[15px] text-[var(--cyan)]" />
                     发送到 TradeLoom（拖我到书签栏）
                   </a>
 
@@ -641,12 +641,12 @@ export default function CloudImportModal({
                   >
                     {copiedBookmarklet ? (
                       <>
-                        <Check className="h-[17px] w-[17px] text-[var(--emerald)]" />
+                        <Check className="h-[15px] w-[15px] text-[var(--emerald)]" />
                         已复制脚本（可手动新建书签粘贴至网址栏）
                       </>
                     ) : (
                       <>
-                        <Copy className="h-[17px] w-[17px]" />
+                        <Copy className="h-[15px] w-[15px]" />
                         复制书签脚本
                       </>
                     )}
@@ -667,7 +667,7 @@ export default function CloudImportModal({
                     onClick={onClose}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
                   >
-                    <Cloud className="h-[17px] w-[17px]" />
+                    <Cloud className="h-[15px] w-[15px]" />
                     前往配置 Notion / 飞书 / 语雀 / 滴答清单连接器 →
                   </Link>
                 </div>

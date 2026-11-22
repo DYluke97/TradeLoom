@@ -406,7 +406,7 @@ export default function EquityCurveChart({
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/75 p-3.5">
           <div className="mb-2.5 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1.5 font-medium text-[var(--ink)]">
-              <TrendingUp className="h-[17px] w-[17px] text-[var(--accent)]" />
+              <TrendingUp className="h-[15px] w-[15px] text-[var(--accent)]" />
               月度战绩分布（收益 / 最大回撤 / 日胜率）
             </span>
             <span className="font-mono text-[10px] text-[var(--ink-dim)]">共 {monthly.length} 个交易月</span>

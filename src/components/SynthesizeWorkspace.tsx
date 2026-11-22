@@ -273,9 +273,9 @@ export default function SynthesizeWorkspace() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {sourceTab === "manuals" ? (
-                <Layers className="h-[19px] w-[19px] text-[var(--cyan)]" />
+                <Layers className="h-[17px] w-[17px] text-[var(--cyan)]" />
               ) : (
-                <Calendar className="h-[19px] w-[19px] text-[var(--accent)]" />
+                <Calendar className="h-[17px] w-[17px] text-[var(--accent)]" />
               )}
               <h2 className="text-sm font-semibold text-[var(--ink-strong)]">
                 {sourceTab === "manuals" ? "1. 勾选已有阶段手册（Map-Reduce 二次综合）" : "1. 按时间线阶段框选复盘样本"}
@@ -303,7 +303,7 @@ export default function SynthesizeWorkspace() {
                   : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
-              <Calendar className="h-[17px] w-[17px]" />
+              <Calendar className="h-[15px] w-[15px]" />
               原始复盘笔记 ({vault?.documents.length ?? 0})
             </button>
             <button
@@ -315,7 +315,7 @@ export default function SynthesizeWorkspace() {
                   : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)] hover:text-[var(--cyan)]"
               }`}
             >
-              <Layers className="h-[17px] w-[17px]" />
+              <Layers className="h-[15px] w-[15px]" />
               阶段手册二次综合 · Map-Reduce ({savedManuals.length})
             </button>
           </div>
@@ -346,9 +346,9 @@ export default function SynthesizeWorkspace() {
                         }`}
                       >
                         {checked ? (
-                          <CheckSquare className="mt-0.5 h-[19px] w-[19px] shrink-0 text-[var(--cyan)]" />
+                          <CheckSquare className="mt-0.5 h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
                         ) : (
-                          <Square className="mt-0.5 h-[19px] w-[19px] shrink-0 text-[var(--ink-dim)]" />
+                          <Square className="mt-0.5 h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -518,9 +518,9 @@ export default function SynthesizeWorkspace() {
                         }`}
                       >
                         {checked ? (
-                          <CheckSquare className="mt-0.5 h-[19px] w-[19px] shrink-0 text-[var(--accent)]" />
+                          <CheckSquare className="mt-0.5 h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
                         ) : (
-                          <Square className="mt-0.5 h-[19px] w-[19px] shrink-0 text-[var(--ink-dim)]" />
+                          <Square className="mt-0.5 h-[17px] w-[17px] shrink-0 text-[var(--ink-dim)]" />
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -579,7 +579,7 @@ export default function SynthesizeWorkspace() {
                         : "border-[var(--border-strong)] bg-[var(--bg-deep)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     }`}
                   >
-                    {allInViewSelected ? <CheckSquare className="h-[17px] w-[17px]" /> : <Square className="h-[17px] w-[17px]" />}
+                    {allInViewSelected ? <CheckSquare className="h-[15px] w-[15px]" /> : <Square className="h-[15px] w-[15px]" />}
                     {allInViewSelected ? `已全选 (${totalInView})` : `全选 (${totalInView})`}
                   </button>
                   <button
@@ -609,7 +609,7 @@ export default function SynthesizeWorkspace() {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Cpu className="h-[19px] w-[19px] text-[var(--accent)]" />
+                <Cpu className="h-[17px] w-[17px] text-[var(--accent)]" />
                 <h2 className="text-sm font-semibold text-[var(--ink-strong)]">2. 选择分析 Skill 与阶段命名</h2>
               </div>
               <Link
@@ -684,7 +684,7 @@ export default function SynthesizeWorkspace() {
             {snapshot && (
               <div className="space-y-1.5 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] p-3 text-xs">
                 <div className="flex items-center gap-1.5 font-semibold text-[var(--emerald)]">
-                  <ShieldCheck className="h-[19px] w-[19px]" />
+                  <ShieldCheck className="h-[17px] w-[17px]" />
                   外发预检通过（0 Token 消耗）
                 </div>
                 <div className="text-[var(--ink)]">
@@ -735,7 +735,7 @@ export default function SynthesizeWorkspace() {
             {running && (
               <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--cyan)]/40 bg-[var(--cyan-soft)]/50 p-3 text-xs text-[var(--ink)]">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Loader2 className="h-[19px] w-[19px] shrink-0 animate-spin text-[var(--cyan)]" />
+                  <Loader2 className="h-[17px] w-[17px] shrink-0 animate-spin text-[var(--cyan)]" />
                   <span className="truncate">{streamStatus || "正在调用大模型提炼..."}</span>
                 </div>
                 <span className="shrink-0 font-mono text-[11px] text-[var(--cyan)]">{elapsedSec}s</span>
@@ -766,7 +766,7 @@ export default function SynthesizeWorkspace() {
                 onClick={handleCancelSynthesis}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-500"
               >
-                <StopCircle className="h-[17px] w-[17px]" />
+                <StopCircle className="h-[15px] w-[15px]" />
                 取消提炼（立即中断）
               </button>
             ) : (
@@ -776,7 +776,7 @@ export default function SynthesizeWorkspace() {
                 disabled={activeSelectionCount === 0 || !provider?.configured}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
               >
-                <Play className="h-[17px] w-[17px]" />
+                <Play className="h-[15px] w-[15px]" />
                 {sourceTab === "manuals" ? "二次综合生成总纲手册" : "开始提炼时间轴与手册"}
               </button>
             )}

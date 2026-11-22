@@ -194,7 +194,7 @@ export default function LedgerManualModal({
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
-            <Plus className="h-[19px] w-[19px] text-[var(--cyan)]" />
+            <Plus className="h-[17px] w-[17px] text-[var(--cyan)]" />
             每日手动记账 · 实盘账本
           </div>
           <button
@@ -202,7 +202,7 @@ export default function LedgerManualModal({
             onClick={onClose}
             className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
           >
-            <X className="h-[19px] w-[19px]" />
+            <X className="h-[17px] w-[17px]" />
           </button>
         </div>
 
@@ -285,7 +285,7 @@ export default function LedgerManualModal({
                   A 股代码或名称（支持中文 / 拼音 / 6位代码实时联想）*
                 </label>
                 <div className="relative mt-1">
-                  <Search className="pointer-events-none absolute left-2.5 top-2 h-[17px] w-[17px] text-[var(--ink-dim)]" />
+                  <Search className="pointer-events-none absolute left-2.5 top-2 h-[15px] w-[15px] text-[var(--ink-dim)]" />
                   <input
                     value={tQuery}
                     onChange={(e) => {
@@ -295,7 +295,7 @@ export default function LedgerManualModal({
                     placeholder="例如：002460 或 赣锋锂业 或 宁德时代"
                     className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] py-1.5 pl-8 pr-8 text-xs text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
                   />
-                  {searching && <Loader2 className="absolute right-2.5 top-2 h-[17px] w-[17px] animate-spin text-[var(--cyan)]" />}
+                  {searching && <Loader2 className="absolute right-2.5 top-2 h-[15px] w-[15px] animate-spin text-[var(--cyan)]" />}
                 </div>
                 {suggestions.length > 0 && (
                   <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-[var(--cyan)]/40 bg-[var(--bg-deep)] py-1 shadow-xl">
@@ -411,7 +411,7 @@ export default function LedgerManualModal({
                   disabled={busy}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent)] disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
+                  {busy && <Loader2 className="h-[15px] w-[15px] animate-spin" />}
                   保存成交并标注 K 线
                 </button>
               </div>
@@ -505,7 +505,7 @@ export default function LedgerManualModal({
                   disabled={busy}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent)] disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
+                  {busy && <Loader2 className="h-[15px] w-[15px] animate-spin" />}
                   保存当日战绩
                 </button>
               </div>

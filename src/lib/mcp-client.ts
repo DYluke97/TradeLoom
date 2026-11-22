@@ -10,6 +10,7 @@ export const MCP_ENDPOINTS = {
   dida365_global: "https://mcp.ticktick.com",
   notion: "https://mcp.notion.com/mcp",
   youdao: "https://open.mail.163.com/api/ynote/mcp/sse",
+  tencent_docs: "https://docs.qq.com/openapi/mcp",
 } as const;
 
 export type OAuthDiscovery = {
@@ -348,16 +349,26 @@ export function parseStreamableHttpBody(raw: string, contentType: string, expect
   return JSON.parse(trimmed) as JsonRpcMessage;
 }
 
+export type McpHttpClientOptions = {
+  /** "bearer" sends "Authorization: Bearer <token>" (default); "raw" sends "Authorization: <token>" (e.g. Tencent Docs MCP). */
+  authScheme?: "bearer" | "raw";
+  extraHeaders?: Record<string, string>;
+};
+
 export class McpHttpClient {
   private readonly mcpUrl: string;
   private readonly accessToken: string;
+  private readonly authScheme: "bearer" | "raw";
+  private readonly extraHeaders: Record<string, string>;
   private sessionId: string | null = null;
   private nextId = 1;
   private initialized = false;
 
-  constructor(mcpUrl: string, accessToken: string) {
+  constructor(mcpUrl: string, accessToken: string, options: McpHttpClientOptions = {}) {
     this.mcpUrl = mcpUrl;
     this.accessToken = accessToken;
+    this.authScheme = options.authScheme ?? "bearer";
+    this.extraHeaders = options.extraHeaders ?? {};
   }
 
   private async postJsonRpc(
@@ -370,11 +381,13 @@ export class McpHttpClient {
       ? { jsonrpc: "2.0", method, ...(params ? { params } : {}) }
       : { jsonrpc: "2.0", id, method, ...(params ? { params } : {}) };
 
+    const authValue = this.authScheme === "raw" ? this.accessToken : `Bearer ${this.accessToken}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
-      Authorization: `Bearer ${this.accessToken}`,
+      ...(this.accessToken ? { Authorization: authValue } : {}),
       "MCP-Protocol-Version": "2025-03-26",
+      ...this.extraHeaders,
     };
     if (this.sessionId) {
       headers["Mcp-Session-Id"] = this.sessionId;
@@ -409,11 +422,20 @@ export class McpHttpClient {
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    await this.postJsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "TradeLoom", version: "0.7.0" },
-    });
+    try {
+      await this.postJsonRpc("initialize", {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "TradeLoom", version: "0.7.0" },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (/-32601|method not found/i.test(msg)) {
+        this.initialized = true;
+        return;
+      }
+      throw err;
+    }
     this.initialized = true;
     try {
       await this.postJsonRpc("notifications/initialized", undefined, true);

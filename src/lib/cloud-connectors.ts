@@ -23,9 +23,24 @@ import {
 import { maskSecret } from "./provider";
 import { rebuildVault } from "./vault";
 import type { VaultIndex } from "./vault-builder";
+import {
+  createTencentDocsClient,
+  discoverTencentDocsStructure,
+  fetchTencentDocsItems,
+  formatTencentDocsError,
+  normalizeTencentDocsMcpUrl,
+  normalizeTencentDocsToken,
+  type TencentDocsScope,
+} from "./tencent-docs-mcp";
+import {
+  discoverImaWorkspace,
+  fetchImaItems,
+  IMA_DEFAULT_BASE_URL,
+  normalizeImaBaseUrl,
+} from "./tencent-ima";
 import { ensureWorkspace, fileExists, getWorkspacePaths, writeAtomic } from "./workspace";
 
-export type ConnectorId = "notion" | "feishu" | "yuque" | "dida365" | "youdao";
+export type ConnectorId = "notion" | "feishu" | "yuque" | "dida365" | "youdao" | "tencent_docs" | "ima";
 export type ConnectorAuthMode = "api_token" | "mcp_oauth" | "mcp_api_key";
 
 export type DidaProjectSummary = {
@@ -112,12 +127,38 @@ export type YoudaoConnectorConfig = {
   discoveredFolders?: YoudaoFolderSummary[];
 };
 
+export type TencentDocsConnectorConfig = {
+  token: string;
+  scope?: TencentDocsScope; // "all" | "space" | "drive"
+  parentId?: string; // Comma-separated space:<node_id> / drive:<folder_id> / raw IDs
+  keyword?: string; // Optional search keyword
+  mcpUrl?: string; // default https://docs.qq.com/openapi/mcp
+  maxItems?: number; // default 25
+  discoveredFolders?: YoudaoFolderSummary[];
+};
+
+export type ImaConnectorConfig = {
+  clientId: string;
+  apiKey: string;
+  includeNotes?: boolean; // Sync ima Notebooks (/openapi/note/v1) - default true
+  includeWiki?: boolean; // Sync ima Knowledge Bases (/openapi/wiki/v1) - default true
+  folderId?: string; // Comma-separated notebook folder IDs or names
+  wikiId?: string; // Comma-separated knowledge base IDs or names
+  keyword?: string; // Optional search keyword
+  baseUrl?: string; // default https://ima.qq.com
+  maxItems?: number; // default 30
+  discoveredFolders?: YoudaoFolderSummary[];
+  discoveredRepos?: YuqueRepoSummary[];
+};
+
 export type ConnectorsStore = {
   notion?: NotionConnectorConfig;
   feishu?: FeishuConnectorConfig;
   yuque?: YuqueConnectorConfig;
   dida365?: DidaConnectorConfig;
   youdao?: YoudaoConnectorConfig;
+  tencent_docs?: TencentDocsConnectorConfig;
+  ima?: ImaConnectorConfig;
   lastSync?: Partial<Record<ConnectorId, { at: string; synced: number; message: string }>>;
 };
 
@@ -249,6 +290,46 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
       },
       lastSync: store.lastSync?.youdao,
     },
+    {
+      id: "tencent_docs",
+      name: "腾讯文档 (Tencent Docs)",
+      badge: "官方 MCP · 免费 2k/天",
+      configured: Boolean(store.tencent_docs?.token),
+      maskedSecret: maskSecret(store.tencent_docs?.token ?? ""),
+      authMode: "mcp_api_key",
+      supportsMcpOAuth: false,
+      discoveredFolders: store.tencent_docs?.discoveredFolders ?? [],
+      fields: {
+        scope: store.tencent_docs?.scope ?? "all",
+        parentId: store.tencent_docs?.parentId ?? "",
+        keyword: store.tencent_docs?.keyword ?? "",
+        maxItems: String(store.tencent_docs?.maxItems ?? 25),
+        mcpUrl: store.tencent_docs?.mcpUrl || MCP_ENDPOINTS.tencent_docs,
+      },
+      lastSync: store.lastSync?.tencent_docs,
+    },
+    {
+      id: "ima",
+      name: "腾讯 ima (笔记 + 知识库)",
+      badge: "官方 OpenAPI · 免费",
+      configured: Boolean(store.ima?.clientId && store.ima?.apiKey),
+      maskedSecret: maskSecret(store.ima?.apiKey ?? ""),
+      authMode: "api_token",
+      supportsMcpOAuth: false,
+      discoveredFolders: store.ima?.discoveredFolders ?? [],
+      discoveredRepos: store.ima?.discoveredRepos ?? [],
+      fields: {
+        clientId: store.ima?.clientId ?? "",
+        includeNotes: store.ima?.includeNotes === false ? "false" : "true",
+        includeWiki: store.ima?.includeWiki === false ? "false" : "true",
+        folderId: store.ima?.folderId ?? "",
+        wikiId: store.ima?.wikiId ?? "",
+        keyword: store.ima?.keyword ?? "",
+        maxItems: String(store.ima?.maxItems ?? 30),
+        baseUrl: store.ima?.baseUrl || IMA_DEFAULT_BASE_URL,
+      },
+      lastSync: store.lastSync?.ima,
+    },
   ];
 }
 
@@ -350,6 +431,50 @@ export async function saveConnectorConfig(
       keyword: (payload.keyword ?? "").trim(),
       maxItems: Math.min(100, Math.max(1, Number(payload.maxItems) || 30)),
       sseUrl,
+    };
+  } else if (id === "tencent_docs") {
+    const incomingToken = normalizeTencentDocsToken(payload.token ?? "");
+    const token = incomingToken || store.tencent_docs?.token || "";
+    if (!token) {
+      return { ok: false, error: "请先填写腾讯文档个人 MCP Token（访问 docs.qq.com/open/auth/mcp.html 免费领取）" };
+    }
+    const mcpUrl = normalizeTencentDocsMcpUrl(payload.mcpUrl ?? store.tencent_docs?.mcpUrl);
+    if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\//i.test(mcpUrl)) {
+      return { ok: false, error: "腾讯文档 MCP 服务地址必须为 https://" };
+    }
+    const scope: TencentDocsScope =
+      payload.scope === "space" || payload.scope === "drive" ? payload.scope : "all";
+    store.tencent_docs = {
+      ...(store.tencent_docs ?? {}),
+      token,
+      scope,
+      parentId: (payload.parentId ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      maxItems: Math.min(80, Math.max(1, Number(payload.maxItems) || 25)),
+      mcpUrl,
+    };
+  } else if (id === "ima") {
+    const clientId = (payload.clientId ?? store.ima?.clientId ?? "").trim();
+    const incomingKey = (payload.apiKey ?? payload.token ?? "").trim();
+    const apiKey = incomingKey || store.ima?.apiKey || "";
+    if (!clientId || !apiKey) {
+      return { ok: false, error: "请先填写腾讯 ima 的 Client ID 与 API Key（在 ima.qq.com/agent-interface 扫码免费获取）" };
+    }
+    const baseUrl = normalizeImaBaseUrl(payload.baseUrl ?? store.ima?.baseUrl);
+    if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?/i.test(baseUrl)) {
+      return { ok: false, error: "腾讯 ima OpenAPI 地址必须为 https://" };
+    }
+    store.ima = {
+      ...(store.ima ?? {}),
+      clientId,
+      apiKey,
+      includeNotes: payload.includeNotes !== "false",
+      includeWiki: payload.includeWiki !== "false",
+      folderId: (payload.folderId ?? "").trim(),
+      wikiId: (payload.wikiId ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      maxItems: Math.min(80, Math.max(1, Number(payload.maxItems) || 30)),
+      baseUrl,
     };
   }
 
@@ -1376,6 +1501,70 @@ export async function testConnector(
       }
     }
 
+    if (id === "tencent_docs") {
+      const cfg = store.tencent_docs;
+      if (!cfg?.token) {
+        return { ok: false, error: "尚未配置腾讯文档 MCP Token（访问 docs.qq.com/open/auth/mcp.html 免费获取）" };
+      }
+      try {
+        const client = createTencentDocsClient(cfg.token, cfg.mcpUrl);
+        const tools = await client.listTools();
+        const { folders, sampleDocCount } = await discoverTencentDocsStructure(client, tools);
+        cfg.discoveredFolders = folders;
+        await writeStore(store);
+
+        const realFolders = folders.filter((f) => !f.isRoot);
+        const preview = realFolders.slice(0, 5).map((f) => f.name).join("、");
+        const hint =
+          realFolders.length > 0
+            ? `，发现 ${realFolders.length} 个空间/目录（${preview}${realFolders.length > 5 ? " 等" : ""}）`
+            : sampleDocCount > 0
+              ? `，根目录发现 ${sampleDocCount} 篇可读文档`
+              : "";
+        return {
+          ok: true,
+          message: `已通过官方远程 MCP 连接腾讯文档（就绪 ${tools.length} 个工具${hint}）`,
+          connectors: await getMaskedConnectors(),
+        };
+      } catch (err) {
+        return { ok: false, error: formatTencentDocsError(err) };
+      }
+    }
+
+    if (id === "ima") {
+      const cfg = store.ima;
+      if (!cfg?.clientId || !cfg?.apiKey) {
+        return { ok: false, error: "尚未配置腾讯 ima Client ID / API Key（在 ima.qq.com/agent-interface 扫码免费获取）" };
+      }
+      try {
+        const { folders, repos } = await discoverImaWorkspace(cfg.clientId, cfg.apiKey, cfg.baseUrl);
+        cfg.discoveredFolders = folders;
+        cfg.discoveredRepos = repos;
+        await writeStore(store);
+
+        const folderNames = folders.slice(0, 4).map((f) => f.name).join("、");
+        const repoNames = repos.slice(0, 4).map((r) => r.name).join("、");
+        const parts: string[] = [];
+        parts.push(
+          folders.length > 0
+            ? `${folders.length} 个笔记本（${folderNames}${folders.length > 4 ? " 等" : ""}）`
+            : "0 个自定义笔记本（可同步全部笔记）",
+        );
+        parts.push(
+          repos.length > 0
+            ? `${repos.length} 个知识库（${repoNames}${repos.length > 4 ? " 等" : ""}）`
+            : "0 个知识库",
+        );
+        return {
+          ok: true,
+          message: `已通过官方 OpenAPI 连接腾讯 ima：发现 ${parts.join("，")}`,
+          connectors: await getMaskedConnectors(),
+        };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "连接腾讯 ima 失败" };
+      }
+    }
+
     return { ok: false, error: "未知连接器类型" };
   } catch (err) {
     return { ok: false, error: `连接异常：${err instanceof Error ? err.message : "网络错误"}` };
@@ -1390,6 +1579,7 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
   const store = await readStore();
   let synced = 0;
   let skippedWelcome = 0;
+  let extraNotice = "";
 
   try {
     if (id === "notion") {
@@ -2035,14 +2225,98 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
       } finally {
         mcp.close();
       }
+    } else if (id === "tencent_docs") {
+      const cfg = store.tencent_docs;
+      if (!cfg?.token) {
+        return { ok: false, error: "尚未配置腾讯文档 MCP Token（访问 docs.qq.com/open/auth/mcp.html 免费领取）" };
+      }
+      try {
+        const client = createTencentDocsClient(cfg.token, cfg.mcpUrl);
+        const tools = await client.listTools();
+        const docs = await fetchTencentDocsItems(client, tools, {
+          scope: cfg.scope ?? "all",
+          parentId: cfg.parentId,
+          keyword: cfg.keyword,
+          maxItems: cfg.maxItems ?? 25,
+        });
+
+        for (const doc of docs) {
+          const tags = Array.from(
+            new Set([
+              "腾讯文档",
+              ...(doc.docType ? [doc.docType] : []),
+              ...(doc.folderName ? [doc.folderName.split("/")[0]] : []),
+            ]),
+          );
+          const saved = await importPastedReview(
+            {
+              title: doc.title,
+              content: doc.content,
+              eventDate: doc.eventDate,
+              sourceUrl: doc.url,
+              sourcePlatform: doc.folderName ? `腾讯文档 · ${doc.folderName}` : "腾讯文档",
+              tags,
+              folder: "_云端_腾讯文档",
+            },
+            { skipRebuild: true },
+          );
+          if (saved.ok) synced++;
+        }
+      } catch (err) {
+        return { ok: false, error: `同步失败：${formatTencentDocsError(err)}` };
+      }
+    } else if (id === "ima") {
+      const cfg = store.ima;
+      if (!cfg?.clientId || !cfg?.apiKey) {
+        return { ok: false, error: "尚未配置腾讯 ima Client ID / API Key" };
+      }
+      const includeNotes = cfg.includeNotes !== false;
+      const includeWiki = cfg.includeWiki !== false;
+      if (!includeNotes && !includeWiki) {
+        return { ok: false, error: "请至少勾选「同步笔记本」或「同步知识库」中的一项" };
+      }
+      try {
+        const { items, warnings } = await fetchImaItems(cfg.clientId, cfg.apiKey, {
+          baseUrl: cfg.baseUrl,
+          includeNotes,
+          includeWiki,
+          folderId: cfg.folderId,
+          wikiId: cfg.wikiId,
+          keyword: cfg.keyword,
+          maxItems: cfg.maxItems ?? 30,
+          discoveredFolders: cfg.discoveredFolders,
+          discoveredRepos: cfg.discoveredRepos,
+        });
+
+        for (const item of items) {
+          const saved = await importPastedReview(
+            {
+              title: item.title,
+              content: item.content,
+              eventDate: item.eventDate,
+              sourceUrl: item.sourceUrl,
+              sourcePlatform: item.sourceLabel,
+              tags: item.tags,
+              folder: "_云端_腾讯ima",
+            },
+            { skipRebuild: true },
+          );
+          if (saved.ok) synced++;
+        }
+        if (warnings.length > 0) {
+          extraNotice = `（${warnings.join("；")}）`;
+        }
+      } catch (err) {
+        return { ok: false, error: `同步失败：${err instanceof Error ? err.message : "腾讯 ima 接口异常"}` };
+      }
     }
 
     const index = await rebuildVault();
     const skipNote = skippedWelcome > 0 ? `（已自动跳过 ${skippedWelcome} 条官方新手教程）` : "";
     const message =
       synced > 0
-        ? `成功拉取 ${synced} 篇云端复盘并重建 Obsidian 双链图谱${skipNote}`
-        : `连接正常，但未拉取到个人复盘正文${skipNote}（请核对是否授权对了主号，或在清单列表中勾选目标清单）`;
+        ? `成功拉取 ${synced} 篇云端复盘并重建 Obsidian 双链图谱${skipNote}${extraNotice}`
+        : `连接正常，但未拉取到个人复盘正文${skipNote}${extraNotice}（请核对是否授权对了主号，或在目录/知识库列表中勾选目标范围）`;
 
     store.lastSync = {
       ...(store.lastSync ?? {}),

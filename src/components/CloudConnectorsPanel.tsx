@@ -122,6 +122,32 @@ const CONNECTOR_META: Record<
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
     ],
   },
+  tencent_docs: {
+    accent: "text-[#60a5fa]",
+    subtitle: "直连腾讯文档官方远程 MCP，免费额度 2,000 次/天，同时覆盖智能文档笔记、云文档目录与知识库空间",
+    tokenGuide:
+      "点击上方「去腾讯文档领取个人 MCP Token」（docs.qq.com/open/auth/mcp.html），微信/QQ 扫码登录直接复制个人 Token（无需开发者资质、无需开会员），粘贴到下方保存后点「测试并浏览空间/目录」即可勾选同步。",
+    fields: [
+      { key: "token", label: "腾讯文档个人 MCP Token（Authorization，留空保留已存密钥）", placeholder: "粘贴从 docs.qq.com/open/auth/mcp.html 获取的个人 Token", secret: true },
+      { key: "parentId", label: "同步空间/目录筛选（逗号分隔节点 ID；留空按上方范围自动同步，或点上方胶囊勾选）", placeholder: "留空自动拉取知识库 + 云文档，或点上方目录胶囊" },
+      { key: "keyword", label: "关键词检索同步（可选，填写后优先调用官方 search_space_file / manage.search_file）", placeholder: "例如：复盘、持仓跟踪（留空则按空间/目录遍历）" },
+      { key: "maxItems", label: "单次最多同步篇数", placeholder: "25" },
+    ],
+  },
+  ima: {
+    accent: "text-[#c084fc]",
+    subtitle: "直连腾讯 ima 官方 OpenAPI（无需装社区 MCP 或抓 Cookie），双通道同步「笔记本 Notes」与「知识库 Wiki」",
+    tokenGuide:
+      "点击上方「去腾讯 ima 获取 Client ID & API Key」（ima.qq.com/agent-interface），微信/QQ 扫码免费生成凭证填入下方保存；点「测试并浏览笔记/知识库」即可分别勾选笔记本和知识库同步。（注：API Key 定期过期若报 200002 重新生成即可）",
+    fields: [
+      { key: "clientId", label: "ima-openapi-clientid (Client ID)", placeholder: "粘贴从 ima.qq.com/agent-interface 获取的 Client ID" },
+      { key: "apiKey", label: "ima-openapi-apikey (API Key，留空保留已存密钥)", placeholder: "粘贴 API Key（仅创建时展示一次）", secret: true },
+      { key: "folderId", label: "笔记本筛选（逗号分隔笔记本名或 ID；留空同步全部笔记，或点上方笔记本胶囊）", placeholder: "留空同步全部笔记本" },
+      { key: "wikiId", label: "知识库筛选（逗号分隔知识库名或 ID；留空同步前 5 个知识库，或点上方知识库胶囊）", placeholder: "留空同步前 5 个知识库" },
+      { key: "keyword", label: "关键词检索同步（可选，同时应用于笔记本检索与知识库检索）", placeholder: "例如：复盘、研报（留空则按列表遍历）" },
+      { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
+    ],
+  },
 };
 
 const CLIP_PLATFORMS = [
@@ -157,6 +183,8 @@ export default function CloudConnectorsPanel() {
     yuque: {},
     dida365: {},
     youdao: {},
+    tencent_docs: {},
+    ima: {},
   });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -185,7 +213,7 @@ export default function CloudConnectorsPanel() {
     const data = await res.json();
     if (data.ok && Array.isArray(data.connectors)) {
       // Show Dida365 & Notion (MCP OAuth enabled) first
-      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
+      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
       const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
         (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
       );
@@ -284,6 +312,47 @@ export default function CloudConnectorsPanel() {
     updateField("youdao", "folderId", next.join(", "));
   }
 
+  function toggleTencentDocsFolder(folder: YoudaoFolderSummary) {
+    const cur = parseSelectionList(drafts.tencent_docs?.parentId ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = folder.id.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(idKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== idKey);
+    } else {
+      next = [...cur, folder.id];
+    }
+    updateField("tencent_docs", "parentId", next.join(", "));
+  }
+
+  function toggleImaFolder(folder: YoudaoFolderSummary) {
+    const cur = parseSelectionList(drafts.ima?.folderId ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = folder.id.toLowerCase();
+    const nameKey = folder.name.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(idKey) || lowerSet.has(nameKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== idKey && s.toLowerCase() !== nameKey);
+    } else {
+      next = [...cur, folder.name];
+    }
+    updateField("ima", "folderId", next.join(", "));
+  }
+
+  function toggleImaRepo(repo: YuqueRepoSummary) {
+    const cur = parseSelectionList(drafts.ima?.wikiId ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = repo.id.toLowerCase();
+    const nameKey = repo.name.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(idKey) || lowerSet.has(nameKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== idKey && s.toLowerCase() !== nameKey);
+    } else {
+      next = [...cur, repo.name];
+    }
+    updateField("ima", "wikiId", next.join(", "));
+  }
+
   useEffect(() => {
     if (!feishuReg) {
       if (feishuPollTimerRef.current) {
@@ -309,7 +378,7 @@ export default function CloudConnectorsPanel() {
           if (data.ok && data.status === "completed") {
             setFeishuReg(null);
             if (Array.isArray(data.connectors)) {
-              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
+              const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
               const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
                 (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
               );
@@ -526,7 +595,7 @@ export default function CloudConnectorsPanel() {
       const data = await res.json();
       if (data.ok) {
         if (data.connectors) {
-          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
+          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "tencent_docs", "ima", "yuque"];
           const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
             (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
           );
@@ -544,7 +613,17 @@ export default function CloudConnectorsPanel() {
         } else if (action === "disconnect") {
           setDrafts((prev) => ({
             ...prev,
-            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", apiKey: "", projectId: "", folderId: "" },
+            [id]: {
+              ...(prev[id] ?? {}),
+              token: "",
+              appSecret: "",
+              apiKey: "",
+              clientId: "",
+              projectId: "",
+              folderId: "",
+              parentId: "",
+              wikiId: "",
+            },
           }));
           setFeedback((prev) => ({
             ...prev,
@@ -585,6 +664,8 @@ export default function CloudConnectorsPanel() {
             <strong className="text-[#38bdf8]">有道云笔记</strong> 已支持{" "}
             <strong className="text-[var(--cyan)]">官方远程 MCP (SSE)</strong>（仅需 1 个 API Key，无需装 OpenClaw）；
             <strong className="text-[var(--cyan)]">飞书</strong> 支持「扫码一键建应用 + 本机 lark-cli」双模式直连；
+            <strong className="text-[#60a5fa]">腾讯文档</strong> 直连官方远程 MCP（免费 2,000 次/天）；
+            <strong className="text-[#c084fc]">腾讯 ima</strong> 直连官方 OpenAPI（笔记本 + 知识库双通道免费同步）；
             <strong className="text-[var(--ink)]">语雀</strong> 支持官方 API v2；
             <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
@@ -616,6 +697,15 @@ export default function CloudConnectorsPanel() {
           );
           const selectedYuqueTokens = new Set(
             parseSelectionList(drafts.yuque?.namespace ?? "").map((s) => s.toLowerCase()),
+          );
+          const selectedTencentDocsTokens = new Set(
+            parseSelectionList(drafts.tencent_docs?.parentId ?? "").map((s) => s.toLowerCase()),
+          );
+          const selectedImaFolderTokens = new Set(
+            parseSelectionList(drafts.ima?.folderId ?? "").map((s) => s.toLowerCase()),
+          );
+          const selectedImaWikiTokens = new Set(
+            parseSelectionList(drafts.ima?.wikiId ?? "").map((s) => s.toLowerCase()),
           );
 
           return (
@@ -1006,6 +1096,244 @@ export default function CloudConnectorsPanel() {
                   </div>
                 )}
 
+                {/* Tencent Docs Official Remote MCP Quick Action Bar + Scope & Folder Pills */}
+                {c.id === "tencent_docs" && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#60a5fa]/35 bg-[#60a5fa]/10 p-2.5">
+                      <a
+                        href="https://docs.qq.com/open/auth/mcp.html"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563eb] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3b82f6]"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        去腾讯文档领取个人 MCP Token（免费 2,000 次/天）
+                        <ExternalLink className="h-3 w-3 opacity-80" />
+                      </a>
+                      {c.configured && (
+                        <button
+                          type="button"
+                          disabled={busyId !== null}
+                          onClick={() => runAction("tencent_docs", "disconnect")}
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                          清除密钥
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="text-[var(--ink-dim)]">同步范围：</span>
+                        {(
+                          [
+                            { id: "all", label: "全部（知识库 + 云文档）" },
+                            { id: "space", label: "仅知识库空间" },
+                            { id: "drive", label: "仅个人云文档" },
+                          ] as const
+                        ).map((opt) => {
+                          const active = (drafts.tencent_docs?.scope || "all") === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => updateField("tencent_docs", "scope", opt.id)}
+                              className={`rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                active
+                                  ? "border-[#60a5fa] bg-[#60a5fa]/15 font-medium text-[#60a5fa]"
+                                  : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#60a5fa]"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {c.discoveredFolders && c.discoveredFolders.length > 0 && (
+                        <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                          <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                            <span className="inline-flex items-center gap-1">
+                              <FolderOpen className="h-3.5 w-3.5 text-[#60a5fa]" />
+                              已发现知识库空间 / 云文档目录（点选指定同步；全不选 = 按上方范围自动同步）：
+                            </span>
+                            {selectedTencentDocsTokens.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => updateField("tencent_docs", "parentId", "")}
+                                className="text-[#60a5fa] hover:underline"
+                              >
+                                清空勾选
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.discoveredFolders.map((f) => {
+                              const active = selectedTencentDocsTokens.has(f.id.toLowerCase());
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => toggleTencentDocsFolder(f)}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                    active
+                                      ? "border-[#60a5fa] bg-[#60a5fa]/15 font-medium text-[#60a5fa]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#60a5fa] hover:text-[var(--ink)]"
+                                  }`}
+                                >
+                                  <span>{f.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Tencent ima Official OpenAPI Quick Action Bar + Dual Channel & Pill Selectors */}
+                {c.id === "ima" && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#c084fc]/35 bg-[#c084fc]/10 p-2.5">
+                      <a
+                        href="https://ima.qq.com/agent-interface"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#9333ea] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#a855f7]"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        去腾讯 ima 获取 Client ID & API Key（免费）
+                        <ExternalLink className="h-3 w-3 opacity-80" />
+                      </a>
+                      {c.configured && (
+                        <button
+                          type="button"
+                          disabled={busyId !== null}
+                          onClick={() => runAction("ima", "disconnect")}
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                          清除密钥
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--ink-muted)]">
+                        <label className="inline-flex cursor-pointer items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={(drafts.ima?.includeNotes ?? "true") !== "false"}
+                            onChange={(e) =>
+                              updateField("ima", "includeNotes", e.target.checked ? "true" : "false")
+                            }
+                            className="h-3.5 w-3.5 accent-[#c084fc]"
+                          />
+                          <span>同步「笔记本 (Notes)」全文</span>
+                        </label>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={(drafts.ima?.includeWiki ?? "true") !== "false"}
+                            onChange={(e) =>
+                              updateField("ima", "includeWiki", e.target.checked ? "true" : "false")
+                            }
+                            className="h-3.5 w-3.5 accent-[#c084fc]"
+                          />
+                          <span>同步「知识库 (Wiki)」关联笔记与文本/网页资料</span>
+                        </label>
+                      </div>
+
+                      {c.discoveredFolders && c.discoveredFolders.length > 0 && (
+                        <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                          <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                            <span className="inline-flex items-center gap-1">
+                              <FolderOpen className="h-3.5 w-3.5 text-[#c084fc]" />
+                              已发现 ima 笔记本（点选指定同步；全不选 = 同步全部笔记）：
+                            </span>
+                            {selectedImaFolderTokens.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => updateField("ima", "folderId", "")}
+                                className="text-[#c084fc] hover:underline"
+                              >
+                                清空勾选
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.discoveredFolders.map((f) => {
+                              const active =
+                                selectedImaFolderTokens.has(f.id.toLowerCase()) ||
+                                selectedImaFolderTokens.has(f.name.toLowerCase());
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => toggleImaFolder(f)}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                    active
+                                      ? "border-[#c084fc] bg-[#c084fc]/15 font-medium text-[#c084fc]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#c084fc] hover:text-[var(--ink)]"
+                                  }`}
+                                >
+                                  <span>{f.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {c.discoveredRepos && c.discoveredRepos.length > 0 && (
+                        <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                          <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                            <span className="inline-flex items-center gap-1">
+                              <BookOpen className="h-3.5 w-3.5 text-[#c084fc]" />
+                              已发现 ima 知识库（点选指定同步；全不选 = 同步前 5 个知识库）：
+                            </span>
+                            {selectedImaWikiTokens.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => updateField("ima", "wikiId", "")}
+                                className="text-[#c084fc] hover:underline"
+                              >
+                                清空勾选
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.discoveredRepos.map((r) => {
+                              const active =
+                                selectedImaWikiTokens.has(r.id.toLowerCase()) ||
+                                selectedImaWikiTokens.has(r.name.toLowerCase());
+                              return (
+                                <button
+                                  key={r.id}
+                                  type="button"
+                                  onClick={() => toggleImaRepo(r)}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                    active
+                                      ? "border-[#c084fc] bg-[#c084fc]/15 font-medium text-[#c084fc]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#c084fc] hover:text-[var(--ink)]"
+                                  }`}
+                                >
+                                  <span>{r.name}</span>
+                                  {typeof r.itemsCount === "number" && (
+                                    <span className="text-[9px] opacity-70">({r.itemsCount})</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 {/* YoudaoNote Discovered Folders Pill Selector */}
                 {c.id === "youdao" && c.discoveredFolders && c.discoveredFolders.length > 0 && (
                   <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
@@ -1216,7 +1544,11 @@ export default function CloudConnectorsPanel() {
                         ? "测试并浏览目录"
                         : c.id === "yuque"
                           ? "测试并浏览知识库"
-                          : "测试连接"}
+                          : c.id === "tencent_docs"
+                            ? "测试并浏览空间/目录"
+                            : c.id === "ima"
+                              ? "测试并浏览笔记/知识库"
+                              : "测试连接"}
                   </button>
                   <button
                     type="button"

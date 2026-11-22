@@ -24,6 +24,20 @@ import {
   parseYoudaoTimestamp,
 } from "../src/lib/cloud-connectors";
 import {
+  createTencentDocsClient,
+  discoverTencentDocsStructure,
+  fetchTencentDocsItems,
+  formatTencentDocsError,
+  normalizeTencentDocsToken,
+} from "../src/lib/tencent-docs-mcp";
+import {
+  discoverImaWorkspace,
+  extractImaTextFromHtml,
+  fetchImaItems,
+  parseImaFolders,
+  parseImaNotes,
+} from "../src/lib/tencent-ima";
+import {
   createPkcePair,
   MCP_ENDPOINTS,
   McpSseClient,
@@ -374,5 +388,282 @@ describe("Yuque MCP-parity helpers (host normalization + Notes extraction)", () 
     expect(extractYuqueNoteText({ body: "<p>今日复盘：<strong>减仓锁盈</strong></p><p>等待回踩</p>" })).toBe(
       "今日复盘：减仓锁盈\n\n等待回踩",
     );
+  });
+});
+
+describe("Tencent Docs Official Remote MCP connector", () => {
+  it("normalizes raw tokens and translates Tencent Docs MCP error codes", () => {
+    expect(normalizeTencentDocsToken("  Bearer td_token_123  ")).toBe("td_token_123");
+    expect(normalizeTencentDocsToken("td_raw_456")).toBe("td_raw_456");
+    expect(formatTencentDocsError(new Error("MCP 错误 (400006): invalid token"))).toContain("400006");
+    expect(formatTencentDocsError(new Error("400007 vip required"))).toContain("400007");
+  });
+
+  it("uses raw Authorization header, discovers knowledge space & drive folders, and reads doc content via get_content", async () => {
+    let seenAuthHeader = "";
+    const server = http.createServer(async (req, res) => {
+      seenAuthHeader = String(req.headers.authorization ?? "");
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+        id?: number;
+        method?: string;
+        params?: { name?: string; arguments?: Record<string, unknown> };
+      };
+
+      const sendRpc = (result: unknown) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result }));
+      };
+
+      if (body.method === "initialize") {
+        return sendRpc({ protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "tencent-docs-mock" } });
+      }
+      if (body.method === "notifications/initialized") {
+        res.writeHead(202);
+        return res.end();
+      }
+      if (body.method === "tools/list") {
+        return sendRpc({
+          tools: [
+            { name: "query_space_node", inputSchema: { properties: { parent_id: {}, num: {} } } },
+            { name: "manage.folder_list", inputSchema: { properties: { folder_id: {}, limit: {} } } },
+            { name: "get_content", inputSchema: { properties: { file_id: {} } } },
+          ],
+        });
+      }
+      if (body.method === "tools/call") {
+        const name = body.params?.name;
+        const args = body.params?.arguments ?? {};
+        if (name === "query_space_node") {
+          const payload = args.parent_id
+            ? {
+                children: [
+                  {
+                    node_id: "doc_space_1",
+                    title: "2026-11-22 半导体持仓复盘",
+                    node_type: "wiki_tdoc",
+                    doc_type: "smartcanvas",
+                    url: "https://docs.qq.com/aio/doc_space_1",
+                  },
+                ],
+                has_next: false,
+              }
+            : {
+                children: [{ node_id: "folder_sp_1", title: "交易复盘库", node_type: "wiki_folder", has_child: true }],
+                has_next: false,
+              };
+          return sendRpc({ content: [{ type: "text", text: JSON.stringify(payload) }] });
+        }
+        if (name === "manage.folder_list") {
+          return sendRpc({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  files: [
+                    {
+                      file_id: "doc_drive_1",
+                      title: "盘前交易计划",
+                      file_type: "doc",
+                      doc_type: "word",
+                      url: "https://docs.qq.com/doc/doc_drive_1",
+                    },
+                  ],
+                }),
+              },
+            ],
+          });
+        }
+        if (name === "get_content") {
+          const fid = String(args.file_id ?? "");
+          return sendRpc({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  content: fid === "doc_space_1" ? "# 复盘要点\n严格止损，不追高。" : "# 盘前计划\n关注放量回踩。",
+                }),
+              },
+            ],
+          });
+        }
+      }
+      res.writeHead(404);
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const addr = server.address() as AddressInfo;
+    try {
+      const client = createTencentDocsClient("Bearer td_live_secret", `http://127.0.0.1:${addr.port}/openapi/mcp`);
+      const tools = await client.listTools();
+      expect(seenAuthHeader).toBe("td_live_secret");
+      expect(tools).toHaveLength(3);
+
+      const discovered = await discoverTencentDocsStructure(client, tools);
+      expect(discovered.folders.some((f) => f.id === "space:folder_sp_1")).toBe(true);
+
+      const items = await fetchTencentDocsItems(client, tools, { scope: "all", maxItems: 10 });
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({
+        fileId: "doc_space_1",
+        title: "2026-11-22 半导体持仓复盘",
+        eventDate: "2026-11-22",
+      });
+      expect(items[0].content).toContain("严格止损");
+      expect(items[1].fileId).toBe("doc_drive_1");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+describe("Tencent ima Official OpenAPI connector (Notes + Knowledge Base)", () => {
+  it("parses both v1.1.2 nested and v1.1.7 flattened folders/notes payloads and HTML text", () => {
+    const f1 = parseImaFolders({
+      note_book_folders: [{ folder: { basic_info: { folder_id: "nb_1", folder_name: "实盘日记" } } }],
+      is_end: true,
+    });
+    expect(f1.folders).toEqual([{ id: "nb_1", name: "实盘日记" }]);
+
+    const f2 = parseImaFolders({
+      note_folder_infos: [{ folder_id: "nb_2", folder_name: "行业研报" }],
+      is_end: true,
+    });
+    expect(f2.folders).toEqual([{ id: "nb_2", name: "行业研报" }]);
+
+    const n1 = parseImaNotes({
+      note_book_list: [
+        { basic_info: { basic_info: { docid: "d_1", title: "11月复盘", modify_time: "1732233600000" } } },
+      ],
+      is_end: true,
+    });
+    expect(n1.notes[0]).toMatchObject({ id: "d_1", title: "11月复盘" });
+
+    const n2 = parseImaNotes({
+      notes: [{ note_id: "d_2", title: "新契约笔记" }],
+      is_end: true,
+    });
+    expect(n2.notes[0]).toMatchObject({ id: "d_2", title: "新契约笔记" });
+
+    expect(extractImaTextFromHtml("<h1>研报结论</h1><p>关注&nbsp;AI算力</p><li>严控回撤</li>")).toContain("# 研报结论");
+  });
+
+  it("discovers notebooks & knowledge bases and syncs Notes + Wiki items via official OpenAPI headers", async () => {
+    let seenHeaders: Record<string, string> = {};
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/signed/article.html") {
+        expect(req.headers["x-ima-sign"]).toBe("sig_ok");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end("<html><body><h2>算力产业链纪要</h2><p>2026-11-20 订单高增。</p></body></html>");
+      }
+
+      seenHeaders = {
+        clientid: String(req.headers["ima-openapi-clientid"] ?? ""),
+        apikey: String(req.headers["ima-openapi-apikey"] ?? ""),
+      };
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Record<string, unknown>;
+      const sendOk = (data: unknown) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ code: 0, msg: "", data }));
+      };
+
+      if (url.pathname === "/openapi/note/v1/list_note_folder_by_cursor") {
+        return sendOk({
+          note_book_folders: [{ folder: { basic_info: { folder_id: "f_trade", folder_name: "交易复盘" } } }],
+          is_end: true,
+        });
+      }
+      if (url.pathname === "/openapi/note/v1/list_note_by_folder_id") {
+        return sendOk({
+          note_book_list: [
+            {
+              basic_info: {
+                basic_info: {
+                  docid: "note_101",
+                  title: "2026-11-21 周五复盘",
+                  folder_id: "f_trade",
+                  folder_name: "交易复盘",
+                },
+              },
+            },
+          ],
+          is_end: true,
+        });
+      }
+      if (url.pathname === "/openapi/note/v1/get_doc_content") {
+        const nid = String(body.note_id ?? body.doc_id ?? "");
+        return sendOk({
+          content: nid === "note_101" ? "今日减仓锁盈，回撤控制在 1% 内。" : "关联知识库笔记正文。",
+        });
+      }
+      if (url.pathname === "/openapi/wiki/v1/search_knowledge_base") {
+        return sendOk({
+          knowledge_base_list: [{ kb_id: "kb_ai", name: "AI 投研库", media_count: 12 }],
+        });
+      }
+      if (url.pathname === "/openapi/wiki/v1/get_addable_knowledge_base_list") {
+        return sendOk({ addable_knowledge_base_list: [] });
+      }
+      if (url.pathname === "/openapi/wiki/v1/get_knowledge_list") {
+        if (body.folder_id === "dir_1") {
+          return sendOk({
+            knowledge_list: [
+              { media_id: "m_web_1", title: "算力产业链深度纪要", media_type: 2 },
+              { media_id: "m_note_2", title: "核心估值拆解", media_type: 11 },
+            ],
+            is_end: true,
+          });
+        }
+        return sendOk({
+          knowledge_list: [{ media_id: "dir_1", title: "算力专题", media_type: 99 }],
+          is_end: true,
+        });
+      }
+      if (url.pathname === "/openapi/wiki/v1/get_media_info") {
+        const addr = server.address() as AddressInfo;
+        if (body.media_id === "m_web_1") {
+          return sendOk({
+            url_info: {
+              url: `http://127.0.0.1:${addr.port}/signed/article.html`,
+              headers: { "X-IMA-Sign": "sig_ok" },
+            },
+          });
+        }
+        return sendOk({ notebook_ext_info: { notebook_id: "note_linked_2" } });
+      }
+      res.writeHead(404);
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const addr = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+    try {
+      const discovered = await discoverImaWorkspace("cid_001", "key_999", baseUrl);
+      expect(seenHeaders).toEqual({ clientid: "cid_001", apikey: "key_999" });
+      expect(discovered.folders).toEqual([{ id: "f_trade", name: "交易复盘" }]);
+      expect(discovered.repos[0]).toMatchObject({ id: "kb_ai", name: "AI 投研库", itemsCount: 12 });
+
+      const result = await fetchImaItems("cid_001", "key_999", {
+        baseUrl,
+        includeNotes: true,
+        includeWiki: true,
+        maxItems: 10,
+        discoveredFolders: discovered.folders,
+        discoveredRepos: discovered.repos,
+      });
+      expect(result.items).toHaveLength(3);
+      expect(result.items.map((i) => i.channel)).toEqual(["note", "wiki", "wiki"]);
+      expect(result.items[1].content).toContain("算力产业链纪要");
+      expect(result.items[2].content).toContain("关联知识库笔记正文");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

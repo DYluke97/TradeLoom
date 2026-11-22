@@ -143,7 +143,7 @@ export default function LedgerRecordsTable({
                           href={`/vault?card=${encodeURIComponent(revs[0].card)}`}
                           className="inline-flex items-center gap-1 text-[11px] text-[var(--cyan)] hover:underline"
                         >
-                          <FileText className="h-3 w-3" />
+                          <FileText className="h-4 w-4" />
                           {revs[0].title.slice(0, 18)}
                         </Link>
                       ) : missedBigLoss ? (
@@ -151,7 +151,7 @@ export default function LedgerRecordsTable({
                           href="/vault?import=cloud"
                           className="inline-flex items-center gap-1 text-[11px] text-[var(--amber)] hover:underline"
                         >
-                          <AlertTriangle className="h-3 w-3" />
+                          <AlertTriangle className="h-4 w-4" />
                           暴跌漏复盘 → 去补录
                         </Link>
                       ) : (
@@ -165,7 +165,7 @@ export default function LedgerRecordsTable({
                         title="删除该日记录"
                         className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-[17px] w-[17px]" />
                       </button>
                     </td>
                   </tr>
@@ -230,7 +230,7 @@ export default function LedgerRecordsTable({
                       onClick={() => onDeleteTrade(t.id)}
                       className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-[17px] w-[17px]" />
                     </button>
                   </td>
                 </tr>

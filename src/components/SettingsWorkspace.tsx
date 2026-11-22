@@ -127,7 +127,7 @@ export default function SettingsWorkspace() {
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
           }`}
         >
-          <KeyRound className="h-3.5 w-3.5" />
+          <KeyRound className="h-[17px] w-[17px]" />
           AI 大模型配置（全局共享）
         </button>
 
@@ -140,7 +140,7 @@ export default function SettingsWorkspace() {
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
           }`}
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className="h-[17px] w-[17px]" />
           AI 提炼规则工坊（全局共享）
           {customSkillCount > 0 && (
             <span className="rounded-full bg-[var(--cyan-soft)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--cyan)]">
@@ -158,7 +158,7 @@ export default function SettingsWorkspace() {
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
           }`}
         >
-          <Hash className="h-3.5 w-3.5" />
+          <Hash className="h-[17px] w-[17px]" />
           当前库关键词词典（仅当前库）
         </button>
 
@@ -171,7 +171,7 @@ export default function SettingsWorkspace() {
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--cyan)]"
           }`}
         >
-          <Cloud className="h-3.5 w-3.5" />
+          <Cloud className="h-[17px] w-[17px]" />
           云端同步中心（9 大平台 · 全局授权）
         </button>
       </div>
@@ -188,12 +188,12 @@ export default function SettingsWorkspace() {
           <section className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-[var(--accent)]" />
+                <KeyRound className="h-[19px] w-[19px] text-[var(--accent)]" />
                 <h2 className="text-sm font-semibold text-[var(--ink-strong)]">自配大模型 API（OpenAI 兼容协议）</h2>
               </div>
               {status?.configured && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--emerald-soft)] px-2.5 py-0.5 text-[11px] text-[var(--emerald)]">
-                  <CheckCircle2 className="h-3 w-3" />
+                  <CheckCircle2 className="h-4 w-4" />
                   已配置
                 </span>
               )}
@@ -269,7 +269,7 @@ export default function SettingsWorkspace() {
                   disabled={busy}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                 >
-                  <Save className="h-3.5 w-3.5" />
+                  <Save className="h-[17px] w-[17px]" />
                   保存配置
                 </button>
                 <button
@@ -278,7 +278,7 @@ export default function SettingsWorkspace() {
                   disabled={busy || !status?.configured}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--accent)]/60 disabled:opacity-50"
                 >
-                  <PlugZap className="h-3.5 w-3.5" />
+                  <PlugZap className="h-[17px] w-[17px]" />
                   测试连通
                 </button>
               </div>
@@ -289,7 +289,7 @@ export default function SettingsWorkspace() {
           <section className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[var(--accent)]" />
+                <Sparkles className="h-[19px] w-[19px] text-[var(--accent)]" />
                 <h2 className="text-sm font-semibold text-[var(--ink-strong)]">已装载分析 Skill（{skills.length}）</h2>
               </div>
               <button
@@ -298,7 +298,7 @@ export default function SettingsWorkspace() {
                 className="inline-flex items-center gap-1 rounded-md border border-[var(--accent)]/50 bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent)] transition hover:brightness-110"
               >
                 新建 / 克隆魔改 Skill
-                <ArrowRight className="h-3 w-3" />
+                <ArrowRight className="h-4 w-4" />
               </button>
             </div>
 

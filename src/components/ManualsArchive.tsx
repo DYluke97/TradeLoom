@@ -144,7 +144,7 @@ export default function ManualsArchive() {
           title="删除该手册"
           className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-[17px] w-[17px]" />
         </button>
       </div>
     );
@@ -204,7 +204,7 @@ export default function ManualsArchive() {
             {hierarchy.l2Groups.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--cyan)]">
-                  <Layers className="h-3.5 w-3.5" />
+                  <Layers className="h-[17px] w-[17px]" />
                   <span>第二层 · 二次综合总纲（Map-Reduce）</span>
                 </div>
                 <div className="space-y-2.5">
@@ -248,7 +248,7 @@ export default function ManualsArchive() {
                               title="删除该总纲"
                               className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-[17px] w-[17px]" />
                             </button>
                           </div>
 
@@ -260,9 +260,9 @@ export default function ManualsArchive() {
                             >
                               <span className="inline-flex items-center gap-1">
                                 {isCollapsed ? (
-                                  <ChevronRight className="h-3.5 w-3.5" />
+                                  <ChevronRight className="h-[17px] w-[17px]" />
                                 ) : (
-                                  <ChevronDown className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                                  <ChevronDown className="h-[17px] w-[17px] text-[var(--cyan)]" />
                                 )}
                                 <span>所含一次沉淀阶段手册（{children.length}）</span>
                               </span>
@@ -291,7 +291,7 @@ export default function ManualsArchive() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1 text-[11px] font-semibold text-[var(--amber)]">
                   <span className="inline-flex items-center gap-1.5">
-                    <FileStack className="h-3.5 w-3.5" />
+                    <FileStack className="h-[17px] w-[17px]" />
                     <span>
                       {hierarchy.l2Groups.length > 0
                         ? `独立一次沉淀（未归并，${hierarchy.standaloneL1.length}）`
@@ -310,7 +310,7 @@ export default function ManualsArchive() {
                 href="/synthesize"
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--cyan)]/45 bg-[var(--cyan-soft)]/25 px-3 py-2 text-[11px] text-[var(--cyan)] transition hover:bg-[var(--cyan-soft)]/45"
               >
-                <Layers className="h-3.5 w-3.5" />
+                <Layers className="h-[17px] w-[17px]" />
                 去将这 {hierarchy.l1List.length} 份阶段手册二次综合为总纲 →
               </Link>
             )}
@@ -354,7 +354,7 @@ export default function ManualsArchive() {
                       title="删除该总纲"
                       className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-[17px] w-[17px]" />
                     </button>
                   </div>
                 );

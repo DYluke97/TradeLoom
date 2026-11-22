@@ -198,7 +198,7 @@ export default function MarkdownView({
       {visibleProps.length > 0 && (
         <div className="mb-5 rounded-lg border border-[var(--border)] bg-[var(--surface)]/80 px-3.5 py-2.5">
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-dim)]">
-            <SlidersHorizontal className="h-3 w-3" />
+            <SlidersHorizontal className="h-4 w-4" />
             Properties
           </div>
           <div className="grid gap-y-1.5 text-xs sm:grid-cols-2 sm:gap-x-6">

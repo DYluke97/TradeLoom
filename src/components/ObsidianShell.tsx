@@ -58,17 +58,17 @@ type SwitcherItem = {
 function NodeIcon({ kind }: { kind: SwitcherItem["kind"] }) {
   switch (kind) {
     case "vault":
-      return <Database className="h-3.5 w-3.5 text-[var(--emerald)]" />;
+      return <Database className="h-4 w-4 text-[var(--ink-muted)]" />;
     case "topic":
-      return <Hash className="h-3.5 w-3.5 text-[var(--cyan)]" />;
+      return <Hash className="h-4 w-4 text-[var(--ink-muted)]" />;
     case "timeline":
-      return <Calendar className="h-3.5 w-3.5 text-[var(--amber)]" />;
+      return <Calendar className="h-4 w-4 text-[var(--ink-strong)]" />;
     case "manual":
-      return <BookOpen className="h-3.5 w-3.5 text-[var(--emerald)]" />;
+      return <BookOpen className="h-4 w-4 text-[var(--ink-muted)]" />;
     case "command":
-      return <Command className="h-3.5 w-3.5 text-[var(--accent)]" />;
+      return <Command className="h-4 w-4 text-[var(--accent)]" />;
     default:
-      return <FileText className="h-3.5 w-3.5 text-[var(--ink-muted)]" />;
+      return <FileText className="h-4 w-4 text-[var(--ink-muted)]" />;
   }
 }
 
@@ -298,12 +298,12 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
             <Link
               href="/"
               title="TradeLoom · 织脉"
-              className="mb-1.5 flex h-7 w-7 items-center justify-center rounded-md border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-[11px] font-bold tracking-tight text-[var(--accent)] transition hover:bg-[var(--accent)]/15"
+              className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-xs font-bold tracking-tight text-[var(--accent)] transition hover:bg-[var(--accent)]/15"
             >
               TL
             </Link>
 
-            <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--ink-dim)]">本库</span>
+            <span className="font-mono text-[10px] tracking-wider text-[var(--ink-dim)]">本库</span>
 
             {/* Current Vault Zone (5 core items) */}
             {VAULT_TABS.map(({ href, label, icon: Icon }) => {
@@ -318,7 +318,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   key={href}
                   href={href}
                   title={`${activeVault?.name ?? "当前库"} · ${label}`}
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition ${
                     active
                       ? "bg-[var(--surface)] text-[var(--ink-strong)] shadow-xs ring-1 ring-[var(--border-strong)]"
                       : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
@@ -330,13 +330,13 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                       style={{ backgroundColor: activeColor }}
                     />
                   )}
-                  <Icon className="h-[17px] w-[17px]" strokeWidth={1.75} style={active ? { color: activeColor } : undefined} />
+                  <Icon className="h-5 w-5" strokeWidth={1.75} style={active ? { color: activeColor } : undefined} />
                 </Link>
               );
             })}
 
             <div className="my-1.5 h-px w-6 bg-gradient-to-r from-transparent via-[var(--border-strong)] to-transparent" />
-            <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--ink-dim)]">全局</span>
+            <span className="font-mono text-[10px] tracking-wider text-[var(--ink-dim)]">全局</span>
 
             {/* Global Infrastructure Zone */}
             {GLOBAL_NAV.map(({ href, label, icon: Icon }) => {
@@ -346,7 +346,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   key={href}
                   href={href}
                   title={label}
-                  className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition ${
                     active
                       ? "bg-[var(--surface)] text-[var(--accent)] shadow-xs ring-1 ring-[var(--border-strong)]"
                       : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
@@ -355,7 +355,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   {active && (
                     <span className="absolute -left-[7px] top-1 bottom-1 w-[3px] rounded-r bg-[var(--accent)]" />
                   )}
-                  <Icon className="h-[17px] w-[17px]" strokeWidth={1.75} />
+                  <Icon className="h-5 w-5" strokeWidth={1.75} />
                 </Link>
               );
             })}
@@ -367,9 +367,9 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
               type="button"
               onClick={() => setSwitcherOpen(true)}
               title="快速切换知识库 / 笔记 / 命令 (Ctrl+K)"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
             >
-              <Search className="h-[17px] w-[17px]" strokeWidth={1.75} />
+              <Search className="h-5 w-5" strokeWidth={1.75} />
             </button>
           </div>
         </aside>
@@ -377,14 +377,14 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
         {/* Right Column: Top Vault Switcher & Tabs + Viewport */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* 42px Top Header */}
-          <header className="flex h-[42px] shrink-0 items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-deep)]/95 px-2.5 select-none">
+          <header className="flex h-[50px] shrink-0 items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-deep)]/95 px-3 select-none">
             <div className="flex min-w-0 items-center gap-2">
               {/* Current Vault Switcher Pill */}
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"
                   onClick={() => setVaultMenuOpen((o) => !o)}
-                  className="inline-flex max-w-[230px] items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]/50"
+                  className="inline-flex max-w-[240px] items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]/50"
                   title="点击切换当前激活的知识库，或新建并行知识库"
                 >
                   <span
@@ -503,7 +503,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                     <Link
                       key={href}
                       href={href}
-                      className={`group relative flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs transition ${
+                      className={`group relative flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-[13px] transition ${
                         active
                           ? "bg-[var(--surface)] font-medium text-[var(--ink-strong)] ring-1 ring-[var(--border)] shadow-2xs"
                           : "text-[var(--ink-dim)] hover:bg-[var(--surface)]/70 hover:text-[var(--ink-muted)]"
@@ -516,8 +516,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                         />
                       )}
                       <Icon
-                        className="h-3.5 w-3.5"
-                        style={active ? { color: activeColor } : undefined}
+                        className="h-[18px] w-[18px]" strokeWidth={1.75}
                       />
                       <span className="hidden lg:inline">{label}</span>
                       <span className="lg:hidden">{shortLabel}</span>
@@ -531,32 +530,32 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
             <div className="flex shrink-0 items-center gap-1.5">
               <Link
                 href="/sync"
-                className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition xl:inline-flex ${
+                className={`hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition xl:inline-flex ${
                   pathname.startsWith("/sync")
                     ? "border-[var(--cyan)]/60 bg-[var(--cyan-soft)] text-[var(--cyan)]"
                     : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--cyan)]/50 hover:text-[var(--cyan)]"
                 }`}
               >
-                <Cloud className="h-3 w-3" />
+                <Cloud className="h-4 w-4" />
                 <span>云端同步</span>
               </Link>
               <Link
                 href="/vaults"
-                className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition lg:inline-flex ${
+                className={`hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition lg:inline-flex ${
                   pathname.startsWith("/vaults")
                     ? "border-[var(--accent)]/60 bg-[var(--accent-soft)] text-[var(--accent)]"
                     : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
                 }`}
               >
-                <FolderKanban className="h-3 w-3" />
+                <FolderKanban className="h-4 w-4" />
                 <span>全部库 ({overview?.vaults.length ?? 1})</span>
               </Link>
               <button
                 type="button"
                 onClick={() => setSwitcherOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
               >
-                <Search className="h-3 w-3 text-[var(--ink-dim)]" />
+                <Search className="h-4 w-4 text-[var(--ink-dim)]" />
                 <span className="hidden sm:inline">搜库 / 笔记</span>
                 <kbd className="rounded border border-[var(--border)] bg-[var(--bg-deep)] px-1 font-mono text-[10px] text-[var(--ink-dim)]">
                   Ctrl K
@@ -566,16 +565,16 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                 type="button"
                 onClick={toggleTheme}
                 title={theme === "light" ? "切换至低反差柔炭深色模式" : "切换至护眼浅色模式"}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
               >
                 {theme === "light" ? (
                   <>
-                    <Moon className="h-3.5 w-3.5" />
+                    <Moon className="h-4 w-4" />
                     <span className="hidden xl:inline">深色</span>
                   </>
                 ) : (
                   <>
-                    <Sun className="h-3.5 w-3.5 text-[var(--amber)]" />
+                    <Sun className="h-4 w-4 text-[var(--ink-strong)]" />
                     <span className="hidden xl:inline">浅色</span>
                   </>
                 )}
@@ -631,7 +630,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
       </div>
 
       {/* 24px Bottom Status Bar */}
-      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg-deep)] px-3 text-[11px] text-[var(--ink-dim)] select-none">
+      <footer className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg-deep)] px-3.5 text-xs text-[var(--ink-dim)] select-none">
         <div className="flex items-center gap-3 truncate">
           <span className="inline-flex items-center gap-1.5 font-medium text-[var(--ink-muted)]">
             <span

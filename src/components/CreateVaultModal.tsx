@@ -26,7 +26,7 @@ const FALLBACK_TEMPLATES: TemplateSummary[] = [
     name: "A 股短线 / 龙头情绪",
     badge: "情绪周期 · 梯队 · 止损",
     description: "适合打板、龙头低吸、题材轮动复盘，预置短线情绪与风控词典。",
-    color: "#7c4dff",
+    color: "#2d5f8b",
     defaultSkillId: "short-term",
     conceptCount: 6,
   },
@@ -35,7 +35,7 @@ const FALLBACK_TEMPLATES: TemplateSummary[] = [
     name: "中长线价值 / 财报基本面",
     badge: "行业景气 · 现金流 · 估值锚",
     description: "适合财报跟踪、行业研报、公司深度研究，预置财务排雷词典。",
-    color: "#22d3ee",
+    color: "#0f766e",
     defaultSkillId: "fundamental",
     conceptCount: 6,
   },
@@ -44,7 +44,7 @@ const FALLBACK_TEMPLATES: TemplateSummary[] = [
     name: "趋势波段 / 期货与右侧",
     badge: "右侧趋势 · 量价 · 盈亏比",
     description: "适合右侧趋势交易、商品期货、ETF 波段，预置量价与风控词典。",
-    color: "#f59e0b",
+    color: "#b4690e",
     defaultSkillId: "trend-swing",
     conceptCount: 6,
   },
@@ -53,7 +53,7 @@ const FALLBACK_TEMPLATES: TemplateSummary[] = [
     name: "大师体系拆解 / 通用空白",
     badge: "综合词典 · 自由定制",
     description: "适合拆解某位大 V/前辈完整体系、读书笔记或跨市场复盘。",
-    color: "#10b981",
+    color: "#217a56",
     defaultSkillId: "general",
     conceptCount: 10,
   },
@@ -176,7 +176,7 @@ export default function CreateVaultModal({
               className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-sm"
               style={{ background: `linear-gradient(135deg, ${color}, #22d3ee)` }}
             >
-              {step === 1 ? <Plus className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+              {step === 1 ? <Plus className="h-[19px] w-[19px]" /> : <Check className="h-[19px] w-[19px]" />}
             </span>
             <div>
               <h2 className="text-sm font-semibold text-[var(--ink-strong)]">
@@ -194,7 +194,7 @@ export default function CreateVaultModal({
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
           >
-            <X className="h-4 w-4" />
+            <X className="h-[19px] w-[19px]" />
           </button>
         </div>
 
@@ -289,10 +289,10 @@ export default function CreateVaultModal({
                 className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)]"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <FolderOpen className="h-3.5 w-3.5 text-[var(--ink-dim)]" />
+                  <FolderOpen className="h-[17px] w-[17px] text-[var(--ink-dim)]" />
                   高级选项（挂载本机已有文件夹 / 复制已有库词典）
                 </span>
-                {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {showAdvanced ? <ChevronUp className="h-[17px] w-[17px]" /> : <ChevronDown className="h-[17px] w-[17px]" />}
               </button>
               {showAdvanced && (
                 <div className="space-y-3 border-t border-[var(--border)] px-3.5 py-3">
@@ -349,7 +349,7 @@ export default function CreateVaultModal({
                 disabled={busy}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
               >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {busy ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Sparkles className="h-[17px] w-[17px]" />}
                 {busy ? "正在创建知识库..." : "创建并进入下一步"}
               </button>
             </div>
@@ -376,7 +376,7 @@ export default function CreateVaultModal({
                   </p>
                 </div>
                 <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--accent)]">
-                  去导入本地文件 <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+                  去导入本地文件 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </div>
               </button>
 
@@ -395,7 +395,7 @@ export default function CreateVaultModal({
                   </p>
                 </div>
                 <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--cyan)]">
-                  去云端同步中心 <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+                  去云端同步中心 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </div>
               </button>
 
@@ -414,7 +414,7 @@ export default function CreateVaultModal({
                   </p>
                 </div>
                 <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--emerald)]">
-                  去抓取 / 粘贴 <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+                  去抓取 / 粘贴 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </div>
               </button>
             </div>
@@ -426,7 +426,7 @@ export default function CreateVaultModal({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)]"
               >
                 暂不导入，先进入「{createdVault?.name}」工作台
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-[17px] w-[17px]" />
               </button>
             </div>
           </div>

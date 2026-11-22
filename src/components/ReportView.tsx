@@ -113,7 +113,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               href={`/vault?card=${encodeURIComponent(`40-交易手册/${report.id}.md`)}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:border-[var(--accent)]/60"
             >
-              <Network className="h-3.5 w-3.5" />
+              <Network className="h-[17px] w-[17px]" />
               在双链库中查看
             </Link>
             <button
@@ -121,7 +121,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               onClick={handleCopyMarkdown}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)]/60"
             >
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-[17px] w-[17px]" />
               {copied ? "已复制 Obsidian MD" : "复制 Obsidian MD"}
             </button>
             <a
@@ -129,7 +129,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               download={`${report.id}.md`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent)]"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-[17px] w-[17px]" />
               下载手册 (.md)
             </a>
           </div>
@@ -165,7 +165,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
           <div className="mt-4 rounded-xl border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-3.5 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 font-semibold text-[var(--cyan)]">
-                <CandlestickChart className="h-4 w-4" />
+                <CandlestickChart className="h-[19px] w-[19px]" />
                 阶段客观实盘绩效锚定（{report.quant_anchor.fromDate} ~ {report.quant_anchor.toDate} · 对比 {report.quant_anchor.benchmarkName}）
               </div>
               <Link href="/ledger" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -219,7 +219,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[var(--amber)]" />
+            <Clock className="h-[19px] w-[19px] text-[var(--amber)]" />
             <h3 className="text-base font-semibold text-[var(--ink-strong)]">方法演变时间轴</h3>
           </div>
           {timelineHasEvidence && (
@@ -230,12 +230,12 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
             >
               {allTimelineEvExpanded ? (
                 <>
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-4 w-4" />
                   收起全部原文依据
                 </>
               ) : (
                 <>
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-4 w-4" />
                   展开全部原文依据
                 </>
               )}
@@ -268,11 +268,11 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                         className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/60 hover:text-[var(--accent)]"
                       >
                         {isOpen ? (
-                          <ChevronDown className="h-3.5 w-3.5 text-[var(--accent)]" />
+                          <ChevronDown className="h-[17px] w-[17px] text-[var(--accent)]" />
                         ) : (
-                          <ChevronRight className="h-3.5 w-3.5 text-[var(--ink-dim)]" />
+                          <ChevronRight className="h-[17px] w-[17px] text-[var(--ink-dim)]" />
                         )}
-                        <FileText className="h-3 w-3" />
+                        <FileText className="h-4 w-4" />
                         <span>
                           {isOpen
                             ? `收起原文依据（${node.evidence.length} 条）`
@@ -292,7 +292,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                                   href={`/vault?card=${encodeURIComponent(ev.card)}`}
                                   className="inline-flex items-center gap-1 font-medium text-[var(--accent)] hover:underline"
                                 >
-                                  <FileText className="h-3 w-3" />
+                                  <FileText className="h-4 w-4" />
                                   [[{ev.title}]]
                                 </Link>
                                 <span className="font-mono text-[11px]">{ev.event_date ?? "未标日期"}</span>
@@ -315,7 +315,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[var(--emerald)]" />
+            <ShieldCheck className="h-[19px] w-[19px] text-[var(--emerald)]" />
             <h3 className="text-base font-semibold text-[var(--ink-strong)]">个人交易手册（含规则演进与证伪状态）</h3>
           </div>
           <span className="text-[11px] text-[var(--ink-dim)]">
@@ -390,7 +390,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                     </div>
                     <div className="rounded-lg border border-[var(--rose)]/25 bg-[var(--rose-soft)] p-2">
                       <dt className="flex items-center gap-1 font-medium text-[var(--rose)]">
-                        <AlertTriangle className="h-3 w-3" />
+                        <AlertTriangle className="h-4 w-4" />
                         反例与失效条件（Counterexample）
                       </dt>
                       <dd className="mt-1 text-[var(--ink)]">{rule.counterexample || "—"}</dd>
@@ -400,7 +400,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
 
                 <div className="mt-3 border-t border-[var(--border)] pt-2.5">
                   <div className="mb-1.5 flex items-center gap-1 text-[11px] text-[var(--emerald)]">
-                    <CheckCircle2 className="h-3 w-3" />
+                    <CheckCircle2 className="h-4 w-4" />
                     逐字原文溯源（{rule.evidence.length}）
                   </div>
                   <div className="space-y-1">
@@ -428,7 +428,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
         <section className="rounded-xl border border-amber-500/35 bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Flame className="h-4 w-4 text-[var(--amber)]" />
+              <Flame className="h-[19px] w-[19px] text-[var(--amber)]" />
               <h3 className="text-base font-semibold text-[var(--ink-strong)]">
                 知行偏离与重复违纪病灶榜（防“嘴盘”照妖镜）
               </h3>

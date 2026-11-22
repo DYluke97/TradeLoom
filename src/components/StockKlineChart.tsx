@@ -312,7 +312,7 @@ export default function StockKlineChart({
               href={`/vault?card=${encodeURIComponent(activeReviews[0].card)}`}
               className="inline-flex items-center gap-1 rounded border border-[var(--cyan)]/45 bg-[var(--cyan-soft)] px-2 py-0.5 text-[10px] font-sans font-medium text-[var(--cyan)] hover:bg-[var(--cyan)]/20"
             >
-              <FileText className="h-3 w-3" />
+              <FileText className="h-4 w-4" />
               当日复盘：《{activeReviews[0].title.slice(0, 14)}》
             </Link>
           )}
@@ -323,7 +323,7 @@ export default function StockKlineChart({
       <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--chart-bg)] p-2">
         {loading && bars.length === 0 ? (
           <div className="flex h-[340px] items-center justify-center gap-2 text-xs text-[var(--ink-muted)]">
-            <Loader2 className="h-4 w-4 animate-spin text-[var(--cyan)]" />
+            <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
             正在拉取 {stock.name} ({stock.symbol}) 前复权日K线...
           </div>
         ) : err && bars.length === 0 ? (

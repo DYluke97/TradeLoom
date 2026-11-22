@@ -157,7 +157,7 @@ export default function LedgerCsvModal({
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
-            <FileSpreadsheet className="h-4 w-4 text-[var(--emerald)]" />
+            <FileSpreadsheet className="h-[19px] w-[19px] text-[var(--emerald)]" />
             智能导入券商交割单 / 每日净值表（兼容同花顺 / 通达信 / 东财 / 华泰 / 富途 / Excel）
           </div>
           <button
@@ -165,14 +165,14 @@ export default function LedgerCsvModal({
             onClick={onClose}
             className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
           >
-            <X className="h-4 w-4" />
+            <X className="h-[19px] w-[19px]" />
           </button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 px-3.5 py-2.5">
             <div className="flex items-center gap-2 text-[11px] text-[var(--ink-muted)]">
-              <ShieldCheck className="h-4 w-4 text-[var(--emerald)]" />
+              <ShieldCheck className="h-[19px] w-[19px] text-[var(--emerald)]" />
               <span>纯本地解析（自动识别 GBK / UTF-8），自动丢弃「资金账号 / 股东代码 / 合同号」等敏感列</span>
             </div>
             <div className="flex items-center gap-2">
@@ -180,14 +180,14 @@ export default function LedgerCsvModal({
                 href="/api/ledger/template?kind=trades"
                 className="inline-flex items-center gap-1 rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2 py-1 text-[11px] text-[var(--cyan)] hover:bg-[var(--cyan)]/20"
               >
-                <Download className="h-3 w-3" />
+                <Download className="h-4 w-4" />
                 交割单模板
               </a>
               <a
                 href="/api/ledger/template?kind=daily"
                 className="inline-flex items-center gap-1 rounded border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-2 py-1 text-[11px] text-[var(--accent)] hover:bg-[var(--accent)]/20"
               >
-                <Download className="h-3 w-3" />
+                <Download className="h-4 w-4" />
                 每日净值模板
               </a>
             </div>
@@ -238,7 +238,7 @@ export default function LedgerCsvModal({
             <div className="space-y-3 rounded-xl border border-[var(--cyan)]/35 bg-[var(--bg-deep)]/90 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />
+                  <CheckCircle2 className="h-[19px] w-[19px] text-[var(--emerald)]" />
                   <span className="font-semibold text-[var(--ink-strong)]">
                     识别成功：共 {preview.totalRows} 行 · 编码 {preview.encoding.toUpperCase()}
                   </span>
@@ -344,7 +344,7 @@ export default function LedgerCsvModal({
             onClick={handleCommit}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent)] disabled:opacity-45"
           >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {busy && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
             确认入账 ({preview?.totalRows ?? 0} 行)
           </button>
         </div>

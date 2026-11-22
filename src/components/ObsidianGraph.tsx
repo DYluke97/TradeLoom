@@ -842,7 +842,7 @@ export default function ObsidianGraph({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-2 backdrop-blur-md">
         <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink)]">
           <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)]">
-            <Network className="h-3 w-3" />
+            <Network className="h-4 w-4" />
           </span>
           <span className="tracking-wide">
             {mode === "global" ? "全息星轨双链图谱" : "局部神经星图"}
@@ -865,7 +865,7 @@ export default function ObsidianGraph({
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
-                  <Compass className="h-3 w-3" />
+                  <Compass className="h-4 w-4" />
                   星轨分层
                 </button>
                 <button
@@ -877,7 +877,7 @@ export default function ObsidianGraph({
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
-                  <Layers className="h-3 w-3" />
+                  <Layers className="h-4 w-4" />
                   架构泳道
                 </button>
               </div>
@@ -907,7 +907,7 @@ export default function ObsidianGraph({
             title="放大"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <ZoomIn className="h-3.5 w-3.5" />
+            <ZoomIn className="h-[17px] w-[17px]" />
           </button>
           <button
             type="button"
@@ -915,7 +915,7 @@ export default function ObsidianGraph({
             title="缩小"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <ZoomOut className="h-3.5 w-3.5" />
+            <ZoomOut className="h-[17px] w-[17px]" />
           </button>
           <button
             type="button"
@@ -923,7 +923,7 @@ export default function ObsidianGraph({
             title="重置视角并解除锁定"
             className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-[17px] w-[17px]" />
           </button>
 
           {mode === "global" && (
@@ -937,7 +937,7 @@ export default function ObsidianGraph({
                   : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               }`}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <SlidersHorizontal className="h-[17px] w-[17px]" />
             </button>
           )}
 
@@ -948,7 +948,7 @@ export default function ObsidianGraph({
               title={mode === "global" ? "返回阅读视图" : "展开全息星轨图谱"}
               className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
             >
-              {mode === "global" ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              {mode === "global" ? <Minimize2 className="h-[17px] w-[17px]" /> : <Maximize2 className="h-[17px] w-[17px]" />}
             </button>
           )}
         </div>
@@ -1182,7 +1182,7 @@ export default function ObsidianGraph({
 
                       {/* Core Node Sphere */}
                       <circle
-                        r={isLockedAnchor ? n.r + 3 : isFocused ? n.r + 2 : n.r + 1.4}
+                        r={isLockedAnchor ? n.r + 4.5 : isFocused ? n.r + 3.5 : n.r + 2.6}
                         fill={fill}
                         stroke={isLockedAnchor ? "var(--graph-edge-active)" : "var(--graph-bg)"}
                         strokeWidth={isLockedAnchor ? 2.5 : 2}
@@ -1194,10 +1194,10 @@ export default function ObsidianGraph({
 
                       {showLabel && (
                         <text
-                          y={n.r + (mode === "global" ? 15 : 12)}
+                          y={n.r + (mode === "global" ? 18 : 15)}
                           textAnchor="middle"
                           fill={isLockedAnchor ? "var(--graph-edge-active)" : isFocused || isInLockedSubgraph || n.isCenter ? "var(--graph-label-strong)" : "var(--graph-label)"}
-                          fontSize={(mode === "global" ? 11 : 9.2) / Math.pow(transform.k, 0.35)}
+                          fontSize={(mode === "global" ? 12.5 : 10.8) / Math.pow(transform.k, 0.35)}
                           fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 500}
                           paintOrder="stroke"
                           stroke="var(--graph-bg)"
@@ -1222,7 +1222,7 @@ export default function ObsidianGraph({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--cyan)]">
-                  <Lock className="h-3 w-3" />
+                  <Lock className="h-4 w-4" />
                   <span>结构已锁定 · {NODE_LABELS[lockedNode.nodeType]}</span>
                 </div>
                 <div className="mt-1 truncate text-xs font-semibold text-[var(--ink-strong)]">{lockedNode.title}</div>
@@ -1233,7 +1233,7 @@ export default function ObsidianGraph({
                 title="解除锁定 (Esc)"
                 className="rounded p-0.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-[17px] w-[17px]" />
               </button>
             </div>
 
@@ -1259,7 +1259,7 @@ export default function ObsidianGraph({
                 className="inline-flex shrink-0 items-center gap-1 rounded bg-[var(--cyan-soft)] px-2 py-1 text-[11px] font-medium text-[var(--cyan)] ring-1 ring-[var(--cyan)]/40 transition hover:bg-[var(--cyan)]/25"
               >
                 进入详情
-                <ArrowUpRight className="h-3 w-3" />
+                <ArrowUpRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -1270,7 +1270,7 @@ export default function ObsidianGraph({
           <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] p-3.5 text-xs backdrop-blur-md">
             <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                <Sparkles className="h-[17px] w-[17px] text-[var(--cyan)]" />
                 推拉阻尼与架构弹性
               </span>
               <span className="font-mono text-[10px] text-[var(--cyan)]">{Math.round(transform.k * 100)}%</span>

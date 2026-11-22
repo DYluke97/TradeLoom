@@ -24,8 +24,8 @@
   --accent-soft: rgba(45, 95, 139, 0.085);
 
   /* Low-Saturation Editorial Semantic Tokens */
-  --cyan: #1f747d;
-  --cyan-soft: rgba(31, 116, 125, 0.085);
+  --cyan: #2d5f8b;
+  --cyan-soft: rgba(45, 95, 139, 0.085);
   --emerald: #217a56;
   --emerald-soft: rgba(33, 122, 86, 0.085);
   --amber: #b86b14;
@@ -83,8 +83,8 @@
   --accent-soft: rgba(122, 166, 214, 0.14);
 
   /* Calm Dark-Mode Semantics */
-  --cyan: #5bb0ba;
-  --cyan-soft: rgba(91, 176, 186, 0.13);
+  --cyan: #7aa6d6;
+  --cyan-soft: rgba(122, 166, 214, 0.14);
   --emerald: #52b489;
   --emerald-soft: rgba(82, 180, 137, 0.13);
   --amber: #d99b43;

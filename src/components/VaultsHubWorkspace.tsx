@@ -171,7 +171,7 @@ export default function VaultsHubWorkspace() {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="inline-flex items-center gap-2 text-xs text-[var(--ink-muted)]">
-          <Loader2 className="h-4 w-4 animate-spin text-[var(--cyan)]" />
+          <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
           正在加载全部知识库...
         </div>
       </div>
@@ -185,7 +185,7 @@ export default function VaultsHubWorkspace() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)]/35 bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--accent)]">
-              <FolderKanban className="h-3.5 w-3.5" />
+              <FolderKanban className="h-[17px] w-[17px]" />
               多 Obsidian 双链知识库并行中心
             </div>
             <h1 className="mt-2.5 text-xl font-bold text-[var(--ink-strong)] sm:text-2xl">全部知识库大厅</h1>
@@ -201,7 +201,7 @@ export default function VaultsHubWorkspace() {
               onClick={() => setCreateOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-[19px] w-[19px]" />
               新建双链知识库
             </button>
             <button
@@ -210,7 +210,7 @@ export default function VaultsHubWorkspace() {
               onClick={handleCreateOrResetDemo}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/45 bg-[var(--cyan-soft)]/50 px-3.5 py-2 text-xs font-medium text-[var(--cyan)] transition hover:bg-[var(--cyan)]/20 disabled:opacity-50"
             >
-              {demoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              {demoBusy ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Play className="h-[17px] w-[17px]" />}
               {overview?.onboarding.hasDemoVault ? "重置体验示范库" : "生成体验示范库"}
             </button>
           </div>
@@ -288,7 +288,7 @@ export default function VaultsHubWorkspace() {
                     title="编辑名称、备注与标识色"
                     className="rounded-md p-1.5 text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
                   >
-                    <Edit3 className="h-3.5 w-3.5" />
+                    <Edit3 className="h-[17px] w-[17px]" />
                   </button>
                 </div>
 
@@ -315,12 +315,12 @@ export default function VaultsHubWorkspace() {
                 {/* Latest Manual or Source Dir info */}
                 {v.stats.latestManualTitle ? (
                   <div className="flex items-center gap-2 rounded-lg border border-[var(--emerald)]/25 bg-[var(--emerald-soft)]/25 px-2.5 py-1.5 text-[11px] text-[var(--emerald)]">
-                    <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                    <BookOpen className="h-[17px] w-[17px] shrink-0" />
                     <span className="truncate">最新手册：{v.stats.latestManualTitle}</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/65 px-2.5 py-1.5 text-[11px] text-[var(--ink-dim)]">
-                    <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                    <FolderOpen className="h-[17px] w-[17px] shrink-0" />
                     <span className="truncate font-mono text-[10px]">{v.paths.sourceDir}</span>
                   </div>
                 )}
@@ -338,7 +338,7 @@ export default function VaultsHubWorkspace() {
                       : "bg-[var(--accent-strong)] text-white hover:brightness-110"
                   }`}
                 >
-                  {isEntering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                  {isEntering ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <ArrowRight className="h-[17px] w-[17px]" />}
                   {isActive ? "进入工作台" : "切换并进入"}
                 </button>
 
@@ -347,7 +347,7 @@ export default function VaultsHubWorkspace() {
                   className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)]"
                   title="导出本库为独立 Obsidian 文件夹 (.zip)"
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-[17px] w-[17px]" />
                   导出 ZIP
                 </a>
 
@@ -359,7 +359,7 @@ export default function VaultsHubWorkspace() {
                     className="ml-auto inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                     title="安全删除（托管数据移入回收站）"
                   >
-                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     删除
                   </button>
                 )}
@@ -388,21 +388,21 @@ export default function VaultsHubWorkspace() {
       <section className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/70 p-3.5 text-[11px] leading-5 text-[var(--ink-muted)]">
           <div className="mb-1 flex items-center gap-1.5 font-semibold text-[var(--cyan)]">
-            <Network className="h-3.5 w-3.5" />
+            <Network className="h-[17px] w-[17px]" />
             双链图谱互不串味
           </div>
           每个知识库拥有独立关键词词典与星图，短线情绪词不会污染价值投资研报库。
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/70 p-3.5 text-[11px] leading-5 text-[var(--ink-muted)]">
           <div className="mb-1 flex items-center gap-1.5 font-semibold text-[var(--amber)]">
-            <CandlestickChart className="h-3.5 w-3.5" />
+            <CandlestickChart className="h-[17px] w-[17px]" />
             实盘交割账本完全隔离
           </div>
           A 股实盘、期货模拟或纯大师拆解库各自独立记账，提炼手册时不会交叉错配。
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/70 p-3.5 text-[11px] leading-5 text-[var(--ink-muted)]">
           <div className="mb-1 flex items-center gap-1.5 font-semibold text-[var(--emerald)]">
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles className="h-[17px] w-[17px]" />
             大模型与云同步一次配置全库通用
           </div>
           只需在全局配置一次 AI 大模型与 9 大云端平台账号，任意新库即开即用。
@@ -435,7 +435,7 @@ export default function VaultsHubWorkspace() {
                 onClick={() => setEditing(null)}
                 className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-[19px] w-[19px]" />
               </button>
             </div>
 
@@ -488,7 +488,7 @@ export default function VaultsHubWorkspace() {
                 disabled={editSaving}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3.5 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
               >
-                {editSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {editSaving && <Loader2 className="h-[17px] w-[17px] animate-spin" />}
                 保存修改
               </button>
             </div>

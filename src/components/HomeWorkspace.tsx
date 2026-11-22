@@ -128,7 +128,7 @@ export default function HomeWorkspace() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-xs text-[var(--ink-muted)]">
-          <Loader2 className="h-4 w-4 animate-spin text-[var(--cyan)]" />
+          <Loader2 className="h-[19px] w-[19px] animate-spin text-[var(--cyan)]" />
           正在载入本地复盘知识库...
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function HomeWorkspace() {
           <div className="pointer-events-none absolute -top-24 left-1/2 h-56 w-96 -translate-x-1/2 rounded-full bg-[var(--accent)]/15 blur-3xl" />
           <div className="relative">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-soft)] px-3 py-1 text-[11px] font-medium text-[var(--cyan)]">
-              <ShieldCheck className="h-3.5 w-3.5" />
+              <ShieldCheck className="h-[17px] w-[17px]" />
               本地离线优先 · 数据 100% 留在你自己的电脑
             </div>
             <h1 className="mt-4 text-2xl font-bold tracking-tight text-[var(--ink-strong)] sm:text-3xl">
@@ -164,7 +164,7 @@ export default function HomeWorkspace() {
             <div className="mx-auto mt-5 grid max-w-2xl gap-2.5 text-left sm:grid-cols-3">
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--cyan)]">
-                  <Network className="h-3.5 w-3.5" />
+                  <Network className="h-[17px] w-[17px]" />
                   1. 复盘自动成网
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -172,8 +172,8 @@ export default function HomeWorkspace() {
                 </p>
               </div>
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--amber)]">
-                  <CandlestickChart className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-muted)]">
+                  <CandlestickChart className="h-[17px] w-[17px]" />
                   2. 实盘账本防嘴盘
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -181,8 +181,8 @@ export default function HomeWorkspace() {
                 </p>
               </div>
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--emerald)]">
-                  <BookOpen className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
+                  <BookOpen className="h-[17px] w-[17px]" />
                   3. 多库并行提炼
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-dim)]">
@@ -200,7 +200,7 @@ export default function HomeWorkspace() {
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--cyan-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--cyan)]">
-                  <Sparkles className="h-3 w-3" />
+                  <Sparkles className="h-4 w-4" />
                   推荐新用户 · 零配置体验
                 </span>
                 <span className="font-mono text-[10px] text-[var(--ink-dim)]">约 1 分钟</span>
@@ -211,15 +211,15 @@ export default function HomeWorkspace() {
               </p>
               <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--ink-muted)]">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
                   <span>6 篇完整 A 股复盘样本 + 已织好的双链知识星图</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
                   <span>配套示例交割单与净值曲线（含个股买卖点回放）</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--cyan)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--cyan)]" />
                   <span>1 份免配大模型即可预览的《双轨实盘交易手册 v1.0》</span>
                 </li>
               </ul>
@@ -232,7 +232,7 @@ export default function HomeWorkspace() {
                 onClick={handleEnterDemo}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--cyan)] px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 transition hover:brightness-110 disabled:opacity-50"
               >
-                {creatingDemo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {creatingDemo ? <Loader2 className="h-[19px] w-[19px] animate-spin" /> : <Play className="h-[19px] w-[19px]" />}
                 {creatingDemo ? "正在构建独立体验示范库（含账本与手册）..." : "一键进入体验示范库"}
               </button>
               <p className="text-center text-[11px] text-[var(--ink-dim)]">
@@ -246,7 +246,7 @@ export default function HomeWorkspace() {
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent)]">
-                  <FolderGit2 className="h-3 w-3" />
+                  <FolderGit2 className="h-4 w-4" />
                   直接开始使用
                 </span>
                 <span className="font-mono text-[10px] text-[var(--ink-dim)]">30 秒建库</span>
@@ -257,15 +257,15 @@ export default function HomeWorkspace() {
               </p>
               <ul className="mt-2.5 space-y-1.5 text-xs text-[var(--ink-muted)]">
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
                   <span>4 套开箱模板：短线情绪 / 价值基本面 / 趋势波段 / 通用空白</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
                   <span>支持直接拖入 Word/PDF/MD/HTML，或挂载本机已有 Obsidian 目录</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                  <CheckCircle2 className="h-[17px] w-[17px] shrink-0 text-[var(--accent)]" />
                   <span>支持飞书、Notion、语雀、滴答、腾讯文档、ima、有道、OneNote、印象笔记</span>
                 </li>
               </ul>
@@ -277,7 +277,7 @@ export default function HomeWorkspace() {
                 onClick={() => setCreateOpen(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-strong)] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[var(--accent)] transition hover:brightness-110"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-[19px] w-[19px]" />
                 创建我的第 1 个知识库
               </button>
               <p className="text-center text-[11px] text-[var(--ink-dim)]">
@@ -330,32 +330,22 @@ export default function HomeWorkspace() {
     <div className="space-y-5">
       {/* Compact Active Vault Header */}
       <section className="scifi-card relative overflow-hidden rounded-xl p-5 sm:p-6">
-        <div
-          className="pointer-events-none absolute -top-20 right-16 h-48 w-64 rounded-full opacity-15 blur-3xl"
-          style={{ backgroundColor: activeColor }}
-        />
+
 
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium"
-                style={{
-                  borderColor: `${activeColor}66`,
-                  backgroundColor: `${activeColor}1a`,
-                  color: "#f8fafc",
-                }}
-              >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: activeColor }} />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-strong)] bg-[var(--surface-2)] px-2.5 py-0.5 text-xs font-medium text-[var(--ink)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
                 当前知识库
               </span>
               {activeVault?.isDemo && (
-                <span className="rounded-full border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--cyan)]">
+                <span className="rounded-full border border-[var(--border-strong)] bg-[var(--surface-2)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--cyan)]">
                   独立示范沙盒
                 </span>
               )}
               {activeVault?.paths.isExternal && (
-                <span className="rounded-full border border-[var(--amber)]/40 bg-[var(--amber-soft)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--amber)]">
+                <span className="rounded-full border border-[var(--border-strong)] bg-[var(--surface-2)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--ink-muted)]">
                   挂载外部目录
                 </span>
               )}
@@ -374,14 +364,14 @@ export default function HomeWorkspace() {
                 href={primaryCta.href}
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110"
               >
-                <PrimaryIcon className="h-3.5 w-3.5" />
+                <PrimaryIcon className="h-[17px] w-[17px]" />
                 {primaryCta.label}
               </Link>
               <Link
                 href={secondaryCta.href}
                 className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)]/90 px-4 py-2 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)]"
               >
-                <SecondaryIcon className="h-3.5 w-3.5" />
+                <SecondaryIcon className="h-[17px] w-[17px]" />
                 {secondaryCta.label}
               </Link>
               <a
@@ -389,50 +379,50 @@ export default function HomeWorkspace() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/60 px-3 py-2 text-xs text-[var(--ink-muted)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
                 title="打包下载本库的独立标准 Obsidian 知识库 (.zip)"
               >
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-[17px] w-[17px]" />
                 导出本库 Obsidian
               </a>
             </div>
-            {notice && <p className="mt-3 text-xs text-[var(--emerald)]">{notice}</p>}
+            {notice && <p className="mt-3 text-xs text-[var(--ink-strong)]">{notice}</p>}
           </div>
 
-          {/* 2x2 Clean Active Vault Stats */}
-          <div className="grid min-w-[260px] grid-cols-2 gap-2.5">
+          {/* 2x2 Clean Monochrome Vault Stats */}
+          <div className="grid min-w-[270px] grid-cols-2 gap-2.5">
             <Link
               href="/vault"
-              className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)]/85 p-3 transition hover:border-[var(--cyan)]/50"
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 p-3.5 transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
             >
-              <div className="text-[11px] text-[var(--ink-dim)]">本库复盘笔记</div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="font-mono text-2xl font-bold text-[var(--ink-strong)]">{stats?.docsCount ?? 0}</span>
-                <span className="font-mono text-xs text-[var(--amber)]">{stats?.yearsCount ?? 0} 年</span>
+              <div className="text-xs text-[var(--ink-muted)]">本库复盘笔记</div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="font-mono text-2xl font-semibold text-[var(--ink-strong)]">{stats?.docsCount ?? 0}</span>
+                <span className="font-mono text-xs text-[var(--ink-dim)]">{stats?.yearsCount ?? 0} 年</span>
               </div>
             </Link>
             <Link
               href="/vault?view=graph"
-              className="rounded-lg border border-[var(--accent)]/25 bg-[var(--bg-deep)]/85 p-3 transition hover:border-[var(--accent)]/60"
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 p-3.5 transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
             >
-              <div className="text-[11px] text-[var(--ink-dim)]">双链连线数</div>
-              <div className="mt-1 font-mono text-2xl font-bold text-[var(--accent)]">
+              <div className="text-xs text-[var(--ink-muted)]">双链连线数</div>
+              <div className="mt-1.5 font-mono text-2xl font-semibold text-[var(--ink-strong)]">
                 {stats?.linksCount ?? 0}
               </div>
             </Link>
             <Link
               href="/ledger"
-              className="rounded-lg border border-[var(--amber)]/25 bg-[var(--bg-deep)]/85 p-3 transition hover:border-[var(--amber)]/60"
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 p-3.5 transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
             >
-              <div className="text-[11px] text-[var(--ink-dim)]">本库实盘交割</div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="font-mono text-2xl font-bold text-[var(--amber)]">{stats?.tradesCount ?? 0}</span>
-                <span className="text-[10px] text-[var(--ink-dim)]">笔</span>
+              <div className="text-xs text-[var(--ink-muted)]">本库实盘交割</div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="font-mono text-2xl font-semibold text-[var(--ink-strong)]">{stats?.tradesCount ?? 0}</span>
+                <span className="text-xs text-[var(--ink-dim)]">笔</span>
               </div>
             </Link>
             <Link
               href="/manuals"
-              className="rounded-lg border border-[var(--emerald)]/25 bg-[var(--bg-deep)]/85 p-3 transition hover:border-[var(--emerald)]/60"
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/70 p-3.5 transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
             >
-              <div className="text-[11px] text-[var(--ink-dim)]">本库交易手册</div>
-              <div className="mt-1 font-mono text-2xl font-bold text-[var(--emerald)]">
+              <div className="text-xs text-[var(--ink-muted)]">本库交易手册</div>
+              <div className="mt-1.5 font-mono text-2xl font-semibold text-[var(--ink-strong)]">
                 {stats?.manualsCount ?? 0}
               </div>
             </Link>
@@ -442,7 +432,7 @@ export default function HomeWorkspace() {
         {vaultDir && (
           <div className="relative mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/80 px-3 py-1.5 text-[11px] text-[var(--ink-dim)]">
             <div className="truncate">
-              本库 Obsidian 目录：<code className="text-[var(--cyan)]">{vaultDir}</code>
+              本库 Obsidian 目录：<code className="text-[var(--ink)]">{vaultDir}</code>
             </div>
             <span>可直接用 Obsidian 打开此目录 · 按 Ctrl+K 搜库或搜笔记</span>
           </div>
@@ -455,7 +445,7 @@ export default function HomeWorkspace() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
-                <Sparkles className="h-4 w-4 text-[var(--cyan)]" />
+                <Sparkles className="h-[19px] w-[19px] text-[var(--cyan)]" />
                 新手上手路线（已完成 {steps.completedCount} / {steps.totalCount} 步）
               </div>
               <p className="mt-0.5 text-[11px] text-[var(--ink-dim)]">
@@ -482,7 +472,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--cyan)]">STEP 1</span>
-                  {steps.hasReviews && <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />}
+                  {steps.hasReviews && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">导入你的复盘素材</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -517,8 +507,8 @@ export default function HomeWorkspace() {
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] font-semibold text-[var(--amber)]">STEP 2 · 可选</span>
-                  {steps.hasLedgerOrSkipped && <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />}
+                  <span className="font-mono text-[10px] font-semibold text-[var(--ink-muted)]">STEP 2 · 可选</span>
+                  {steps.hasLedgerOrSkipped && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">绑定本库实盘交割账本</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -532,7 +522,7 @@ export default function HomeWorkspace() {
               <div className="mt-3 flex items-center gap-2">
                 <Link
                   href="/ledger"
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--amber)] hover:text-[var(--amber)]"
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--amber)] hover:text-[var(--ink-muted)]"
                 >
                   去导入账本
                 </Link>
@@ -560,7 +550,7 @@ export default function HomeWorkspace() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] font-semibold text-[var(--accent)]">STEP 3 · 全库通用</span>
-                  {steps.hasLlm && <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />}
+                  {steps.hasLlm && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">接入你的 AI 大模型</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -574,7 +564,7 @@ export default function HomeWorkspace() {
                   href="/settings"
                   className="inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 >
-                  <Settings className="h-3 w-3" />
+                  <Settings className="h-4 w-4" />
                   {steps.hasLlm ? "查看模型设置" : "去配置 AI 模型"}
                 </Link>
               </div>
@@ -590,8 +580,8 @@ export default function HomeWorkspace() {
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] font-semibold text-[var(--emerald)]">STEP 4</span>
-                  {steps.hasManual && <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />}
+                  <span className="font-mono text-[10px] font-semibold text-[var(--ink-strong)]">STEP 4</span>
+                  {steps.hasManual && <CheckCircle2 className="h-[19px] w-[19px] text-[var(--ink-strong)]" />}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-[var(--ink-strong)]">生成本库交易手册</div>
                 <p className="mt-1 text-[11px] leading-5 text-[var(--ink-muted)]">
@@ -603,10 +593,10 @@ export default function HomeWorkspace() {
               <div className="mt-3">
                 <Link
                   href={steps.hasManual ? "/manuals" : "/synthesize"}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--emerald)] hover:text-[var(--emerald)]"
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--emerald)] hover:text-[var(--ink-strong)]"
                 >
                   {steps.hasManual ? "查看手册列表" : "去提炼 v1.0 手册"}
-                  <ArrowRight className="h-3 w-3" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>
@@ -621,7 +611,7 @@ export default function HomeWorkspace() {
           <div className="scifi-card rounded-xl p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink)]">
-                <Calendar className="h-4 w-4 text-[var(--amber)]" />
+                <Calendar className="h-[19px] w-[19px] text-[var(--ink-muted)]" />
                 本库复盘时间轴（点击直达年/月整理目录）
               </div>
               <Link href="/synthesize" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -635,7 +625,7 @@ export default function HomeWorkspace() {
                   <div className="flex items-center justify-between">
                     <Link
                       href={`/vault?card=${encodeURIComponent(`10-时间轴/${yr.year}年.md`)}`} 
-                      className="font-mono text-xs font-semibold text-[var(--amber)] hover:underline"
+                      className="font-mono text-xs font-semibold text-[var(--ink-muted)] hover:underline"
                     >
                       {yr.year} 年（{yr.count} 篇）
                     </Link>
@@ -660,10 +650,10 @@ export default function HomeWorkspace() {
           {/* Topic Hub + Latest Manual */}
           <div className="space-y-4">
             {stats?.latestManualTitle && (
-              <div className="scifi-card rounded-xl border-[var(--emerald)]/30 p-5">
+              <div className="scifi-card rounded-xl border-[var(--border)] p-5">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--emerald)]">
-                    <BookOpen className="h-4 w-4" />
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
+                    <BookOpen className="h-[19px] w-[19px]" />
                     本库最新交易手册
                   </span>
                   <Link href="/manuals" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -678,10 +668,10 @@ export default function HomeWorkspace() {
                 )}
                 <Link
                   href="/manuals"
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--emerald)]/45 bg-[var(--emerald-soft)]/50 px-3 py-1.5 text-xs font-medium text-[var(--emerald)] transition hover:bg-[var(--emerald)]/20"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink-strong)] transition hover:bg-[var(--surface-3)]"
                 >
                   打开阅读与溯源
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ArrowRight className="h-[17px] w-[17px]" />
                 </Link>
               </div>
             )}
@@ -689,7 +679,7 @@ export default function HomeWorkspace() {
             <div className="scifi-card rounded-xl p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink)]">
-                  <Hash className="h-4 w-4 text-[var(--cyan)]" />
+                  <Hash className="h-[19px] w-[19px] text-[var(--cyan)]" />
                   本库高频关键词节点
                 </div>
                 <Link href="/vault?concepts=1" className="text-[11px] text-[var(--cyan)] hover:underline">
@@ -720,7 +710,7 @@ export default function HomeWorkspace() {
       <section className="scifi-card rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
-            <FolderKanban className="h-4 w-4 text-[var(--accent)]" />
+            <FolderKanban className="h-[19px] w-[19px] text-[var(--accent)]" />
             多知识库并行工作台（共 {overview?.vaults.length ?? 1} 个独立双链库）
           </div>
           <div className="flex items-center gap-2">
@@ -729,7 +719,7 @@ export default function HomeWorkspace() {
               onClick={() => setCreateOpen(true)}
               className="inline-flex items-center gap-1 rounded-lg border border-[var(--cyan)]/45 bg-[var(--cyan-soft)]/50 px-2.5 py-1 text-[11px] font-medium text-[var(--cyan)] transition hover:bg-[var(--cyan)]/20"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-4 w-4" />
               新建并行知识库
             </button>
             <Link href="/vaults" className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)]">
@@ -759,7 +749,7 @@ export default function HomeWorkspace() {
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-xs font-semibold text-[var(--ink-strong)]">{v.name}</span>
                       {isCur && (
-                        <span className="rounded bg-[var(--emerald-soft)] px-1.5 py-0.2 text-[9px] text-[var(--emerald)]">
+                        <span className="rounded bg-[var(--emerald-soft)] px-1.5 py-0.2 text-[9px] text-[var(--ink-strong)]">
                           当前
                         </span>
                       )}
@@ -775,7 +765,7 @@ export default function HomeWorkspace() {
                   </div>
                 </div>
                 {switchingId === v.id ? (
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--cyan)]" />
+                  <Loader2 className="h-[17px] w-[17px] shrink-0 animate-spin text-[var(--cyan)]" />
                 ) : !isCur ? (
                   <span className="shrink-0 text-[11px] text-[var(--cyan)]">切换 →</span>
                 ) : null}

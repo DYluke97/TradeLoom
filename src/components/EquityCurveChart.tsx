@@ -382,7 +382,7 @@ export default function EquityCurveChart({
                   href={`/vault?card=${encodeURIComponent(activeReviews[0].card)}`}
                   className="inline-flex items-center gap-1 rounded border border-[var(--cyan)]/45 bg-[var(--cyan-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--cyan)] hover:bg-[var(--cyan)]/20"
                 >
-                  <FileText className="h-3 w-3" />
+                  <FileText className="h-4 w-4" />
                   查看 {activePt.date} 复盘：《{activeReviews[0].title.slice(0, 18)}》
                 </Link>
               ) : activePt.dailyReturnPct <= -3.0 ? (
@@ -390,7 +390,7 @@ export default function EquityCurveChart({
                   href="/vault?import=cloud"
                   className="inline-flex items-center gap-1 rounded border border-amber-500/45 bg-amber-500/10 px-2 py-0.5 text-[11px] text-[var(--amber)] hover:bg-amber-500/20"
                 >
-                  <AlertTriangle className="h-3 w-3" />
+                  <AlertTriangle className="h-4 w-4" />
                   {activePt.date} 大跌 {activePt.dailyReturnPct}% 尚未写复盘 → 去补录
                 </Link>
               ) : activePt.note ? (
@@ -406,7 +406,7 @@ export default function EquityCurveChart({
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/75 p-3.5">
           <div className="mb-2.5 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1.5 font-medium text-[var(--ink)]">
-              <TrendingUp className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <TrendingUp className="h-[17px] w-[17px] text-[var(--accent)]" />
               月度战绩分布（收益 / 最大回撤 / 日胜率）
             </span>
             <span className="font-mono text-[10px] text-[var(--ink-dim)]">共 {monthly.length} 个交易月</span>

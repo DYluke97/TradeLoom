@@ -218,7 +218,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3.5">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
-            <Sparkles className="h-4 w-4 text-[var(--accent)]" />
+            <Sparkles className="h-[19px] w-[19px] text-[var(--accent)]" />
             分析 Skill 工坊（自定义交易方法论提炼框架）
           </div>
           <p className="text-xs text-[var(--ink-muted)]">
@@ -231,7 +231,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
           onClick={startCreateBlank}
           className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-[17px] w-[17px]" />
           新建自定义 Skill
         </button>
       </div>
@@ -325,7 +325,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
         <section className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           {msg && (
             <div className="flex items-center gap-2 rounded-lg border border-[var(--emerald)]/40 bg-[var(--emerald-soft)] p-3 text-xs text-[var(--emerald)]">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <CheckCircle2 className="h-[19px] w-[19px] shrink-0" />
               <span>{msg}</span>
             </div>
           )}
@@ -368,7 +368,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                     onClick={() => startCloneFrom(selectedSkill)}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    <Copy className="h-[17px] w-[17px]" />
                     基于此 Skill 克隆魔改
                   </button>
                   <Link
@@ -376,7 +376,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                     className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink)] transition hover:border-[var(--cyan)]/60 hover:text-[var(--cyan)]"
                   >
                     去提炼使用
-                    <ArrowRight className="h-3.5 w-3.5" />
+                    <ArrowRight className="h-[17px] w-[17px]" />
                   </Link>
                 </div>
               </div>
@@ -396,7 +396,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
             <form onSubmit={handleSave} className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
                 <div className="flex items-center gap-2">
-                  <FileCode2 className="h-4 w-4 text-[var(--cyan)]" />
+                  <FileCode2 className="h-[19px] w-[19px] text-[var(--cyan)]" />
                   <h3 className="text-sm font-semibold text-[var(--ink-strong)]">
                     {mode === "create" ? "新建 / 克隆自定义 Skill" : `编辑自定义 Skill：${draftName || draftId}`}
                   </h3>
@@ -412,7 +412,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                         : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)]"
                     }`}
                   >
-                    <Edit3 className="h-3 w-3" />
+                    <Edit3 className="h-4 w-4" />
                     编辑源码
                   </button>
                   <button
@@ -424,7 +424,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                         : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)]"
                     }`}
                   >
-                    <Eye className="h-3 w-3" />
+                    <Eye className="h-4 w-4" />
                     实时预览
                   </button>
                 </div>
@@ -520,7 +520,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                     disabled={busy}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                   >
-                    <Save className="h-3.5 w-3.5" />
+                    <Save className="h-[17px] w-[17px]" />
                     {busy ? "正在保存..." : mode === "create" ? "创建并启用 Skill" : "保存修改"}
                   </button>
 
@@ -531,7 +531,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                         onClick={() => startCloneFrom(selectedSkill)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink-muted)] transition hover:text-[var(--ink)]"
                       >
-                        <Copy className="h-3.5 w-3.5" />
+                        <Copy className="h-[17px] w-[17px]" />
                         另存为副本
                       </button>
                       <Link
@@ -539,7 +539,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                         className="inline-flex items-center gap-1 rounded-lg border border-[var(--cyan)]/50 bg-[var(--cyan-soft)] px-3 py-2 text-xs font-medium text-[var(--cyan)] transition hover:brightness-110"
                       >
                         去「阶段提炼」使用
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        <ArrowRight className="h-[17px] w-[17px]" />
                       </Link>
                     </>
                   )}
@@ -572,7 +572,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                         onClick={() => setConfirmDelete(true)}
                         className="inline-flex items-center gap-1 rounded-lg border border-red-500/35 px-3 py-2 text-xs text-[var(--rose)] transition hover:bg-red-500/10"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-[17px] w-[17px]" />
                         删除 Skill
                       </button>
                     )}

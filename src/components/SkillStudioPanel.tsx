@@ -217,7 +217,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
       {/* Intro banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3.5">
         <div className="space-y-0.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#f1f2f5]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
             <Sparkles className="h-4 w-4 text-[var(--accent)]" />
             分析 Skill 工坊（自定义交易方法论提炼框架）
           </div>
@@ -229,7 +229,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
         <button
           type="button"
           onClick={startCreateBlank}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_0_16px_rgba(124,77,255,0.35)] transition hover:bg-[var(--accent)]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
         >
           <Plus className="h-3.5 w-3.5" />
           新建自定义 Skill
@@ -268,7 +268,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
+                        <span className="truncate text-xs font-semibold text-[var(--ink-strong)]">{sk.name}</span>
                         <span className="shrink-0 rounded bg-[var(--emerald-soft)] px-1.5 py-0.5 text-[10px] text-[var(--emerald)]">
                           {sk.editable ? "可编辑" : "仓库"}
                         </span>
@@ -308,7 +308,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
+                      <span className="truncate text-xs font-semibold text-[var(--ink-strong)]">{sk.name}</span>
                       <span className="shrink-0 rounded bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--ink-dim)]">
                         内置
                       </span>
@@ -330,7 +330,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
             </div>
           )}
           {err && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">{err}</div>
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-[var(--rose)]">{err}</div>
           )}
 
           {mode === "view-readonly" && selectedSkill ? (
@@ -338,7 +338,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] pb-4">
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-[#f1f2f5]">{selectedSkill.name}</h3>
+                    <h3 className="text-base font-semibold text-[var(--ink-strong)]">{selectedSkill.name}</h3>
                     <span className="rounded border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-0.5 font-mono text-[10px] text-[var(--ink-dim)]">
                       {selectedSkill.id}
                     </span>
@@ -397,7 +397,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
                 <div className="flex items-center gap-2">
                   <FileCode2 className="h-4 w-4 text-[var(--cyan)]" />
-                  <h3 className="text-sm font-semibold text-[#f1f2f5]">
+                  <h3 className="text-sm font-semibold text-[var(--ink-strong)]">
                     {mode === "create" ? "新建 / 克隆自定义 Skill" : `编辑自定义 Skill：${draftName || draftId}`}
                   </h3>
                 </div>
@@ -549,7 +549,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                   <div className="flex items-center gap-2">
                     {confirmDelete ? (
                       <>
-                        <span className="text-[11px] text-red-300">确认删除该自定义 Skill？</span>
+                        <span className="text-[11px] text-[var(--rose)]">确认删除该自定义 Skill？</span>
                         <button
                           type="button"
                           disabled={busy}
@@ -570,7 +570,7 @@ export default function SkillStudioPanel({ initialSkills, onSkillsChange }: Prop
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(true)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-500/35 px-3 py-2 text-xs text-red-300 transition hover:bg-red-500/10"
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-500/35 px-3 py-2 text-xs text-[var(--rose)] transition hover:bg-red-500/10"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         删除 Skill

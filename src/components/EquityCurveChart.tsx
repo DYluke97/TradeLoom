@@ -32,10 +32,10 @@ export default function EquityCurveChart({
   const [showBenchmark, setShowBenchmark] = useState(true);
   const [showReviewDots, setShowReviewDots] = useState(true);
 
-  const upColor = colorScheme === "cn" ? "#ef4444" : "#10b981";
-  const downColor = colorScheme === "cn" ? "#10b981" : "#ef4444";
-  const upText = colorScheme === "cn" ? "text-red-400" : "text-emerald-400";
-  const downText = colorScheme === "cn" ? "text-emerald-400" : "text-red-400";
+  const upColor = colorScheme === "cn" ? "#d64545" : "#157f57";
+  const downColor = colorScheme === "cn" ? "#157f57" : "#d64545";
+  const upText = colorScheme === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+  const downText = colorScheme === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
 
   const W = 960;
   const H_MAIN = 250;
@@ -164,18 +164,18 @@ export default function EquityCurveChart({
           </span>
           <span className="text-[var(--ink-muted)]">净值 {activePt?.nav.toFixed(4)}</span>
           {activePt?.benchmarkCumPct !== undefined && (
-            <span className="text-amber-300/90">
+            <span className="text-[var(--amber)]">
               {benchmarkName} {fmtPct(activePt.benchmarkCumPct)}
             </span>
           )}
           {activePt?.excessAlphaPct !== undefined && (
-            <span className={activePt.excessAlphaPct >= 0 ? "text-[var(--cyan)]" : "text-amber-400"}>
+            <span className={activePt.excessAlphaPct >= 0 ? "text-[var(--cyan)]" : "text-[var(--amber)]"}>
               超额 {fmtPct(activePt.excessAlphaPct)}
             </span>
           )}
-          <span className="text-red-300/80">回撤 {fmtPct(activePt?.drawdownPct, false)}</span>
+          <span className="text-[var(--rose)]">回撤 {fmtPct(activePt?.drawdownPct, false)}</span>
           {activePt?.positionPct !== undefined && (
-            <span className={activePt.positionPct > 100 ? "text-amber-300 font-semibold" : "text-[var(--ink-muted)]"}>
+            <span className={activePt.positionPct > 100 ? "text-[var(--amber)] font-semibold" : "text-[var(--ink-muted)]"}>
               仓位 {activePt.positionPct}%{activePt.positionPct > 100 ? " (含融)" : ""}
             </span>
           )}
@@ -204,7 +204,7 @@ export default function EquityCurveChart({
       </div>
 
       {/* Main Dual-Curve + Drawdown SVG */}
-      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[#070a12]/95 p-2">
+      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--chart-bg)] p-2">
         <svg
           viewBox={`0 0 ${W} ${H_TOTAL}`}
           className="h-auto w-full select-none"
@@ -213,12 +213,12 @@ export default function EquityCurveChart({
         >
           <defs>
             <linearGradient id="tl-acct-area" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#a882ff" stopOpacity="0.34" />
-              <stop offset="100%" stopColor="#a882ff" stopOpacity="0.02" />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.34" />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.02" />
             </linearGradient>
             <linearGradient id="tl-dd-area" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.08" />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.36" />
+              <stop offset="0%" stopColor="var(--rose)" stopOpacity="0.08" />
+              <stop offset="100%" stopColor="var(--rose)" stopOpacity="0.36" />
             </linearGradient>
           </defs>
 
@@ -232,10 +232,10 @@ export default function EquityCurveChart({
                   y1={y}
                   x2={W - PAD_R}
                   y2={y}
-                  stroke="rgba(148,163,184,0.12)"
+                  stroke="var(--chart-grid)"
                   strokeDasharray="3 5"
                 />
-                <text x={PAD_L - 8} y={y + 3.5} textAnchor="end" fill="#64748b" fontSize={10} fontFamily="monospace">
+                <text x={PAD_L - 8} y={y + 3.5} textAnchor="end" fill="var(--chart-axis)" fontSize={10} fontFamily="monospace">
                   {t >= 0 ? `+${t.toFixed(0)}%` : `${t.toFixed(0)}%`}
                 </text>
               </g>
@@ -243,7 +243,7 @@ export default function EquityCurveChart({
           })}
 
           {/* 0% Baseline */}
-          <line x1={PAD_L} y1={geom.zeroY} x2={W - PAD_R} y2={geom.zeroY} stroke="rgba(148,163,184,0.32)" strokeWidth={1} />
+          <line x1={PAD_L} y1={geom.zeroY} x2={W - PAD_R} y2={geom.zeroY} stroke="var(--border-strong)" strokeWidth={1} />
 
           {/* Account Area & Curve */}
           <path d={geom.acctArea} fill="url(#tl-acct-area)" />
@@ -251,13 +251,13 @@ export default function EquityCurveChart({
             <path
               d={geom.benchPath}
               fill="none"
-              stroke="#f59e0b"
+              stroke="var(--amber)"
               strokeWidth={1.5}
               strokeDasharray="5 4"
               opacity={0.85}
             />
           )}
-          <path d={geom.acctPath} fill="none" stroke="#a882ff" strokeWidth={2.2} strokeLinejoin="round" />
+          <path d={geom.acctPath} fill="none" stroke="var(--accent)" strokeWidth={2.2} strokeLinejoin="round" />
 
           {/* Review Note Anchor Markers & Missing-Review Big-Loss Alerts */}
           {showReviewDots &&
@@ -271,8 +271,8 @@ export default function EquityCurveChart({
                 <g key={p.date} className="cursor-pointer" onClick={() => onSelectDateForReview?.(p.date)}>
                   <polygon
                     points={`${cx},${cy - 5} ${cx + 4.5},${cy} ${cx},${cy + 5} ${cx - 4.5},${cy}`}
-                    fill="#22d3ee"
-                    stroke="#06080e"
+                    fill="var(--cyan)"
+                    stroke="var(--chart-bg)"
                     strokeWidth={1.2}
                   />
                 </g>
@@ -283,26 +283,26 @@ export default function EquityCurveChart({
                   cy={cy}
                   r={3.8}
                   fill="none"
-                  stroke="#f59e0b"
+                  stroke="var(--amber)"
                   strokeWidth={1.5}
                 />
               );
             })}
 
           {/* Drawdown Subplot Header & Grid */}
-          <line x1={PAD_L} y1={ddTop} x2={W - PAD_R} y2={ddTop} stroke="rgba(148,163,184,0.2)" />
-          <text x={PAD_L + 4} y={ddTop + 12} fill="#94a3b8" fontSize={9.5} fontFamily="monospace">
+          <line x1={PAD_L} y1={ddTop} x2={W - PAD_R} y2={ddTop} stroke="var(--border)" />
+          <text x={PAD_L + 4} y={ddTop + 12} fill="var(--ink-muted)" fontSize={9.5} fontFamily="monospace">
             回撤水下图 (MDD {geom.ddMin.toFixed(1)}%)
           </text>
-          <text x={PAD_L - 8} y={ddTop + 4} textAnchor="end" fill="#64748b" fontSize={9.5} fontFamily="monospace">
+          <text x={PAD_L - 8} y={ddTop + 4} textAnchor="end" fill="var(--chart-axis)" fontSize={9.5} fontFamily="monospace">
             0%
           </text>
-          <text x={PAD_L - 8} y={ddTop + H_DD} textAnchor="end" fill="#f87171" fontSize={9.5} fontFamily="monospace">
+          <text x={PAD_L - 8} y={ddTop + H_DD} textAnchor="end" fill="var(--rose)" fontSize={9.5} fontFamily="monospace">
             {geom.ddMin.toFixed(0)}%
           </text>
 
           <path d={geom.ddArea} fill="url(#tl-dd-area)" />
-          <path d={geom.ddLine} fill="none" stroke="#f87171" strokeWidth={1.3} opacity={0.85} />
+          <path d={geom.ddLine} fill="none" stroke="var(--rose)" strokeWidth={1.3} opacity={0.85} />
 
           {/* X Axis Date Labels */}
           {geom.xTicks.map((t) => (
@@ -311,7 +311,7 @@ export default function EquityCurveChart({
               x={t.x}
               y={H_TOTAL - 6}
               textAnchor="middle"
-              fill="#64748b"
+              fill="var(--chart-axis)"
               fontSize={10}
               fontFamily="monospace"
             >
@@ -327,15 +327,15 @@ export default function EquityCurveChart({
                 y1={PAD_T}
                 x2={geom.xOf(activeIdx)}
                 y2={ddTop + H_DD}
-                stroke="rgba(34,211,238,0.45)"
+                stroke="var(--accent)"
                 strokeDasharray="3 3"
               />
               <circle
                 cx={geom.xOf(activeIdx)}
                 cy={geom.yMain(activePt.cumReturnPct)}
                 r={4.5}
-                fill="#a882ff"
-                stroke="#ffffff"
+                fill="var(--accent)"
+                stroke="var(--surface)"
                 strokeWidth={1.8}
               />
               {showBenchmark && activePt.benchmarkCumPct !== undefined && (
@@ -343,8 +343,8 @@ export default function EquityCurveChart({
                   cx={geom.xOf(activeIdx)}
                   cy={geom.yMain(activePt.benchmarkCumPct)}
                   r={3.5}
-                  fill="#f59e0b"
-                  stroke="#06080e"
+                  fill="var(--amber)"
+                  stroke="var(--chart-bg)"
                   strokeWidth={1.2}
                 />
               )}
@@ -352,7 +352,7 @@ export default function EquityCurveChart({
                 cx={geom.xOf(activeIdx)}
                 cy={geom.yDd(activePt.drawdownPct)}
                 r={3.2}
-                fill="#f87171"
+                fill="var(--rose)"
               />
             </g>
           )}
@@ -362,7 +362,7 @@ export default function EquityCurveChart({
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] px-2 pt-2 text-[11px]">
           <div className="flex flex-wrap items-center gap-3 text-[var(--ink-dim)]">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-4 rounded-sm bg-[#a882ff]" /> 账户累计收益
+              <span className="h-2 w-4 rounded-sm bg-[var(--accent)]" /> 账户累计收益
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-0.5 w-4 border-t-2 border-dashed border-amber-400" /> {benchmarkName}
@@ -388,7 +388,7 @@ export default function EquityCurveChart({
               ) : activePt.dailyReturnPct <= -3.0 ? (
                 <Link
                   href="/vault?import=cloud"
-                  className="inline-flex items-center gap-1 rounded border border-amber-500/45 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300 hover:bg-amber-500/20"
+                  className="inline-flex items-center gap-1 rounded border border-amber-500/45 bg-amber-500/10 px-2 py-0.5 text-[11px] text-[var(--amber)] hover:bg-amber-500/20"
                 >
                   <AlertTriangle className="h-3 w-3" />
                   {activePt.date} 大跌 {activePt.dailyReturnPct}% 尚未写复盘 → 去补录

@@ -185,7 +185,7 @@ export default function LedgerManualModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#04060c]/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -193,14 +193,14 @@ export default function LedgerManualModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#f8fafc]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
             <Plus className="h-4 w-4 text-[var(--cyan)]" />
             每日手动记账 · 实盘账本
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-white"
+            className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -259,7 +259,7 @@ export default function LedgerManualModal({
                       onClick={() => setTSide("BUY")}
                       className={`rounded-lg border py-1.5 font-semibold transition ${
                         tSide === "BUY"
-                          ? "border-rose-500 bg-rose-600/25 text-rose-300"
+                          ? "border-rose-500 bg-rose-600/25 text-[var(--rose)]"
                           : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)]"
                       }`}
                     >
@@ -270,7 +270,7 @@ export default function LedgerManualModal({
                       onClick={() => setTSide("SELL")}
                       className={`rounded-lg border py-1.5 font-semibold transition ${
                         tSide === "SELL"
-                          ? "border-sky-500 bg-sky-600/25 text-sky-300"
+                          ? "border-sky-500 bg-sky-600/25 text-[var(--cyan)]"
                           : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)]"
                       }`}
                     >
@@ -298,7 +298,7 @@ export default function LedgerManualModal({
                   {searching && <Loader2 className="absolute right-2.5 top-2 h-3.5 w-3.5 animate-spin text-[var(--cyan)]" />}
                 </div>
                 {suggestions.length > 0 && (
-                  <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-[var(--cyan)]/40 bg-[#0b1020] py-1 shadow-xl">
+                  <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-[var(--cyan)]/40 bg-[var(--bg-deep)] py-1 shadow-xl">
                     {suggestions.map((s) => (
                       <button
                         key={s.symbol}
@@ -306,7 +306,7 @@ export default function LedgerManualModal({
                         onClick={() => pickSuggestion(s)}
                         className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-[var(--surface-2)]"
                       >
-                        <span className="font-medium text-[#f8fafc]">{s.name}</span>
+                        <span className="font-medium text-[var(--ink-strong)]">{s.name}</span>
                         <span className="font-mono text-[11px] text-[var(--cyan)]">
                           {s.market}.{s.symbol}
                         </span>
@@ -396,7 +396,7 @@ export default function LedgerManualModal({
                 </div>
               </div>
 
-              {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-red-200">{err}</div>}
+              {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-[var(--rose)]">{err}</div>}
 
               <div className="flex justify-end gap-2 pt-1">
                 <button
@@ -490,7 +490,7 @@ export default function LedgerManualModal({
                 />
               </div>
 
-              {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-red-200">{err}</div>}
+              {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-[var(--rose)]">{err}</div>}
 
               <div className="flex justify-end gap-2 pt-1">
                 <button

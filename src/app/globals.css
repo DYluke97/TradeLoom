@@ -1,35 +1,96 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  /* Editorial Minimal Light — Warm Alabaster & Crisp Paper (Notion / Linear / Readwise inspired) */
+  --bg: #f6f6f3;
+  --bg-deep: #eeede8;
+  --surface: #ffffff;
+  --surface-2: #f3f2ee;
+  --surface-3: #e7e5de;
+  --border: rgba(24, 24, 27, 0.09);
+  --border-strong: rgba(24, 24, 27, 0.17);
+
+  /* Comfortable Long-Reading Ink Hierarchy */
+  --ink-strong: #18181b;
+  --ink: #27272a;
+  --ink-muted: #52525b;
+  --ink-dim: #71717a;
+
+  /* Restrained Single Primary Accent — Mineral Indigo */
+  --accent: #3b5bdb;
+  --accent-strong: #2f49b8;
+  --accent-soft: rgba(59, 91, 219, 0.09);
+
+  /* Low-Saturation Semantic Palette */
+  --cyan: #0f6d7a;
+  --cyan-soft: rgba(15, 109, 122, 0.09);
+  --emerald: #157f57;
+  --emerald-soft: rgba(21, 127, 87, 0.09);
+  --amber: #b4690e;
+  --amber-soft: rgba(180, 105, 14, 0.1);
+  --rose: #c03546;
+  --rose-soft: rgba(192, 53, 70, 0.09);
+
+  /* Surfaces, Overlays, Charts & Subtle Physical Elevation */
+  --overlay: rgba(24, 24, 27, 0.36);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.05);
+  --shadow-modal: 0 20px 50px -12px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  --chart-bg: #fafaf8;
+  --chart-grid: rgba(24, 24, 27, 0.07);
+  --chart-axis: #71717a;
+  --graph-bg: #f8f8f5;
+  --graph-dot: rgba(24, 24, 27, 0.11);
+  --graph-edge: rgba(82, 82, 91, 0.22);
+  --graph-node-card: #475569;
+  --code-accent: #9a5b13;
+}
+
+[data-theme="dark"] {
   color-scheme: dark;
-  /* Sci-Fi Holographic Obsidian Palette */
-  --bg: #0c0f17;
-  --bg-deep: #07090f;
-  --surface: #111623;
-  --surface-2: #182034;
-  --surface-3: #222c46;
-  --border: rgba(139, 156, 212, 0.16);
-  --border-strong: rgba(168, 130, 255, 0.34);
+  /* Calm Low-Glare Charcoal Dark — Matte Graphite (Linear Dark / Obsidian Minimal) */
+  --bg: #151619;
+  --bg-deep: #101114;
+  --surface: #1c1d22;
+  --surface-2: #24262d;
+  --surface-3: #2e313b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
 
-  /* Crisp HUD Typography */
-  --ink: #e4e9f7;
-  --ink-muted: #8f9bb8;
-  --ink-dim: #5c6784;
+  /* Soft Off-White Ink — Zero Glare */
+  --ink-strong: #eceef2;
+  --ink: #d4d7df;
+  --ink-muted: #969ba8;
+  --ink-dim: #6e7382;
 
-  /* Signature Neon Obsidian Violet & Cyber Cyan */
-  --accent: #b388ff;
-  --accent-strong: #7c4dff;
-  --accent-soft: rgba(168, 130, 255, 0.16);
+  /* Soft Slate Indigo Accent */
+  --accent: #7c93f5;
+  --accent-strong: #4f67d6;
+  --accent-soft: rgba(124, 147, 245, 0.14);
 
-  /* Semantic Holographic Accents */
-  --amber: #fbbf24;
-  --amber-soft: rgba(251, 191, 36, 0.14);
-  --emerald: #34d399;
-  --emerald-soft: rgba(52, 211, 153, 0.14);
-  --cyan: #22d3ee;
-  --cyan-soft: rgba(34, 211, 238, 0.14);
-  --rose: #fb7185;
-  --rose-soft: rgba(251, 113, 133, 0.14);
+  /* Calm Dark-Mode Semantics */
+  --cyan: #56b4c2;
+  --cyan-soft: rgba(86, 180, 194, 0.13);
+  --emerald: #4bb58a;
+  --emerald-soft: rgba(75, 181, 138, 0.13);
+  --amber: #d99b43;
+  --amber-soft: rgba(217, 155, 67, 0.13);
+  --rose: #e06c7b;
+  --rose-soft: rgba(224, 108, 123, 0.13);
+
+  /* Surfaces, Overlays, Charts & Subtle Elevation */
+  --overlay: rgba(0, 0, 0, 0.62);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 20px -12px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 24px 60px -12px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --chart-bg: #14151a;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-axis: #8b91a0;
+  --graph-bg: #121317;
+  --graph-dot: rgba(255, 255, 255, 0.08);
+  --graph-edge: rgba(150, 155, 168, 0.24);
+  --graph-node-card: #94a3b8;
+  --code-accent: #d99b43;
 }
 
 * {
@@ -44,6 +105,7 @@ body {
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -56,7 +118,7 @@ pre {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-/* Ultra-slim glowing scrollbars */
+/* Quiet minimal scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -67,106 +129,55 @@ pre {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 156, 212, 0.24);
+  background: var(--border-strong);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 130, 255, 0.5);
+  background: var(--ink-dim);
 }
 
-/* Sci-Fi Starfield + Holographic Grid Canvas for Graph View */
+/* Clean Architectural Dot-Grid Canvas for Graph View */
 .obsidian-graph-bg {
-  background-color: #06080e;
-  background-image:
-    radial-gradient(circle at 50% 48%, rgba(124, 77, 255, 0.13) 0%, rgba(34, 211, 238, 0.05) 36%, transparent 70%),
-    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
-    radial-gradient(rgba(226, 232, 240, 0.16) 1px, transparent 1px);
-  background-size:
-    100% 100%,
-    44px 44px,
-    44px 44px,
-    88px 88px;
-  background-position:
-    center,
-    0 0,
-    0 0,
-    22px 22px;
+  background-color: var(--graph-bg);
+  background-image: radial-gradient(var(--graph-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
 }
 
-/* Subtle Ambient Nebula Background for Main Pages */
+/* Calm Matte Viewport Background — Zero Nebula / Neon Glare */
 .scifi-viewport-bg {
   background-color: var(--bg);
-  background-image:
-    radial-gradient(ellipse 68% 42% at 18% 0%, rgba(124, 77, 255, 0.09), transparent 70%),
-    radial-gradient(ellipse 52% 38% at 86% 8%, rgba(34, 211, 238, 0.07), transparent 68%);
 }
 
-/* Holographic Glass Panel Highlight */
+/* Clean Editorial Surface Card */
 .scifi-card {
-  background: linear-gradient(160deg, rgba(20, 27, 45, 0.92) 0%, rgba(14, 18, 30, 0.96) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 12px 32px -16px rgba(0, 0, 0, 0.7);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 @keyframes energy-flow {
   from {
-    stroke-dashoffset: 36;
+    stroke-dashoffset: 24;
   }
   to {
     stroke-dashoffset: 0;
   }
 }
 
-@keyframes pulse-ring {
-  0%,
-  100% {
-    opacity: 0.48;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.92;
-    transform: scale(1.16);
-  }
-}
-
-@keyframes slow-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .graph-energy-edge {
-  stroke-dasharray: 6 6;
-  animation: energy-flow 1.15s linear infinite;
-}
-
-.graph-pulse-halo {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pulse-ring 2.2s ease-in-out infinite;
-}
-
-.graph-radar-orbit {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: slow-spin 90s linear infinite;
+  stroke-dasharray: 5 5;
+  animation: energy-flow 1.8s linear infinite;
 }
 
 input[type="date"] {
-  color-scheme: dark;
   cursor: pointer;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.85;
-  filter: brightness(1.15);
+  opacity: 0.72;
   transition: opacity 0.15s ease;
 }
 

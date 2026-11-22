@@ -148,7 +148,7 @@ export default function LedgerCsvModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#04060c]/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -156,14 +156,14 @@ export default function LedgerCsvModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#f8fafc]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-strong)]">
             <FileSpreadsheet className="h-4 w-4 text-[var(--emerald)]" />
             智能导入券商交割单 / 每日净值表（兼容同花顺 / 通达信 / 东财 / 华泰 / 富途 / Excel）
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-white"
+            className="rounded p-1 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -229,7 +229,7 @@ export default function LedgerCsvModal({
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="粘贴含表头的表格文本（支持 Tab 或逗号分隔）..."
-                className="w-full flex-1 rounded border border-[var(--border)] bg-[#060911] p-2 font-mono text-[11px] text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
+                className="w-full flex-1 rounded border border-[var(--border)] bg-[var(--chart-bg)] p-2 font-mono text-[11px] text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
               />
             </div>
           </div>
@@ -239,11 +239,11 @@ export default function LedgerCsvModal({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-[var(--emerald)]" />
-                  <span className="font-semibold text-[#f8fafc]">
+                  <span className="font-semibold text-[var(--ink-strong)]">
                     识别成功：共 {preview.totalRows} 行 · 编码 {preview.encoding.toUpperCase()}
                   </span>
                   {preview.redactedColumns.length > 0 && (
-                    <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
+                    <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] text-[var(--emerald)]">
                       已自动脱敏丢弃：{preview.redactedColumns.join("、")}
                     </span>
                   )}
@@ -276,7 +276,7 @@ export default function LedgerCsvModal({
                   <label key={f.key} className="block space-y-1">
                     <span className="text-[10px] text-[var(--ink-muted)]">
                       {f.label}
-                      {f.required && <span className="text-red-400"> *</span>}
+                      {f.required && <span className="text-[var(--rose)]"> *</span>}
                     </span>
                     <select
                       value={mapping[f.key] !== undefined ? String(mapping[f.key]) : ""}
@@ -327,7 +327,7 @@ export default function LedgerCsvModal({
             </div>
           )}
 
-          {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-red-200">{err}</div>}
+          {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-[var(--rose)]">{err}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">

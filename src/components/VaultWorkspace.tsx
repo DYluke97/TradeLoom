@@ -495,7 +495,7 @@ export default function VaultWorkspace() {
               type="button"
               onClick={() => handleAction("clear-samples")}
               disabled={busy}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-amber-500/35 bg-amber-500/10 py-1 text-[11px] text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-amber-500/35 bg-amber-500/10 py-1 text-[11px] text-[var(--amber)] transition hover:bg-amber-500/20 disabled:opacity-50"
             >
               <Trash2 className="h-3 w-3" />
               一键清理 6 篇演示样本
@@ -598,7 +598,7 @@ export default function VaultWorkspace() {
               onClick={() => setCenterMode("graph")}
               className={`flex items-center gap-1 rounded-t border-x border-t px-2.5 py-1 text-xs transition ${
                 centerMode === "graph"
-                  ? "border-[var(--cyan)]/45 bg-[var(--bg)] font-medium text-[var(--cyan)] shadow-[0_-4px_14px_rgba(34,211,238,0.16)]"
+                  ? "border-[var(--cyan)]/45 bg-[var(--bg)] font-medium text-[var(--cyan)]"
                   : "border-transparent text-[var(--ink-dim)] hover:text-[var(--cyan)]"
               }`}
             >
@@ -646,7 +646,7 @@ export default function VaultWorkspace() {
             {centerMode !== "graph" && docData?.doc && !editing && (
               confirmDelete ? (
                 <div className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[11px]">
-                  <span className="text-red-300">移入回收站？</span>
+                  <span className="text-[var(--rose)]">移入回收站？</span>
                   <button
                     type="button"
                     disabled={busy}
@@ -668,7 +668,7 @@ export default function VaultWorkspace() {
                   type="button"
                   onClick={() => setConfirmDelete(true)}
                   title="将本篇笔记移入本地回收站 workspace/.trash/"
-                  className="inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-red-500/50 hover:text-red-300"
+                  className="inline-flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-1 text-[11px] text-[var(--ink-muted)] transition hover:border-red-500/50 hover:text-[var(--rose)]"
                 >
                   <Trash2 className="h-3 w-3" />
                   回收站
@@ -692,7 +692,7 @@ export default function VaultWorkspace() {
                   type="button"
                   onClick={handleSaveSource}
                   disabled={busy}
-                  className="inline-flex items-center gap-1 rounded bg-[var(--emerald)] px-2.5 py-1 text-[11px] font-semibold text-[#0b1310]"
+                  className="inline-flex items-center gap-1 rounded bg-[var(--emerald)] px-2.5 py-1 text-[11px] font-semibold text-white"
                 >
                   <Save className="h-3 w-3" />
                   安全保存
@@ -757,10 +757,10 @@ export default function VaultWorkspace() {
                 <>
                   {docData.doc?.event_date && ledgerByDate[docData.doc.event_date] && (() => {
                     const snap = ledgerByDate[docData.doc.event_date!];
-                    const upCls = ledgerColor === "cn" ? "text-red-400" : "text-emerald-400";
-                    const downCls = ledgerColor === "cn" ? "text-emerald-400" : "text-red-400";
+                    const upCls = ledgerColor === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+                    const downCls = ledgerColor === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
                     return (
-                      <div className="mb-5 rounded-xl border border-[var(--cyan)]/35 bg-[#090f1d]/95 p-3.5 text-xs shadow-[0_0_20px_rgba(34,211,238,0.08)]">
+                      <div className="mb-5 rounded-xl border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-3.5 text-xs">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono">
                             <span className="inline-flex items-center gap-1.5 font-sans font-semibold text-[var(--cyan)]">
@@ -777,16 +777,16 @@ export default function VaultWorkspace() {
                                   </strong>
                                 </span>
                                 <span className="text-[var(--ink-muted)]">净值 {snap.nav.toFixed(4)}</span>
-                                <span className="text-red-300/80">回撤 {snap.drawdownPct.toFixed(2)}%</span>
+                                <span className="text-[var(--rose)]">回撤 {snap.drawdownPct.toFixed(2)}%</span>
                               </>
                             )}
                             {snap.positionPct !== undefined && (
-                              <span className={snap.positionPct > 100 ? "font-semibold text-amber-300" : "text-[var(--ink-muted)]"}>
+                              <span className={snap.positionPct > 100 ? "font-semibold text-[var(--amber)]" : "text-[var(--ink-muted)]"}>
                                 仓位 {snap.positionPct}%{snap.positionPct > 100 ? " (含融)" : ""}
                               </span>
                             )}
                             {snap.excessDailyPct !== undefined && (
-                              <span className={snap.excessDailyPct >= 0 ? "text-[var(--cyan)]" : "text-amber-400"}>
+                              <span className={snap.excessDailyPct >= 0 ? "text-[var(--cyan)]" : "text-[var(--amber)]"}>
                                 超额 {snap.excessDailyPct >= 0 ? "+" : ""}
                                 {snap.excessDailyPct.toFixed(2)}%
                               </span>
@@ -806,7 +806,7 @@ export default function VaultWorkspace() {
                                 title="点击查看该股真实 K 线买卖节点"
                                 className="inline-flex items-center gap-1 rounded border border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 font-mono text-[10px] text-[var(--ink)] transition hover:border-[var(--cyan)]/60"
                               >
-                                <span className={tr.side === "BUY" ? "font-bold text-rose-400" : "font-bold text-sky-400"}>
+                                <span className={tr.side === "BUY" ? "font-bold text-[var(--rose)]" : "font-bold text-[var(--cyan)]"}>
                                   {tr.side === "BUY" ? "B" : "S"}
                                 </span>
                                 <span className="font-sans">{tr.name}</span>
@@ -1029,7 +1029,7 @@ export default function VaultWorkspace() {
 
       {conceptsOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#04060c]/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm"
           onClick={() => {
             setConceptsOpen(false);
             loadIndex();
@@ -1037,12 +1037,12 @@ export default function VaultWorkspace() {
           }}
         >
           <div
-            className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[#0f1422] shadow-2xl"
+            className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-deep)] px-5 py-3">
               <div>
-                <h3 className="text-sm font-semibold text-[#f8fafc]">本库核心关键词词典（仅作用于当前知识库）</h3>
+                <h3 className="text-sm font-semibold text-[var(--ink-strong)]">本库核心关键词词典（仅作用于当前知识库）</h3>
                 <p className="text-[11px] text-[var(--ink-dim)]">
                   决定哪些交易术语会被自动提取为主题节点与双链连线；不同知识库拥有各自独立的词典。
                 </p>

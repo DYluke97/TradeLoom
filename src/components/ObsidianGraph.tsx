@@ -19,19 +19,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
 
 const NODE_COLORS: Record<VaultNodeType, string> = {
-  overview: "#b388ff",
-  manual: "#34d399",
-  card: "#f1f5f9",
-  topic: "#22d3ee",
-  timeline: "#fbbf24",
+  overview: "var(--accent)",
+  manual: "var(--emerald)",
+  card: "var(--graph-node-card)",
+  topic: "var(--cyan)",
+  timeline: "var(--amber)",
 };
 
 const NODE_GLOW: Record<VaultNodeType, string> = {
-  overview: "rgba(179,136,255,0.55)",
-  manual: "rgba(52,211,153,0.5)",
-  card: "rgba(226,232,240,0.45)",
-  topic: "rgba(34,211,238,0.52)",
-  timeline: "rgba(251,191,36,0.5)",
+  overview: "var(--accent-soft)",
+  manual: "var(--emerald-soft)",
+  card: "var(--surface-3)",
+  topic: "var(--cyan-soft)",
+  timeline: "var(--amber-soft)",
 };
 
 const NODE_LABELS: Record<VaultNodeType, string> = {
@@ -215,7 +215,7 @@ function buildGraphTopology(
         kind: "rings",
         cx,
         cy,
-        rings: [{ r: innerR, label: "", color: "rgba(34,211,238,0.18)" }],
+        rings: [{ r: innerR, label: "", color: "var(--border-strong)" }],
       },
     };
   }
@@ -248,13 +248,13 @@ function buildGraphTopology(
 
   if (layoutMode === "layered") {
     const colSpecs: Array<{ key: string; label: string; color: string; x: number; items: typeof candidates }> = [
-      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "#fbbf24", x: width * 0.14, items: buckets.timeline },
-      { key: "card", label: "02 // 复盘原件卡片", color: "#f1f5f9", x: width * 0.38, items: buckets.card },
-      { key: "topic", label: "03 // 主题与概念星核", color: "#22d3ee", x: width * 0.66, items: buckets.topic },
+      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "var(--amber)", x: width * 0.14, items: buckets.timeline },
+      { key: "card", label: "02 // 复盘原件卡片", color: "var(--graph-node-card)", x: width * 0.38, items: buckets.card },
+      { key: "topic", label: "03 // 主题与概念星核", color: "var(--cyan)", x: width * 0.66, items: buckets.topic },
       {
         key: "manual",
         label: "04 // 总览 & 交易手册",
-        color: "#34d399",
+        color: "var(--emerald)",
         x: width * 0.89,
         items: [...buckets.overview, ...buckets.manual],
       },
@@ -398,9 +398,9 @@ function buildGraphTopology(
       cx,
       cy,
       rings: [
-        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "rgba(241,245,249,0.16)" },
-        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "rgba(34,211,238,0.22)" },
-        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "rgba(251,191,36,0.20)" },
+        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "var(--border-strong)" },
+        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "var(--border-strong)" },
+        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "var(--border-strong)" },
       ],
     };
   }
@@ -841,7 +841,7 @@ export default function ObsidianGraph({
       {/* Sci-Fi HUD Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-2 backdrop-blur-md">
         <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink)]">
-          <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)] shadow-[0_0_10px_rgba(34,211,238,0.28)]">
+          <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)]">
             <Network className="h-3 w-3" />
           </span>
           <span className="tracking-wide">
@@ -861,7 +861,7 @@ export default function ObsidianGraph({
                   onClick={() => setLayoutMode("orbital")}
                   className={`inline-flex items-center gap-1 rounded px-2 py-0.5 transition ${
                     layoutMode === "orbital"
-                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)] shadow-[inset_0_0_8px_rgba(168,130,255,0.25)]"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
@@ -873,7 +873,7 @@ export default function ObsidianGraph({
                   onClick={() => setLayoutMode("layered")}
                   className={`inline-flex items-center gap-1 rounded px-2 py-0.5 transition ${
                     layoutMode === "layered"
-                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)] shadow-[inset_0_0_8px_rgba(168,130,255,0.25)]"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
                       : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   }`}
                 >
@@ -999,10 +999,10 @@ export default function ObsidianGraph({
               {/* Ambient Holographic Orbital Architecture Guides */}
               {guide?.kind === "rings" && (
                 <g className="pointer-events-none">
-                  <circle cx={guide.cx} cy={guide.cy} r={mode === "global" ? 450 : 120} fill="url(#core-nebula)" />
+                  
                   {/* Subtle crosshairs */}
                   {mode === "global" && (
-                    <g opacity={0.14} stroke="#38bdf8" strokeWidth={0.7} strokeDasharray="3 8">
+                    <g opacity={0.14} stroke="var(--border)" strokeWidth={0.7} strokeDasharray="3 8">
                       <line x1={guide.cx - 460} y1={guide.cy} x2={guide.cx + 460} y2={guide.cy} />
                       <line x1={guide.cx} y1={guide.cy - 460} x2={guide.cx} y2={guide.cy + 460} />
                     </g>
@@ -1017,14 +1017,14 @@ export default function ObsidianGraph({
                         stroke={ring.color}
                         strokeWidth={1.1}
                         strokeDasharray={idx === 1 ? "8 5 2 5" : "4 7"}
-                        className={idx === 1 && mode === "global" ? "graph-radar-orbit" : undefined}
+                        
                       />
                       {ring.label && (
                         <text
                           x={guide.cx}
                           y={guide.cy - ring.r - 8}
                           textAnchor="middle"
-                          fill="rgba(148,163,184,0.52)"
+                          fill="var(--ink-dim)"
                           fontSize={9.5}
                           fontFamily="monospace"
                           letterSpacing={2}
@@ -1088,16 +1088,16 @@ export default function ObsidianGraph({
                         y2={b.y}
                         stroke={
                           highlighted
-                            ? "#22d3ee"
+                            ? "var(--accent)"
                             : e.direction === "out"
-                              ? "rgba(179,136,255,0.48)"
+                              ? "var(--accent)"
                               : e.direction === "in"
-                                ? "rgba(52,211,153,0.44)"
-                                : `rgba(148,163,184,${baseOpacity})`
+                                ? "var(--emerald)"
+                                : "var(--graph-edge)"
                         }
                         strokeWidth={(highlighted ? 2.1 : 0.9) / Math.sqrt(transform.k)}
                         opacity={dimmed ? 0.05 : highlighted ? 0.92 : 1}
-                        filter={highlighted ? "url(#neon-glow-soft)" : undefined}
+                        
                       />
                       {/* Animated neon energy pulse along highlighted links */}
                       {highlighted && (
@@ -1106,7 +1106,7 @@ export default function ObsidianGraph({
                           y1={a.y}
                           x2={b.x}
                           y2={b.y}
-                          stroke="#e879f9"
+                          stroke="var(--accent)"
                           strokeWidth={1.6 / Math.sqrt(transform.k)}
                           opacity={0.95}
                           className="graph-energy-edge pointer-events-none"
@@ -1124,7 +1124,7 @@ export default function ObsidianGraph({
                   const isInLockedSubgraph = Boolean(lockedCluster?.has(n.rel));
                   const isFocused = focusRel === n.rel;
                   const dimmed = Boolean(connectedToFocus && !connectedToFocus.has(n.rel));
-                  const fill = n.isCenter ? "#b388ff" : NODE_COLORS[n.nodeType];
+                  const fill = n.isCenter ? "var(--accent)" : NODE_COLORS[n.nodeType];
                   const glow = n.isCenter ? NODE_GLOW.overview : NODE_GLOW[n.nodeType];
 
                   const showLabel =
@@ -1152,10 +1152,10 @@ export default function ObsidianGraph({
                           <circle
                             r={n.r + 12}
                             fill="none"
-                            stroke="#22d3ee"
+                            stroke="var(--accent)"
                             strokeWidth={1.3}
                             strokeDasharray="5 4"
-                            className="graph-pulse-halo"
+                            
                           />
                           <circle r={n.r + 7} fill={glow} opacity={0.38} />
                         </g>
@@ -1166,7 +1166,7 @@ export default function ObsidianGraph({
                         <circle
                           r={n.r + 5.5}
                           fill="none"
-                          stroke="#b388ff"
+                          stroke="var(--accent)"
                           strokeWidth={1.1}
                           opacity={0.85}
                           className="pointer-events-none"
@@ -1182,23 +1182,23 @@ export default function ObsidianGraph({
                       <circle
                         r={isLockedAnchor ? n.r + 2.5 : isFocused ? n.r + 1.6 : n.r}
                         fill={fill}
-                        stroke={isLockedAnchor ? "#22d3ee" : isFocused || n.isCenter ? "#ffffff" : "#07090f"}
+                        stroke={isLockedAnchor ? "var(--accent)" : isFocused || n.isCenter ? "#ffffff" : "#07090f"}
                         strokeWidth={isLockedAnchor ? 2 : isFocused || n.isCenter ? 1.5 : 1.1}
-                        filter={isLockedAnchor || isFocused || n.isCenter ? "url(#neon-glow-strong)" : "url(#neon-glow-soft)"}
+                        
                       />
 
                       {/* Specular Inner Core Dot */}
-                      <circle r={Math.max(1.4, n.r * 0.28)} fill="#ffffff" opacity={0.78} className="pointer-events-none" />
+                      
 
                       {showLabel && (
                         <text
                           y={n.r + (mode === "global" ? 15 : 12)}
                           textAnchor="middle"
-                          fill={isLockedAnchor ? "#22d3ee" : isFocused || isInLockedSubgraph || n.isCenter ? "#ffffff" : "#cbd5e1"}
+                          fill={isLockedAnchor ? "var(--accent)" : isFocused || isInLockedSubgraph || n.isCenter ? "#ffffff" : "#cbd5e1"}
                           fontSize={(mode === "global" ? 11 : 9.2) / Math.pow(transform.k, 0.35)}
                           fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 400}
                           paintOrder="stroke"
-                          stroke="#06080e"
+                          stroke="var(--graph-bg)"
                           strokeWidth={3.6}
                           strokeLinejoin="round"
                           className="pointer-events-none"
@@ -1216,20 +1216,20 @@ export default function ObsidianGraph({
 
         {/* Holographic Locked-Node HUD Inspector (2-step click feedback!) */}
         {lockedNode && (
-          <div className="absolute left-3 top-3 max-w-[300px] rounded-lg border border-[var(--cyan)]/45 bg-[#090d18]/92 p-3 text-xs shadow-[0_0_24px_rgba(34,211,238,0.18)] backdrop-blur-md">
+          <div className="absolute left-3 top-3 max-w-[300px] rounded-lg border border-[var(--cyan)]/45 bg-[var(--bg-deep)] p-3 text-xs backdrop-blur-md">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--cyan)]">
                   <Lock className="h-3 w-3" />
                   <span>结构已锁定 · {NODE_LABELS[lockedNode.nodeType]}</span>
                 </div>
-                <div className="mt-1 truncate text-xs font-semibold text-white">{lockedNode.title}</div>
+                <div className="mt-1 truncate text-xs font-semibold text-[var(--ink-strong)]">{lockedNode.title}</div>
               </div>
               <button
                 type="button"
                 onClick={() => setLockedRel(null)}
                 title="解除锁定 (Esc)"
-                className="rounded p-0.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-white"
+                className="rounded p-0.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1265,7 +1265,7 @@ export default function ObsidianGraph({
 
         {/* Damped Push-Pull Physics Tuning Popover */}
         {mode === "global" && showSettings && (
-          <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[#0b1020]/95 p-3.5 text-xs shadow-[0_0_24px_rgba(124,77,255,0.2)] backdrop-blur-md">
+          <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] p-3.5 text-xs backdrop-blur-md">
             <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-[var(--cyan)]" />
@@ -1345,7 +1345,7 @@ export default function ObsidianGraph({
 
         {/* Bottom HUD Legend & 2-Step Gesture Guide */}
         <div className="pointer-events-none absolute bottom-2 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2.5 rounded border border-[var(--border)] bg-[#070a12]/88 px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-2.5 rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
             {(["overview", "card", "topic", "timeline", "manual"] as const).map((t) => (
               <span key={t} className="inline-flex items-center gap-1">
                 <span
@@ -1357,7 +1357,7 @@ export default function ObsidianGraph({
             ))}
           </div>
 
-          <div className="hidden rounded border border-[var(--border)] bg-[#070a12]/85 px-2.5 py-1 text-[10px] text-[var(--ink-muted)] sm:block">
+          <div className="hidden rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] sm:block">
             单击锁定关联结构 · 再次单击高亮节点进详情 · 拖拽节点阻尼推拉 · 滚轮缩放
           </div>
         </div>

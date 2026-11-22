@@ -96,7 +96,7 @@ export default function ManualsArchive() {
     return (
       <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-12 text-center">
         <BookOpen className="mx-auto h-8 w-8 text-[var(--accent)] opacity-85" />
-        <h2 className="mt-3 text-base font-semibold text-[#f1f2f5]">尚未沉淀任何个人交易手册</h2>
+        <h2 className="mt-3 text-base font-semibold text-[var(--ink-strong)]">尚未沉淀任何个人交易手册</h2>
         <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
           前往「阶段提炼」勾选一段时期的复盘样本，选择短线或基本面 Skill 生成你的第一份可回溯交易手册。
           生成后也会自动写入 Obsidian 知识库的 <code>40-交易手册/</code> 目录。
@@ -154,7 +154,7 @@ export default function ManualsArchive() {
     <div className="grid gap-5 lg:grid-cols-[330px_minmax(0,1fr)]">
       <aside className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5">
         <div className="flex items-center justify-between gap-2 px-1">
-          <div className="text-xs font-semibold text-[#f1f2f5]">已沉淀手册（{manuals.length}）</div>
+          <div className="text-xs font-semibold text-[var(--ink-strong)]">已沉淀手册（{manuals.length}）</div>
           <span className="font-mono text-[10px] text-[var(--ink-dim)]">
             L2:{hierarchy.l2List.length} / L1:{hierarchy.l1List.length}
           </span>
@@ -216,7 +216,7 @@ export default function ManualsArchive() {
                         <div
                           className={`group rounded-lg border p-2.5 transition ${
                             isActive
-                              ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50 shadow-[0_0_16px_rgba(34,211,238,0.12)]"
+                              ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50"
                               : "border-[var(--cyan)]/35 bg-[var(--bg-deep)] hover:border-[var(--cyan)]/70"
                           }`}
                         >
@@ -235,7 +235,7 @@ export default function ManualsArchive() {
                                   {formatShortRange(parent)}
                                 </span>
                               </div>
-                              <div className="mt-1.5 line-clamp-2 text-xs font-semibold leading-4.5 text-[#f1f2f5]" title={parent.title}>
+                              <div className="mt-1.5 line-clamp-2 text-xs font-semibold leading-4.5 text-[var(--ink-strong)]" title={parent.title}>
                                 {parent.title}
                               </div>
                               <div className="mt-1 text-[11px] text-[var(--ink-dim)]">
@@ -343,7 +343,7 @@ export default function ManualsArchive() {
                         </span>
                         <span className="font-mono text-[10px] text-[var(--ink-dim)]">{formatShortRange(parent)}</span>
                       </div>
-                      <div className="mt-1 truncate text-xs font-semibold text-[#f1f2f5]">{parent.title}</div>
+                      <div className="mt-1 truncate text-xs font-semibold text-[var(--ink-strong)]">{parent.title}</div>
                       <div className="mt-0.5 text-[11px] text-[var(--ink-dim)]">
                         {parent.statistics.rules_count} 条规则 · {parent.statistics.timeline_count} 节点
                       </div>

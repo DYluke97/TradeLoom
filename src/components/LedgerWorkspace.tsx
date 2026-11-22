@@ -107,8 +107,8 @@ export default function LedgerWorkspace() {
     return stocks.find((s) => s.symbol === selectedSymbol) ?? stocks[0];
   }, [stocks, selectedSymbol]);
 
-  const upText = settings.colorScheme === "cn" ? "text-red-400" : "text-emerald-400";
-  const downText = settings.colorScheme === "cn" ? "text-emerald-400" : "text-red-400";
+  const upText = settings.colorScheme === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+  const downText = settings.colorScheme === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
 
   async function postAction(body: Record<string, unknown>, msg?: string) {
     setBusy(true);
@@ -143,7 +143,7 @@ export default function LedgerWorkspace() {
               <Activity className="h-3 w-3" />
               A-SHARE LIVE MARKET · REAL-MONEY LEDGER · QUANT AUDIT
             </div>
-            <h1 className="mt-2.5 text-xl font-bold tracking-tight text-[#f8fafc]">
+            <h1 className="mt-2.5 text-xl font-bold tracking-tight text-[var(--ink-strong)]">
               实盘投资账本 · 净值曲线与个股 K 线买卖节点
             </h1>
             <p className="mt-1 text-xs leading-5 text-[var(--ink-muted)]">
@@ -209,7 +209,7 @@ export default function LedgerWorkspace() {
             <button
               type="button"
               onClick={() => setCsvOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_16px_rgba(124,77,255,0.4)] transition hover:bg-[var(--accent)]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
               导入交割单 / 净值 CSV
@@ -220,7 +220,7 @@ export default function LedgerWorkspace() {
                 type="button"
                 disabled={busy}
                 onClick={() => postAction({ action: "clear-demo" }, "已清空演示账本数据，你的个人记录完好保留。")}
-                className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-[var(--amber)] hover:bg-amber-500/20 disabled:opacity-50"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 清理演示账本
@@ -266,7 +266,7 @@ export default function LedgerWorkspace() {
             </div>
             <div
               className={`mt-1 font-mono text-xl font-bold ${
-                (kpi?.excessAlphaPct ?? 0) >= 0 ? "text-[var(--cyan)]" : "text-amber-400"
+                (kpi?.excessAlphaPct ?? 0) >= 0 ? "text-[var(--cyan)]" : "text-[var(--amber)]"
               }`}
             >
               {fmtSigned(kpi?.excessAlphaPct)}
@@ -278,7 +278,7 @@ export default function LedgerWorkspace() {
 
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/90 p-3">
             <div className="font-mono text-[10px] uppercase text-[var(--ink-dim)]">最大回撤 (MDD)</div>
-            <div className="mt-1 font-mono text-xl font-bold text-red-400">
+            <div className="mt-1 font-mono text-xl font-bold text-[var(--rose)]">
               {kpi && kpi.tradingDays > 0 ? `${kpi.mddPct.toFixed(2)}%` : "--"}
             </div>
             <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--ink-dim)]">
@@ -289,7 +289,7 @@ export default function LedgerWorkspace() {
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/90 p-3">
             <div className="font-mono text-[10px] uppercase text-[var(--ink-dim)]">日胜率 / 盈亏比 (PF)</div>
             <div className="mt-1 flex items-baseline gap-1.5 font-mono">
-              <span className="text-xl font-bold text-[#f8fafc]">
+              <span className="text-xl font-bold text-[var(--ink-strong)]">
                 {kpi && kpi.tradingDays > 0 ? `${kpi.dailyWinRatePct.toFixed(1)}%` : "--"}
               </span>
               <span className="text-xs text-[var(--accent)]">
@@ -305,7 +305,7 @@ export default function LedgerWorkspace() {
             <div className="font-mono text-[10px] uppercase text-[var(--ink-dim)]">峰值仓位 / 融资暴露</div>
             <div
               className={`mt-1 font-mono text-xl font-bold ${
-                (kpi?.peakPositionPct ?? 0) > 100 ? "text-amber-300" : "text-[#f8fafc]"
+                (kpi?.peakPositionPct ?? 0) > 100 ? "text-[var(--amber)]" : "text-[var(--ink-strong)]"
               }`}
             >
               {kpi?.peakPositionPct !== null && kpi?.peakPositionPct !== undefined
@@ -403,7 +403,7 @@ export default function LedgerWorkspace() {
         <section className="grid gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
           <div className="scifi-card flex flex-col rounded-xl p-3">
             <div className="flex items-center justify-between gap-2 pb-2">
-              <span className="text-xs font-semibold text-[#f8fafc]">交易标的战绩榜</span>
+              <span className="text-xs font-semibold text-[var(--ink-strong)]">交易标的战绩榜</span>
               <button
                 type="button"
                 onClick={() => {
@@ -448,13 +448,13 @@ export default function LedgerWorkspace() {
                       onClick={() => setSelectedSymbol(s.symbol)}
                       className={`w-full rounded-lg border p-2.5 text-left transition ${
                         active
-                          ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50 shadow-[0_0_16px_rgba(34,211,238,0.12)]"
+                          ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50"
                           : "border-[var(--border)] bg-[var(--bg-deep)]/75 hover:border-[var(--border-strong)]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-xs font-semibold text-[#f8fafc]">{s.name}</div>
+                          <div className="truncate text-xs font-semibold text-[var(--ink-strong)]">{s.name}</div>
                           <div className="font-mono text-[10px] text-[var(--ink-dim)]">
                             {s.market}.{s.symbol} · {s.buyCount}买/{s.sellCount}卖
                           </div>

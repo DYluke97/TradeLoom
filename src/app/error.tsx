@@ -26,7 +26,7 @@ export default function GlobalRouteError({
   return (
     <div className="flex min-h-[70vh] items-center justify-center p-6">
       <div className="max-w-md space-y-4 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-6 text-xs shadow-2xl">
-        <div className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--amber)]">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           界面状态需要刷新同步
         </div>
@@ -34,7 +34,7 @@ export default function GlobalRouteError({
           检测到前端视图异常（常见于本地服务刚刚热更新构建后，浏览器仍持有旧版脚本缓存）。你的本地笔记与配置均完好无损。
         </p>
         {error?.message && (
-          <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-2.5 font-mono text-[11px] text-red-300">
+          <pre className="max-h-24 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-2.5 font-mono text-[11px] text-[var(--rose)]">
             {error.message}
           </pre>
         )}

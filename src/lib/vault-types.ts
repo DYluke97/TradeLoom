@@ -3,13 +3,13 @@ export const DEMO_VAULT_ID = "demo-sandbox";
 export type VaultTemplateId = "short-term" | "fundamental" | "trend-swing" | "custom";
 
 export const VAULT_ACCENT_COLORS = [
-  "#7c4dff",
-  "#22d3ee",
-  "#10b981",
-  "#f59e0b",
-  "#ec4899",
-  "#38bdf8",
-  "#a855f7",
+  "#3b5bdb",
+  "#0f766e",
+  "#157f57",
+  "#b4690e",
+  "#be4b5a",
+  "#5b6bc0",
+  "#475569",
 ];
 
 export type VaultConnectorFilterMap = Record<string, Record<string, string>>;

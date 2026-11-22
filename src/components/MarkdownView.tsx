@@ -11,14 +11,14 @@ function renderInlines(
 ): React.ReactNode {
   return inlines.map((part, idx) => {
     if ("text" in part) return <React.Fragment key={idx}>{part.text}</React.Fragment>;
-    if ("strong" in part) return <strong key={idx} className="font-semibold text-[#f1f2f5]">{part.strong}</strong>;
+    if ("strong" in part) return <strong key={idx} className="font-semibold text-[var(--ink-strong)]">{part.strong}</strong>;
     if ("em" in part) return <em key={idx} className="italic text-[var(--ink-muted)]">{part.em}</em>;
     if ("del" in part) return <del key={idx} className="text-[var(--ink-dim)]">{part.del}</del>;
     if ("code" in part) {
       return (
         <code
           key={idx}
-          className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 text-[0.86em] text-[#e0b354]"
+          className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 text-[0.86em] text-[var(--code-accent)]"
         >
           {part.code}
         </code>
@@ -74,13 +74,13 @@ function renderBlock(
   switch (block.type) {
     case "h1":
       return (
-        <h1 key={idx} className="mb-4 mt-1 text-2xl font-bold tracking-tight text-[#f3f4f6]">
+        <h1 key={idx} className="mb-4 mt-1 text-2xl font-bold tracking-tight text-[var(--ink-strong)]">
           {renderInlines(block.inlines, onWikiClick, onTagClick)}
         </h1>
       );
     case "h2":
       return (
-        <h2 key={idx} className="mb-2.5 mt-7 border-b border-[var(--border)] pb-1.5 text-[17px] font-semibold text-[#eceef2]">
+        <h2 key={idx} className="mb-2.5 mt-7 border-b border-[var(--border)] pb-1.5 text-[17px] font-semibold text-[var(--ink-strong)]">
           {renderInlines(block.inlines, onWikiClick, onTagClick)}
         </h2>
       );
@@ -117,7 +117,7 @@ function renderBlock(
       return (
         <pre
           key={idx}
-          className="my-3.5 overflow-x-auto rounded-md border border-[var(--border)] bg-[var(--bg-deep)] p-3.5 text-xs leading-6 text-[#cfd2dc]"
+          className="my-3.5 overflow-x-auto rounded-md border border-[var(--border)] bg-[var(--bg-deep)] p-3.5 text-xs leading-6 text-[var(--ink)]"
         >
           <code>{block.text}</code>
         </pre>

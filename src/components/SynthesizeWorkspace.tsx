@@ -277,7 +277,7 @@ export default function SynthesizeWorkspace() {
               ) : (
                 <Calendar className="h-4 w-4 text-[var(--accent)]" />
               )}
-              <h2 className="text-sm font-semibold text-[#f1f2f5]">
+              <h2 className="text-sm font-semibold text-[var(--ink-strong)]">
                 {sourceTab === "manuals" ? "1. 勾选已有阶段手册（Map-Reduce 二次综合）" : "1. 按时间线阶段框选复盘样本"}
               </h2>
             </div>
@@ -355,7 +355,7 @@ export default function SynthesizeWorkspace() {
                             <span className="font-mono text-[11px] text-[var(--amber)]">
                               {m.date_range?.from ?? "—"} ~ {m.date_range?.to ?? "—"}
                             </span>
-                            <span className="truncate text-xs font-semibold text-[#f1f2f5]">{m.title}</span>
+                            <span className="truncate text-xs font-semibold text-[var(--ink-strong)]">{m.title}</span>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ink-dim)]">
                             <span className="inline-flex items-center gap-1 text-[var(--cyan)]">
@@ -563,7 +563,7 @@ export default function SynthesizeWorkspace() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
                 <div className="text-xs text-[var(--ink-muted)]">
                   已选{" "}
-                  <span className="font-mono font-semibold text-[#f1f2f5]">{activeSelectionCount}</span>
+                  <span className="font-mono font-semibold text-[var(--ink-strong)]">{activeSelectionCount}</span>
                   {" / "}
                   <span className="font-mono">{totalInView}</span>{" "}
                   {sourceTab === "manuals" ? "份手册" : "篇复盘"}
@@ -594,7 +594,7 @@ export default function SynthesizeWorkspace() {
                     type="button"
                     disabled={activeSelectionCount === 0}
                     onClick={clearSelection}
-                    className="rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-xs text-[var(--ink-muted)] transition hover:border-rose-500/40 hover:text-rose-300 disabled:opacity-40"
+                    className="rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1 text-xs text-[var(--ink-muted)] transition hover:border-rose-500/40 hover:text-[var(--rose)] disabled:opacity-40"
                   >
                     清空
                   </button>
@@ -610,7 +610,7 @@ export default function SynthesizeWorkspace() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-[var(--accent)]" />
-                <h2 className="text-sm font-semibold text-[#f1f2f5]">2. 选择分析 Skill 与阶段命名</h2>
+                <h2 className="text-sm font-semibold text-[var(--ink-strong)]">2. 选择分析 Skill 与阶段命名</h2>
               </div>
               <Link
                 href="/settings?tab=skills"
@@ -636,7 +636,7 @@ export default function SynthesizeWorkspace() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-xs font-semibold text-[#f1f2f5]">{sk.name}</span>
+                        <span className="truncate text-xs font-semibold text-[var(--ink-strong)]">{sk.name}</span>
                         {!sk.builtin && (
                           <span className="shrink-0 rounded bg-[var(--cyan-soft)] px-1.5 py-0.2 text-[10px] text-[var(--cyan)]">
                             自定义
@@ -697,7 +697,7 @@ export default function SynthesizeWorkspace() {
                   {snapshot.fingerprint.slice(0, 12)}
                 </div>
                 {quantBrief ? (
-                  <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[#090f1d] p-2.5 text-[11px] text-[var(--ink)]">
+                  <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-2.5 text-[11px] text-[var(--ink)]">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="inline-flex cursor-pointer items-center gap-1.5 font-medium text-[var(--cyan)]">
                         <input

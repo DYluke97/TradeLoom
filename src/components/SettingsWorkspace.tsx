@@ -136,7 +136,7 @@ export default function SettingsWorkspace() {
           onClick={() => setActiveTab("skills")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium transition ${
             activeTab === "skills"
-              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_0_12px_rgba(124,77,255,0.2)]"
+              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
           }`}
         >
@@ -167,7 +167,7 @@ export default function SettingsWorkspace() {
           onClick={() => setActiveTab("connectors")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium transition ${
             activeTab === "connectors"
-              ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan)] shadow-[0_0_12px_rgba(34,211,238,0.18)]"
+              ? "border-[var(--cyan)] bg-[var(--cyan-soft)] text-[var(--cyan)]"
               : "border-[var(--border)] bg-[var(--surface)] text-[var(--ink-muted)] hover:text-[var(--cyan)]"
           }`}
         >
@@ -189,7 +189,7 @@ export default function SettingsWorkspace() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4 text-[var(--accent)]" />
-                <h2 className="text-sm font-semibold text-[#f1f2f5]">自配大模型 API（OpenAI 兼容协议）</h2>
+                <h2 className="text-sm font-semibold text-[var(--ink-strong)]">自配大模型 API（OpenAI 兼容协议）</h2>
               </div>
               {status?.configured && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[var(--emerald-soft)] px-2.5 py-0.5 text-[11px] text-[var(--emerald)]">
@@ -290,7 +290,7 @@ export default function SettingsWorkspace() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-                <h2 className="text-sm font-semibold text-[#f1f2f5]">已装载分析 Skill（{skills.length}）</h2>
+                <h2 className="text-sm font-semibold text-[var(--ink-strong)]">已装载分析 Skill（{skills.length}）</h2>
               </div>
               <button
                 type="button"

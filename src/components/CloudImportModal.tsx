@@ -258,18 +258,18 @@ export default function CloudImportModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#04060c]/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--cyan)]/35 bg-[#0f1422]/98 shadow-[0_24px_64px_rgba(0,0,0,0.8),0_0_32px_rgba(34,211,238,0.14)]"
+        className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--cyan)]/35 bg-[var(--surface)] shadow-[var(--shadow-modal)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex items-center gap-2">
             <Cloud className="h-4 w-4 text-[var(--cyan)]" />
-            <h2 className="text-sm font-semibold text-[#f8fafc]">云端复盘采集 · 粘贴 / URL 抓取 / 剪藏</h2>
+            <h2 className="text-sm font-semibold text-[var(--ink-strong)]">云端复盘采集 · 粘贴 / URL 抓取 / 剪藏</h2>
           </div>
           <button
             type="button"
@@ -437,7 +437,7 @@ export default function CloudImportModal({
                 />
               </div>
 
-              {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-xs text-red-300">{error}</div>}
+              {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-xs text-[var(--rose)]">{error}</div>}
 
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button
@@ -450,7 +450,7 @@ export default function CloudImportModal({
                 <button
                   type="submit"
                   disabled={busy || (!content.trim() && !capturedHtml.trim())}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#7c4dff] to-[#22d3ee] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_0_16px_rgba(34,211,238,0.28)] transition hover:brightness-110 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   {busy ? "正在转 Markdown 并构建双链..." : "一键入库并编排双链"}
@@ -552,7 +552,7 @@ export default function CloudImportModal({
               )}
 
               {error && (
-                <div className="space-y-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
+                <div className="space-y-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-[var(--rose)]">
                   <div>{error}</div>
                   {requiresLoginHint && (
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -592,7 +592,7 @@ export default function CloudImportModal({
                 <button
                   type="submit"
                   disabled={busy || !urlInput.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_0_16px_rgba(124,77,255,0.4)] transition hover:bg-[var(--accent)] disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   {busy
@@ -628,7 +628,7 @@ export default function CloudImportModal({
                     onClick={(e) => e.preventDefault()}
                     draggable
                     title="按住此按钮拖到浏览器书签栏"
-                    className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--cyan)]/60 bg-gradient-to-r from-[#7c4dff]/35 to-[#22d3ee]/35 px-3.5 py-2 text-xs font-semibold text-[#f8fafc] shadow-[0_0_16px_rgba(34,211,238,0.22)] active:cursor-grabbing"
+                    className="inline-flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--cyan)]/60 bg-[var(--accent-soft)] px-3.5 py-2 text-xs font-semibold text-[var(--ink-strong)] active:cursor-grabbing"
                   >
                     <Bookmark className="h-3.5 w-3.5 text-[var(--cyan)]" />
                     发送到 TradeLoom（拖我到书签栏）

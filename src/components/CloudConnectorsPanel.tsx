@@ -63,7 +63,7 @@ const CONNECTOR_META: Record<
     ],
   },
   notion: {
-    accent: "text-[#f8fafc]",
+    accent: "text-[var(--ink-strong)]",
     subtitle: "支持官方 MCP 一键登录授权，或传统 Integration Token 同步数据库与页面",
     tokenGuide:
       "推荐点击上方「一键登录 Notion (MCP)」直接授权工作区；或使用传统方式在 notion.so/my-integrations 创建 Internal Integration Token。",
@@ -100,7 +100,7 @@ const CONNECTOR_META: Record<
     ],
   },
   youdao: {
-    accent: "text-[#38bdf8]",
+    accent: "text-[var(--cyan)]",
     subtitle: "直连有道云笔记官方远程 MCP (SSE)，无需装 OpenClaw，支持目录点选与关键词全文同步",
     tokenGuide:
       "打开网易智能开发者平台 (mopen.163.com)，用绑定有道云笔记的手机号登录 → 进入「API 管理」免费生成 API Key（约 30 秒、免审核），粘贴到下方保存后点「测试并浏览目录」即可。",
@@ -125,7 +125,7 @@ const CONNECTOR_META: Record<
     ],
   },
   tencent_docs: {
-    accent: "text-[#60a5fa]",
+    accent: "text-[var(--accent)]",
     subtitle: "直连腾讯文档官方远程 MCP，免费额度 2,000 次/天，同时覆盖智能文档笔记、云文档目录与知识库空间",
     tokenGuide:
       "点击上方「去腾讯文档领取个人 MCP Token」（docs.qq.com/open/auth/mcp.html），微信/QQ 扫码登录直接复制个人 Token（无需开发者资质、无需开会员），粘贴到下方保存后点「测试并浏览空间/目录」即可勾选同步。",
@@ -137,7 +137,7 @@ const CONNECTOR_META: Record<
     ],
   },
   ima: {
-    accent: "text-[#c084fc]",
+    accent: "text-[var(--accent)]",
     subtitle: "直连腾讯 ima 官方 OpenAPI（无需装社区 MCP 或抓 Cookie），双通道同步「笔记本 Notes」与「知识库 Wiki」",
     tokenGuide:
       "点击上方「去腾讯 ima 获取 Client ID & API Key」（ima.qq.com/agent-interface），微信/QQ 扫码免费生成凭证填入下方保存；点「测试并浏览笔记/知识库」即可分别勾选笔记本和知识库同步。（注：API Key 定期过期若报 200002 重新生成即可）",
@@ -151,7 +151,7 @@ const CONNECTOR_META: Record<
     ],
   },
   onenote: {
-    accent: "text-[#a855f7]",
+    accent: "text-[var(--accent)]",
     subtitle: "Windows 桌面版 OneNote 原生 COM 本机直连：免 Azure 注册、免复制 Token、无需 Word/Pandoc",
     tokenGuide:
       "全程在您的 Windows 本机离线读取桌面版 OneNote XML 正文并转为 Markdown，不经过任何第三方中转，也不受微软云端 400 次/小时限流影响；若未检测到桌面版，请按上方指引安装微软官方免费桌面版 OneNote。",
@@ -162,7 +162,7 @@ const CONNECTOR_META: Record<
     ],
   },
   yinxiang: {
-    accent: "text-[#2dbe60]",
+    accent: "text-[var(--emerald)]",
     subtitle: "直连印象笔记国内版官方 Skill RESTful API（app.yinxiang.com）：支持笔记本点选、标签筛选与全文检索同步",
     tokenGuide:
       "【国内版印象笔记会员】点上方「去印象笔记获取 AuthToken」前往 app.yinxiang.com/third/skills-oauth/ 生成 1 年期令牌（以 S=s 开头，勿填老版 7 天 DeveloperToken）贴入下方保存；【免费版用户】无需开会员，直接走「客户端导出 .html 拖入 / 浏览器剪藏」无损入库。（注：仅支持国内版 yinxiang.com，与国际版 evernote.com 账号不互通）",
@@ -737,18 +737,18 @@ export default function CloudConnectorsPanel() {
             <ShieldCheck className="h-3.5 w-3.5" />
             LOCAL-FIRST CLOUD CONNECTORS · MCP OAUTH & BYOK
           </div>
-          <h2 className="mt-1.5 text-base font-semibold text-[#f8fafc]">
+          <h2 className="mt-1.5 text-base font-semibold text-[var(--ink-strong)]">
             主流云端笔记直连同步 & 官方 MCP 一键登录
           </h2>
           <p className="mt-1 text-xs leading-6 text-[var(--ink-muted)]">
-            <strong className="text-[var(--amber)]">滴答清单 / TickTick</strong> 与 <strong className="text-[#f8fafc]">Notion</strong> 已支持{" "}
+            <strong className="text-[var(--amber)]">滴答清单 / TickTick</strong> 与 <strong className="text-[var(--ink-strong)]">Notion</strong> 已支持{" "}
             <strong className="text-[var(--cyan)]">官方远程 MCP + 一键 OAuth 登录</strong>；
-            <strong className="text-[#38bdf8]">有道云笔记</strong> 已支持{" "}
+            <strong className="text-[var(--cyan)]">有道云笔记</strong> 已支持{" "}
             <strong className="text-[var(--cyan)]">官方远程 MCP (SSE)</strong>（仅需 1 个 API Key，无需装 OpenClaw）；
             <strong className="text-[var(--cyan)]">飞书</strong> 支持「扫码一键建应用 + 本机 lark-cli」双模式直连；
-            <strong className="text-[#60a5fa]">腾讯文档</strong> 直连官方远程 MCP（免费 2,000 次/天）；
-            <strong className="text-[#c084fc]">腾讯 ima</strong> 直连官方 OpenAPI（笔记本 + 知识库双通道免费同步）；
-            <strong className="text-[#a855f7]">OneNote</strong> 支持 Windows 桌面版原生 COM 免注册零配置直连；
+            <strong className="text-[var(--accent)]">腾讯文档</strong> 直连官方远程 MCP（免费 2,000 次/天）；
+            <strong className="text-[var(--accent)]">腾讯 ima</strong> 直连官方 OpenAPI（笔记本 + 知识库双通道免费同步）；
+            <strong className="text-[var(--accent)]">OneNote</strong> 支持 Windows 桌面版原生 COM 免注册零配置直连；
             <strong className="text-[var(--ink)]">语雀</strong> 支持官方 API v2；
             <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
@@ -766,11 +766,11 @@ export default function CloudConnectorsPanel() {
       {vaultList.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/35 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2.5 text-xs">
-            <span className="font-semibold text-[#f8fafc]">同步目标知识库：</span>
+            <span className="font-semibold text-[var(--ink-strong)]">同步目标知识库：</span>
             <select
               value={targetVaultId}
               onChange={(e) => setTargetVaultId(e.target.value)}
-              className="rounded-lg border border-[var(--cyan)]/50 bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[#f8fafc] focus:border-[var(--cyan)] focus:outline-none"
+              className="rounded-lg border border-[var(--cyan)]/50 bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-strong)] focus:border-[var(--cyan)] focus:outline-none"
             >
               {vaultList.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -892,7 +892,7 @@ export default function CloudConnectorsPanel() {
                       type="button"
                       disabled={busyId !== null}
                       onClick={() => startMcpOAuth(c.id as "dida365" | "notion")}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(124,77,255,0.3)] transition hover:bg-[var(--accent)] disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                     >
                       {isOAuth ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
                       {c.configured && c.authMode === "mcp_oauth" ? "重新登录 / 切换账号" : meta.oauthLabel}
@@ -903,7 +903,7 @@ export default function CloudConnectorsPanel() {
                         type="button"
                         disabled={busyId !== null}
                         onClick={() => runAction(c.id, "disconnect")}
-                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                       >
                         {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                         断开授权
@@ -946,7 +946,7 @@ export default function CloudConnectorsPanel() {
                           type="button"
                           disabled={busyId !== null}
                           onClick={() => runAction("feishu", "disconnect")}
-                          className="inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                         >
                           {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                           清除配置
@@ -986,7 +986,7 @@ export default function CloudConnectorsPanel() {
                             type="button"
                             disabled={busyId !== null || feishuReg !== null}
                             onClick={startFeishuQrRegistration}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(124,77,255,0.28)] transition hover:bg-[var(--accent)] disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-50"
                           >
                             {busyId === "feishu:qr" ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1007,7 +1007,7 @@ export default function CloudConnectorsPanel() {
                               <button
                                 type="button"
                                 onClick={() => setFeishuReg(null)}
-                                className="inline-flex items-center gap-0.5 text-[11px] text-[var(--ink-dim)] hover:text-red-300"
+                                className="inline-flex items-center gap-0.5 text-[11px] text-[var(--ink-dim)] hover:text-[var(--rose)]"
                               >
                                 <X className="h-3 w-3" />
                                 取消
@@ -1018,7 +1018,7 @@ export default function CloudConnectorsPanel() {
                                 href={feishuReg.authUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--cyan)] px-3 py-1 text-xs font-semibold text-[#06131f] transition hover:brightness-110"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--cyan)] px-3 py-1 text-xs font-semibold text-white transition hover:brightness-110"
                               >
                                 打开飞书授权确认页
                                 <ExternalLink className="h-3 w-3" />
@@ -1042,7 +1042,7 @@ export default function CloudConnectorsPanel() {
                             type="button"
                             disabled={busyId !== null}
                             onClick={checkLarkCliStatus}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0284c7] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0ea5e9] disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--cyan)] disabled:opacity-50"
                           >
                             {busyId === "feishu:cli_status" ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1092,12 +1092,12 @@ export default function CloudConnectorsPanel() {
 
                 {/* YoudaoNote Official MCP Quick Action Bar */}
                 {c.id === "youdao" && (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#38bdf8]/35 bg-[#38bdf8]/10 p-2.5">
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--cyan-soft)] p-2.5">
                     <a
                       href="https://mopen.163.com/"
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#0284c7] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(56,189,248,0.28)] transition hover:bg-[#0ea5e9]"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--cyan)]"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                       去 mopen.163.com 获取 API Key
@@ -1108,7 +1108,7 @@ export default function CloudConnectorsPanel() {
                         type="button"
                         disabled={busyId !== null}
                         onClick={() => runAction("youdao", "disconnect")}
-                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                       >
                         {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                         清除密钥
@@ -1128,7 +1128,7 @@ export default function CloudConnectorsPanel() {
                       href="https://www.yuque.com/settings/tokens"
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#10b981]"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--emerald)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--emerald)]"
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                       去语雀获取 Token（超级会员）
@@ -1145,7 +1145,7 @@ export default function CloudConnectorsPanel() {
                         type="button"
                         disabled={busyId !== null}
                         onClick={() => runAction("yuque", "disconnect")}
-                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                       >
                         {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                         清除密钥
@@ -1218,12 +1218,12 @@ export default function CloudConnectorsPanel() {
                 {/* Tencent Docs Official Remote MCP Quick Action Bar + Scope & Folder Pills */}
                 {c.id === "tencent_docs" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#60a5fa]/35 bg-[#60a5fa]/10 p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
                       <a
                         href="https://docs.qq.com/open/auth/mcp.html"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563eb] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3b82f6]"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
                         去腾讯文档领取个人 MCP Token（免费 2,000 次/天）
@@ -1234,7 +1234,7 @@ export default function CloudConnectorsPanel() {
                           type="button"
                           disabled={busyId !== null}
                           onClick={() => runAction("tencent_docs", "disconnect")}
-                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                         >
                           {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                           清除密钥
@@ -1260,8 +1260,8 @@ export default function CloudConnectorsPanel() {
                               onClick={() => updateField("tencent_docs", "scope", opt.id)}
                               className={`rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                 active
-                                  ? "border-[#60a5fa] bg-[#60a5fa]/15 font-medium text-[#60a5fa]"
-                                  : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#60a5fa]"
+                                  ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                  : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)]"
                               }`}
                             >
                               {opt.label}
@@ -1274,14 +1274,14 @@ export default function CloudConnectorsPanel() {
                         <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
                           <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                             <span className="inline-flex items-center gap-1">
-                              <FolderOpen className="h-3.5 w-3.5 text-[#60a5fa]" />
+                              <FolderOpen className="h-3.5 w-3.5 text-[var(--accent)]" />
                               已发现知识库空间 / 云文档目录（点选指定同步；全不选 = 按上方范围自动同步）：
                             </span>
                             {selectedTencentDocsTokens.size > 0 && (
                               <button
                                 type="button"
                                 onClick={() => updateField("tencent_docs", "parentId", "")}
-                                className="text-[#60a5fa] hover:underline"
+                                className="text-[var(--accent)] hover:underline"
                               >
                                 清空勾选
                               </button>
@@ -1297,8 +1297,8 @@ export default function CloudConnectorsPanel() {
                                   onClick={() => toggleTencentDocsFolder(f)}
                                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                     active
-                                      ? "border-[#60a5fa] bg-[#60a5fa]/15 font-medium text-[#60a5fa]"
-                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#60a5fa] hover:text-[var(--ink)]"
+                                      ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]"
                                   }`}
                                 >
                                   <span>{f.name}</span>
@@ -1315,12 +1315,12 @@ export default function CloudConnectorsPanel() {
                 {/* Tencent ima Official OpenAPI Quick Action Bar + Dual Channel & Pill Selectors */}
                 {c.id === "ima" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#c084fc]/35 bg-[#c084fc]/10 p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
                       <a
                         href="https://ima.qq.com/agent-interface"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#9333ea] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#a855f7]"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
                         去腾讯 ima 获取 Client ID & API Key（免费）
@@ -1331,7 +1331,7 @@ export default function CloudConnectorsPanel() {
                           type="button"
                           disabled={busyId !== null}
                           onClick={() => runAction("ima", "disconnect")}
-                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                         >
                           {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                           清除密钥
@@ -1369,14 +1369,14 @@ export default function CloudConnectorsPanel() {
                         <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
                           <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                             <span className="inline-flex items-center gap-1">
-                              <FolderOpen className="h-3.5 w-3.5 text-[#c084fc]" />
+                              <FolderOpen className="h-3.5 w-3.5 text-[var(--accent)]" />
                               已发现 ima 笔记本（点选指定同步；全不选 = 同步全部笔记）：
                             </span>
                             {selectedImaFolderTokens.size > 0 && (
                               <button
                                 type="button"
                                 onClick={() => updateField("ima", "folderId", "")}
-                                className="text-[#c084fc] hover:underline"
+                                className="text-[var(--accent)] hover:underline"
                               >
                                 清空勾选
                               </button>
@@ -1394,8 +1394,8 @@ export default function CloudConnectorsPanel() {
                                   onClick={() => toggleImaFolder(f)}
                                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                     active
-                                      ? "border-[#c084fc] bg-[#c084fc]/15 font-medium text-[#c084fc]"
-                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#c084fc] hover:text-[var(--ink)]"
+                                      ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]"
                                   }`}
                                 >
                                   <span>{f.name}</span>
@@ -1410,14 +1410,14 @@ export default function CloudConnectorsPanel() {
                         <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
                           <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                             <span className="inline-flex items-center gap-1">
-                              <BookOpen className="h-3.5 w-3.5 text-[#c084fc]" />
+                              <BookOpen className="h-3.5 w-3.5 text-[var(--accent)]" />
                               已发现 ima 知识库（点选指定同步；全不选 = 同步前 5 个知识库）：
                             </span>
                             {selectedImaWikiTokens.size > 0 && (
                               <button
                                 type="button"
                                 onClick={() => updateField("ima", "wikiId", "")}
-                                className="text-[#c084fc] hover:underline"
+                                className="text-[var(--accent)] hover:underline"
                               >
                                 清空勾选
                               </button>
@@ -1435,8 +1435,8 @@ export default function CloudConnectorsPanel() {
                                   onClick={() => toggleImaRepo(r)}
                                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                     active
-                                      ? "border-[#c084fc] bg-[#c084fc]/15 font-medium text-[#c084fc]"
-                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#c084fc] hover:text-[var(--ink)]"
+                                      ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                      : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]"
                                   }`}
                                 >
                                   <span>{r.name}</span>
@@ -1456,12 +1456,12 @@ export default function CloudConnectorsPanel() {
                 {/* Microsoft OneNote Windows Desktop COM Quick Guide + Discovered Notebooks/Sections */}
                 {c.id === "onenote" && (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#a855f7]/35 bg-[#a855f7]/10 p-2.5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--accent)]/35 bg-[var(--accent-soft)] p-2.5">
                       <a
                         href="https://www.onenote.com/download"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#7e22ce] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#9333ea]"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
                       >
                         <BookOpen className="h-3.5 w-3.5" />
                         免费下载微软桌面版 OneNote
@@ -1469,14 +1469,14 @@ export default function CloudConnectorsPanel() {
                       </a>
                       <Link
                         href="/vault?import=cloud"
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#a855f7]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[#d8b4fe] transition hover:bg-[#a855f7]/15"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--accent)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                       >
                         非 Windows / 离线导出导入 →
                       </Link>
                     </div>
 
-                    <div className="space-y-2 rounded-lg border border-[#a855f7]/30 bg-[var(--bg-deep)]/90 p-3 text-[11px] leading-5 text-[var(--ink-muted)]">
-                      <div className="font-semibold text-[#e9d5ff]">
+                    <div className="space-y-2 rounded-lg border border-[var(--accent)]/30 bg-[var(--bg-deep)]/90 p-3 text-[11px] leading-5 text-[var(--ink-muted)]">
+                      <div className="font-semibold text-[var(--accent)]">
                         本机直连使用指引（免 Azure 注册 · 免 Token · 无需 Word/Pandoc）
                       </div>
                       <ol className="list-decimal space-y-1 pl-4">
@@ -1498,14 +1498,14 @@ export default function CloudConnectorsPanel() {
                         <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
                           <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                             <span className="inline-flex items-center gap-1">
-                              <FolderOpen className="h-3.5 w-3.5 text-[#a855f7]" />
+                              <FolderOpen className="h-3.5 w-3.5 text-[var(--accent)]" />
                               已发现本机笔记本与分区（点选指定同步；全不选 = 同步全部已打开笔记本）：
                             </span>
                             {selectedOneNoteTokens.size > 0 && (
                               <button
                                 type="button"
                                 onClick={() => updateField("onenote", "notebookFilter", "")}
-                                className="text-[#c084fc] hover:underline"
+                                className="text-[var(--accent)] hover:underline"
                               >
                                 清空勾选
                               </button>
@@ -1521,10 +1521,10 @@ export default function CloudConnectorsPanel() {
                                   onClick={() => toggleOneNoteFolder(f)}
                                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                     active
-                                      ? "border-[#a855f7] bg-[#a855f7]/20 font-medium text-[#e9d5ff]"
+                                      ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
                                       : f.isRoot
-                                        ? "border-[#a855f7]/40 bg-[var(--surface-2)] font-medium text-[#d8b4fe] hover:border-[#a855f7]"
-                                        : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#a855f7] hover:text-[var(--ink)]"
+                                        ? "border-[var(--accent)]/40 bg-[var(--surface-2)] font-medium text-[var(--accent)] hover:border-[var(--accent)]"
+                                        : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]"
                                   }`}
                                 >
                                   <span>{f.name}</span>
@@ -1541,13 +1541,13 @@ export default function CloudConnectorsPanel() {
                 {/* Yinxiang China Official Skill API Dual-Path Bar + Discovered Notebooks */}
                 {c.id === "yinxiang" && (
                   <>
-                    <div className="space-y-2 rounded-lg border border-[#2dbe60]/35 bg-[#2dbe60]/10 p-2.5">
+                    <div className="space-y-2 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald)]/10 p-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <a
                           href="https://app.yinxiang.com/third/skills-oauth/"
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#1ea853] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(45,190,96,0.28)] transition hover:bg-[#2dbe60]"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--emerald)] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--emerald)]"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                           去印象笔记获取 AuthToken（会员 · 1 年有效）
@@ -1555,7 +1555,7 @@ export default function CloudConnectorsPanel() {
                         </a>
                         <Link
                           href="/vault?import=cloud"
-                          className="inline-flex items-center gap-1 rounded-lg border border-[#2dbe60]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[#4ade80] transition hover:bg-[#2dbe60]/15"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--emerald)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--emerald)] transition hover:bg-[var(--emerald-soft)]"
                         >
                           免会员：导出 HTML 拖入 / 剪藏 →
                         </Link>
@@ -1564,7 +1564,7 @@ export default function CloudConnectorsPanel() {
                             type="button"
                             disabled={busyId !== null}
                             onClick={() => runAction("yinxiang", "disconnect")}
-                            className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                            className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-[var(--rose)] transition hover:bg-red-500/20 disabled:opacity-50"
                           >
                             {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
                             清除密钥
@@ -1572,7 +1572,7 @@ export default function CloudConnectorsPanel() {
                         )}
                       </div>
                       {!c.configured && c.fields.localSkillTokenDetected === "true" && (
-                        <div className="rounded-md border border-[#2dbe60]/40 bg-[var(--bg-deep)]/85 px-2.5 py-1.5 text-[11px] text-[#4ade80]">
+                        <div className="rounded-md border border-[var(--emerald)]/40 bg-[var(--bg-deep)]/85 px-2.5 py-1.5 text-[11px] text-[var(--emerald)]">
                           已检测到本机印象笔记 Skill 令牌（~/.config/yinxiang-skill/token 或 YX_AUTH_TOKEN），直接点「保存配置」或「测试并浏览笔记本」即可一键复用。
                         </div>
                       )}
@@ -1585,14 +1585,14 @@ export default function CloudConnectorsPanel() {
                       <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                         <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                           <span className="inline-flex items-center gap-1">
-                            <BookOpen className="h-3.5 w-3.5 text-[#2dbe60]" />
+                            <BookOpen className="h-3.5 w-3.5 text-[var(--emerald)]" />
                             已发现印象笔记本（点选指定同步；全不选 = 同步全部笔记本）：
                           </span>
                           {selectedYinxiangTokens.size > 0 && (
                             <button
                               type="button"
                               onClick={() => updateField("yinxiang", "notebookFilter", "")}
-                              className="text-[#4ade80] hover:underline"
+                              className="text-[var(--emerald)] hover:underline"
                             >
                               清空勾选
                             </button>
@@ -1610,8 +1610,8 @@ export default function CloudConnectorsPanel() {
                                 onClick={() => toggleYinxiangFolder(f)}
                                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                                   active
-                                    ? "border-[#2dbe60] bg-[#2dbe60]/20 font-medium text-[#4ade80]"
-                                    : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#2dbe60] hover:text-[var(--ink)]"
+                                    ? "border-[var(--emerald)] bg-[var(--emerald-soft)] font-medium text-[var(--emerald)]"
+                                    : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--emerald)] hover:text-[var(--ink)]"
                                 }`}
                               >
                                 <span>{f.name}</span>
@@ -1629,7 +1629,7 @@ export default function CloudConnectorsPanel() {
                   <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
                     <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                       <span className="inline-flex items-center gap-1">
-                        <FolderOpen className="h-3.5 w-3.5 text-[#38bdf8]" />
+                        <FolderOpen className="h-3.5 w-3.5 text-[var(--cyan)]" />
                         已发现有道目录（点选指定同步；全不选 = 同步根目录 + 前 10 个文件夹）：
                       </span>
                       {selectedYoudaoTokens.size > 0 && (
@@ -1655,8 +1655,8 @@ export default function CloudConnectorsPanel() {
                             onClick={() => toggleYoudaoFolder(f)}
                             className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
                               active
-                                ? "border-[#38bdf8] bg-[#38bdf8]/15 font-medium text-[#38bdf8]"
-                                : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#38bdf8] hover:text-[var(--ink)]"
+                                ? "border-[var(--cyan)] bg-[var(--cyan-soft)] font-medium text-[var(--cyan)]"
+                                : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--cyan)] hover:text-[var(--ink)]"
                             }`}
                           >
                             <span>{f.name}</span>
@@ -1791,7 +1791,7 @@ export default function CloudConnectorsPanel() {
                     className={`rounded-lg border px-3 py-2 text-xs leading-5 ${
                       fb.ok
                         ? "border-[var(--emerald)]/35 bg-[var(--emerald-soft)] text-[var(--emerald)]"
-                        : "border-red-500/40 bg-red-500/10 text-red-300"
+                        : "border-red-500/40 bg-red-500/10 text-[var(--rose)]"
                     }`}
                   >
                     {fb.text}
@@ -1860,7 +1860,7 @@ export default function CloudConnectorsPanel() {
                         !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
                     }
                     onClick={() => runAction(c.id, "sync")}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#7c4dff] to-[#22d3ee] px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_14px_rgba(34,211,238,0.25)] transition hover:brightness-110 disabled:opacity-50"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
                   >
                     {isSyncing ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1879,7 +1879,7 @@ export default function CloudConnectorsPanel() {
       {/* 3 Login-Walled Mainstream Platforms: Xueqiu / Youdao / Evernote */}
       <div className="scifi-card rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#f8fafc]">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
             <Bookmark className="h-4 w-4 text-[var(--emerald)]" />
             雪球 / 印象笔记 / 微信公众号（推荐：富文本粘贴 · URL 抓取 · 浏览器一键剪藏）
           </div>

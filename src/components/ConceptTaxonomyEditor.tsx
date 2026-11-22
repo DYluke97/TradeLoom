@@ -154,7 +154,7 @@ export default function ConceptTaxonomyEditor() {
           <div className="max-w-2xl">
             <div className="flex items-center gap-2">
               <Hash className="h-4 w-4 text-[var(--cyan)]" />
-              <h2 className="text-sm font-semibold text-[#f1f2f5]">自定义主题词典 & Obsidian 双链重排</h2>
+              <h2 className="text-sm font-semibold text-[var(--ink-strong)]">自定义主题词典 & Obsidian 双链重排</h2>
               <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[10px] text-[var(--accent)]">
                 已启用 {enabledCount}/{rules.length} 组
               </span>
@@ -270,7 +270,7 @@ export default function ConceptTaxonomyEditor() {
                       prev.map((item, i) => (i === idx ? { ...item, concept: e.target.value } : item)),
                     )
                   }
-                  className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-semibold text-[#f1f2f5] focus:border-[var(--accent)] focus:bg-[var(--bg-deep)] focus:outline-none"
+                  className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-semibold text-[var(--ink-strong)] focus:border-[var(--accent)] focus:bg-[var(--bg-deep)] focus:outline-none"
                 />
               </div>
 

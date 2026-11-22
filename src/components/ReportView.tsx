@@ -22,7 +22,7 @@ import type { RuleLifecycle, SynthesisReport } from "@/lib/synthesis";
 function LifecycleBadge({ lifecycle }: { lifecycle?: RuleLifecycle }) {
   if (lifecycle === "deprecated") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-300">
+      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-[var(--rose)]">
         ⚠ 已证伪废弃（反面警示）
       </span>
     );
@@ -105,7 +105,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                 样本区间：{report.date_range.from ?? "—"} ~ {report.date_range.to ?? "—"}
               </span>
             </div>
-            <h2 className="mt-2 text-xl font-bold text-[#f3f4f6]">{report.title}</h2>
+            <h2 className="mt-2 text-xl font-bold text-[var(--ink-strong)]">{report.title}</h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +141,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
             <div className="text-[11px] text-[var(--ink-dim)]">纳入研究材料</div>
-            <div className="mt-1 text-lg font-bold text-[#f3f4f6]">{report.statistics.docs_count} 份</div>
+            <div className="mt-1 text-lg font-bold text-[var(--ink-strong)]">{report.statistics.docs_count} 份</div>
           </div>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
             <div className="text-[11px] text-[var(--ink-dim)]">方法演变节点</div>
@@ -157,12 +157,12 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
           </div>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3">
             <div className="text-[11px] text-[var(--ink-dim)]">逐字核验证据</div>
-            <div className="mt-1 text-lg font-bold text-[#f3f4f6]">{report.statistics.evidence_used} 段</div>
+            <div className="mt-1 text-lg font-bold text-[var(--ink-strong)]">{report.statistics.evidence_used} 段</div>
           </div>
         </div>
 
         {report.quant_anchor && (
-          <div className="mt-4 rounded-xl border border-[var(--cyan)]/35 bg-[#080e1a] p-3.5 text-xs">
+          <div className="mt-4 rounded-xl border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-3.5 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 font-semibold text-[var(--cyan)]">
                 <CandlestickChart className="h-4 w-4" />
@@ -175,7 +175,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-[var(--ink)]">
               <span>
                 区间收益{" "}
-                <strong className={report.quant_anchor.periodReturnPct >= 0 ? "text-red-400" : "text-emerald-400"}>
+                <strong className={report.quant_anchor.periodReturnPct >= 0 ? "text-[var(--rose)]" : "text-[var(--emerald)]"}>
                   {report.quant_anchor.periodReturnPct > 0 ? "+" : ""}
                   {report.quant_anchor.periodReturnPct.toFixed(2)}%
                 </strong>
@@ -183,19 +183,19 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               {report.quant_anchor.excessAlphaPct !== null && (
                 <span>
                   超额 Alpha{" "}
-                  <strong className={report.quant_anchor.excessAlphaPct >= 0 ? "text-[var(--cyan)]" : "text-amber-400"}>
+                  <strong className={report.quant_anchor.excessAlphaPct >= 0 ? "text-[var(--cyan)]" : "text-[var(--amber)]"}>
                     {report.quant_anchor.excessAlphaPct > 0 ? "+" : ""}
                     {report.quant_anchor.excessAlphaPct.toFixed(2)}%
                   </strong>
                 </span>
               )}
-              <span className="text-red-300">最大回撤 {report.quant_anchor.mddPct.toFixed(2)}%</span>
+              <span className="text-[var(--rose)]">最大回撤 {report.quant_anchor.mddPct.toFixed(2)}%</span>
               <span className="text-[var(--ink-muted)]">日胜率 {report.quant_anchor.dailyWinRatePct.toFixed(1)}%</span>
               {report.quant_anchor.profitFactor !== null && (
                 <span className="text-[var(--accent)]">盈亏比 PF {report.quant_anchor.profitFactor.toFixed(2)}</span>
               )}
               {report.quant_anchor.peakPositionPct !== null && (
-                <span className={report.quant_anchor.peakPositionPct > 100 ? "text-amber-300" : "text-[var(--ink-muted)]"}>
+                <span className={report.quant_anchor.peakPositionPct > 100 ? "text-[var(--amber)]" : "text-[var(--ink-muted)]"}>
                   峰值仓位 {report.quant_anchor.peakPositionPct.toFixed(0)}%（融资 {report.quant_anchor.marginDays} 天）
                 </span>
               )}
@@ -220,7 +220,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-[var(--amber)]" />
-            <h3 className="text-base font-semibold text-[#f1f2f5]">方法演变时间轴</h3>
+            <h3 className="text-base font-semibold text-[var(--ink-strong)]">方法演变时间轴</h3>
           </div>
           {timelineHasEvidence && (
             <button
@@ -256,7 +256,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                     <span className="rounded bg-[var(--surface-2)] px-2 py-0.5 font-mono text-xs text-[var(--amber)]">
                       {node.period}
                     </span>
-                    <span className="text-sm font-semibold text-[#f1f2f5]">{node.label}</span>
+                    <span className="text-sm font-semibold text-[var(--ink-strong)]">{node.label}</span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-[var(--ink)]">{node.change}</p>
 
@@ -316,7 +316,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[var(--emerald)]" />
-            <h3 className="text-base font-semibold text-[#f1f2f5]">个人交易手册（含规则演进与证伪状态）</h3>
+            <h3 className="text-base font-semibold text-[var(--ink-strong)]">个人交易手册（含规则演进与证伪状态）</h3>
           </div>
           <span className="text-[11px] text-[var(--ink-dim)]">
             自动识别跨阶段持续有效、认知迭代升级与已证伪废弃规则
@@ -351,7 +351,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                   </div>
                   <h4
                     className={`mt-2 text-sm font-semibold ${
-                      isDeprecated ? "text-rose-200 line-through decoration-rose-400/60" : "text-[#f1f2f5]"
+                      isDeprecated ? "text-[var(--rose)] line-through decoration-rose-400/60" : "text-[var(--ink-strong)]"
                     }`}
                   >
                     {rule.title}
@@ -365,8 +365,8 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                   )}
 
                   {rule.quant_warning && (
-                    <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
-                      <strong className="text-amber-300">⚠ 实盘绩效核验预警：</strong>
+                    <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-[var(--amber)]">
+                      <strong className="text-[var(--amber)]">⚠ 实盘绩效核验预警：</strong>
                       {rule.quant_warning}
                     </div>
                   )}
@@ -382,7 +382,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                     </div>
                     <div>
                       <dt className="text-[var(--emerald)]">执行动作（Action）</dt>
-                      <dd className="mt-0.5 text-[#f1f2f5]">{rule.action || "—"}</dd>
+                      <dd className="mt-0.5 text-[var(--ink-strong)]">{rule.action || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-[var(--amber)]">退出 / 证伪边界（Exit）</dt>
@@ -429,11 +429,11 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Flame className="h-4 w-4 text-[var(--amber)]" />
-              <h3 className="text-base font-semibold text-[#f1f2f5]">
+              <h3 className="text-base font-semibold text-[var(--ink-strong)]">
                 知行偏离与重复违纪病灶榜（防“嘴盘”照妖镜）
               </h3>
             </div>
-            <span className="text-[11px] text-amber-300/90">
+            <span className="text-[11px] text-[var(--amber)]">
               对照「口头立下的纪律」与「实盘真实违纪证据」
             </span>
           </div>
@@ -446,7 +446,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
               >
                 <div className="space-y-2.5 text-xs leading-5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded bg-amber-500/15 px-2 py-0.5 font-mono font-semibold text-amber-300">
+                    <span className="rounded bg-amber-500/15 px-2 py-0.5 font-mono font-semibold text-[var(--amber)]">
                       {item.id}
                     </span>
                     <span className="font-mono text-[11px] text-[var(--ink-dim)]">
@@ -456,11 +456,11 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
 
                   <div>
                     <div className="text-[11px] text-[var(--ink-dim)]">口头声明纪律（Stated Rule）</div>
-                    <div className="mt-0.5 font-medium text-[#f1f2f5]">{item.stated_rule}</div>
+                    <div className="mt-0.5 font-medium text-[var(--ink-strong)]">{item.stated_rule}</div>
                   </div>
 
                   <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
-                    <div className="font-medium text-rose-300">实盘违纪真相（Actual Deviation）</div>
+                    <div className="font-medium text-[var(--rose)]">实盘违纪真相（Actual Deviation）</div>
                     <div className="mt-0.5 text-[var(--ink)]">{item.actual_deviation || "—"}</div>
                   </div>
 
@@ -476,7 +476,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                 </div>
 
                 <div className="mt-3 border-t border-[var(--border)] pt-2.5">
-                  <div className="mb-1.5 text-[11px] text-amber-300">违纪现场原文溯源（{item.evidence.length}）</div>
+                  <div className="mb-1.5 text-[11px] text-[var(--amber)]">违纪现场原文溯源（{item.evidence.length}）</div>
                   <div className="space-y-1">
                     {item.evidence.map((ev) => (
                       <Link

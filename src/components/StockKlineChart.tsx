@@ -43,10 +43,10 @@ export default function StockKlineChart({
   const [showCostLine, setShowCostLine] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  const upColor = colorScheme === "cn" ? "#ef4444" : "#10b981";
-  const downColor = colorScheme === "cn" ? "#10b981" : "#ef4444";
-  const upText = colorScheme === "cn" ? "text-red-400" : "text-emerald-400";
-  const downText = colorScheme === "cn" ? "text-emerald-400" : "text-red-400";
+  const upColor = colorScheme === "cn" ? "#d64545" : "#157f57";
+  const downColor = colorScheme === "cn" ? "#157f57" : "#d64545";
+  const upText = colorScheme === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+  const downText = colorScheme === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
 
   const dateWindow = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -217,7 +217,7 @@ export default function StockKlineChart({
       {/* Stock Header & Range Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/90 px-3.5 py-2.5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <span className="font-mono text-sm font-bold text-[#f8fafc]">{stock.name}</span>
+          <span className="font-mono text-sm font-bold text-[var(--ink-strong)]">{stock.name}</span>
           <span className="rounded border border-[var(--border-strong)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--cyan)]">
             {stock.market}.{stock.symbol}
           </span>
@@ -289,7 +289,7 @@ export default function StockKlineChart({
 
       {/* OHLCV Readout Bar */}
       {activeBar && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[#080c15] px-3 py-1.5 font-mono text-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-1.5 font-mono text-[11px]">
           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
             <span className="font-semibold text-[var(--ink)]">{activeBar.date}</span>
             <span className="text-[var(--ink-muted)]">开 {activeBar.open.toFixed(2)}</span>
@@ -301,7 +301,7 @@ export default function StockKlineChart({
             </span>
             {showMA && geom && (
               <>
-                {geom.ma5[activeIdx] !== null && <span className="text-amber-300">MA5 {geom.ma5[activeIdx]!.toFixed(2)}</span>}
+                {geom.ma5[activeIdx] !== null && <span className="text-[var(--amber)]">MA5 {geom.ma5[activeIdx]!.toFixed(2)}</span>}
                 {geom.ma10[activeIdx] !== null && <span className="text-[var(--cyan)]">MA10 {geom.ma10[activeIdx]!.toFixed(2)}</span>}
                 {geom.ma20[activeIdx] !== null && <span className="text-[var(--accent)]">MA20 {geom.ma20[activeIdx]!.toFixed(2)}</span>}
               </>
@@ -320,14 +320,14 @@ export default function StockKlineChart({
       )}
 
       {/* Candlestick + Volume + B/S Markers Canvas */}
-      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[#060911] p-2">
+      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--chart-bg)] p-2">
         {loading && bars.length === 0 ? (
           <div className="flex h-[340px] items-center justify-center gap-2 text-xs text-[var(--ink-muted)]">
             <Loader2 className="h-4 w-4 animate-spin text-[var(--cyan)]" />
             正在拉取 {stock.name} ({stock.symbol}) 前复权日K线...
           </div>
         ) : err && bars.length === 0 ? (
-          <div className="flex h-[340px] flex-col items-center justify-center gap-2 text-xs text-red-300">
+          <div className="flex h-[340px] flex-col items-center justify-center gap-2 text-xs text-[var(--rose)]">
             <AlertCircle className="h-5 w-5" />
             <div>{err}</div>
           </div>
@@ -343,8 +343,8 @@ export default function StockKlineChart({
               const y = geom.yPrice(p);
               return (
                 <g key={i}>
-                  <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="rgba(148,163,184,0.11)" strokeDasharray="3 5" />
-                  <text x={PAD_L - 8} y={y + 3.5} textAnchor="end" fill="#64748b" fontSize={10} fontFamily="monospace">
+                  <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="var(--chart-grid)" strokeDasharray="3 5" />
+                  <text x={PAD_L - 8} y={y + 3.5} textAnchor="end" fill="var(--chart-axis)" fontSize={10} fontFamily="monospace">
                     {p.toFixed(2)}
                   </text>
                 </g>
@@ -359,7 +359,7 @@ export default function StockKlineChart({
                   y1={geom.yPrice(stock.avgBuyPrice)}
                   x2={W - PAD_R}
                   y2={geom.yPrice(stock.avgBuyPrice)}
-                  stroke="#f59e0b"
+                  stroke="var(--amber)"
                   strokeWidth={1}
                   strokeDasharray="6 4"
                   opacity={0.75}
@@ -370,15 +370,15 @@ export default function StockKlineChart({
                   width={70}
                   height={16}
                   rx={3}
-                  fill="#0b1020"
-                  stroke="#f59e0b"
+                  fill="var(--surface)"
+                  stroke="var(--amber)"
                   strokeOpacity={0.6}
                 />
                 <text
                   x={W - PAD_R - 37}
                   y={geom.yPrice(stock.avgBuyPrice) + 2.5}
                   textAnchor="middle"
-                  fill="#fbbf24"
+                  fill="var(--amber)"
                   fontSize={9}
                   fontFamily="monospace"
                 >
@@ -390,9 +390,9 @@ export default function StockKlineChart({
             {/* Moving Averages */}
             {showMA && (
               <g fill="none" strokeWidth={1.25} opacity={0.85}>
-                {geom.ma5Path && <path d={geom.ma5Path} stroke="#fbbf24" />}
-                {geom.ma10Path && <path d={geom.ma10Path} stroke="#22d3ee" />}
-                {geom.ma20Path && <path d={geom.ma20Path} stroke="#a882ff" />}
+                {geom.ma5Path && <path d={geom.ma5Path} stroke="var(--amber)" />}
+                {geom.ma10Path && <path d={geom.ma10Path} stroke="var(--cyan)" />}
+                {geom.ma20Path && <path d={geom.ma20Path} stroke="var(--accent)" />}
               </g>
             )}
 
@@ -435,8 +435,8 @@ export default function StockKlineChart({
             })}
 
             {/* Volume Separator & Label */}
-            <line x1={PAD_L} y1={volTop} x2={W - PAD_R} y2={volTop} stroke="rgba(148,163,184,0.18)" />
-            <text x={PAD_L + 4} y={volTop + 11} fill="#64748b" fontSize={9.5} fontFamily="monospace">
+            <line x1={PAD_L} y1={volTop} x2={W - PAD_R} y2={volTop} stroke="var(--border-strong)" />
+            <text x={PAD_L + 4} y={volTop + 11} fill="var(--chart-axis)" fontSize={9.5} fontFamily="monospace">
               成交量 (VOL)
             </text>
 
@@ -456,16 +456,16 @@ export default function StockKlineChart({
                     const label = buys.length > 1 ? `B×${buys.length}` : "B";
                     return (
                       <g>
-                        <line x1={cx} y1={yExec} x2={cx} y2={yBadge - 8} stroke="#f43f5e" strokeWidth={1.2} strokeDasharray="2 2" />
-                        <circle cx={cx} cy={yExec} r={3.2} fill="#f43f5e" stroke="#ffffff" strokeWidth={1.2} />
+                        <line x1={cx} y1={yExec} x2={cx} y2={yBadge - 8} stroke="#c03546" strokeWidth={1.2} strokeDasharray="2 2" />
+                        <circle cx={cx} cy={yExec} r={3.2} fill="#c03546" stroke="var(--surface)" strokeWidth={1.2} />
                         <rect
                           x={cx - (buys.length > 1 ? 14 : 9)}
                           y={yBadge - 8}
                           width={buys.length > 1 ? 28 : 18}
                           height={16}
                           rx={4}
-                          fill="#e11d48"
-                          stroke="#fda4af"
+                          fill="#c03546"
+                          stroke="var(--surface)"
                           strokeWidth={0.9}
                         />
                         <text x={cx} y={yBadge + 3.5} textAnchor="middle" fill="#ffffff" fontSize={9.5} fontWeight={700} fontFamily="monospace">
@@ -481,16 +481,16 @@ export default function StockKlineChart({
                     const label = sells.length > 1 ? `S×${sells.length}` : "S";
                     return (
                       <g>
-                        <line x1={cx} y1={yExec} x2={cx} y2={yBadge + 8} stroke="#22d3ee" strokeWidth={1.2} strokeDasharray="2 2" />
-                        <circle cx={cx} cy={yExec} r={3.2} fill="#22d3ee" stroke="#06080e" strokeWidth={1.2} />
+                        <line x1={cx} y1={yExec} x2={cx} y2={yBadge + 8} stroke="var(--cyan)" strokeWidth={1.2} strokeDasharray="2 2" />
+                        <circle cx={cx} cy={yExec} r={3.2} fill="var(--cyan)" stroke="var(--chart-bg)" strokeWidth={1.2} />
                         <rect
                           x={cx - (sells.length > 1 ? 14 : 9)}
                           y={yBadge - 8}
                           width={sells.length > 1 ? 28 : 18}
                           height={16}
                           rx={4}
-                          fill="#0284c7"
-                          stroke="#7dd3fc"
+                          fill="var(--cyan)"
+                          stroke="var(--surface)"
                           strokeWidth={0.9}
                         />
                         <text x={cx} y={yBadge + 3.5} textAnchor="middle" fill="#ffffff" fontSize={9.5} fontWeight={700} fontFamily="monospace">
@@ -505,7 +505,7 @@ export default function StockKlineChart({
 
             {/* X Axis Dates */}
             {geom.xTicks.map((t) => (
-              <text key={t.idx} x={t.x} y={H_TOTAL - 6} textAnchor="middle" fill="#64748b" fontSize={10} fontFamily="monospace">
+              <text key={t.idx} x={t.x} y={H_TOTAL - 6} textAnchor="middle" fill="var(--chart-axis)" fontSize={10} fontFamily="monospace">
                 {t.label}
               </text>
             ))}
@@ -518,7 +518,7 @@ export default function StockKlineChart({
                   y1={PAD_T}
                   x2={geom.xOf(activeIdx)}
                   y2={volTop + H_VOL}
-                  stroke="rgba(34,211,238,0.4)"
+                  stroke="var(--accent)"
                   strokeDasharray="3 3"
                 />
                 <line
@@ -526,7 +526,7 @@ export default function StockKlineChart({
                   y1={geom.yPrice(activeBar.close)}
                   x2={W - PAD_R}
                   y2={geom.yPrice(activeBar.close)}
-                  stroke="rgba(148,163,184,0.28)"
+                  stroke="var(--border-strong)"
                   strokeDasharray="3 3"
                 />
               </g>
@@ -536,7 +536,7 @@ export default function StockKlineChart({
 
         {/* Active Day Execution Detail Callout */}
         {activeTrades.length > 0 && (
-          <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[#0b1120] p-2.5 text-xs">
+          <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-2.5 text-xs">
             <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--cyan)]">
               {activeBar?.date} 实盘成交明细（共 {activeTrades.length} 笔）
             </div>
@@ -551,7 +551,7 @@ export default function StockKlineChart({
                     >
                       {t.side === "BUY" ? "B 买入" : "S 卖出"}
                     </span>
-                    <span className="font-mono font-semibold text-[#f8fafc]">
+                    <span className="font-mono font-semibold text-[var(--ink-strong)]">
                       ¥{t.price.toFixed(2)} × {t.quantity}股
                     </span>
                     {t.tag && (
@@ -613,7 +613,7 @@ export default function StockKlineChart({
                         {t.side === "BUY" ? "B 买" : "S 卖"}
                       </span>
                     </td>
-                    <td className="py-1.5 pr-2 font-semibold text-[#f8fafc]">{t.price.toFixed(2)}</td>
+                    <td className="py-1.5 pr-2 font-semibold text-[var(--ink-strong)]">{t.price.toFixed(2)}</td>
                     <td className="py-1.5 pr-2 text-[var(--ink-muted)]">{t.quantity}</td>
                     <td className="py-1.5 pr-2 font-sans text-[11px] text-[var(--accent)]">{t.tag || "--"}</td>
                     <td className="max-w-[220px] truncate py-1.5 pr-2 font-sans text-[11px] text-[var(--ink-muted)]">

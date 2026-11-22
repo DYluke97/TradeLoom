@@ -32,8 +32,8 @@ export default function LedgerRecordsTable({
   const [recordsView, setRecordsView] = useState<"daily" | "trades">("daily");
   const [recordFilter, setRecordFilter] = useState<"all" | "big-loss" | "missing-review">("all");
 
-  const upText = colorScheme === "cn" ? "text-red-400" : "text-emerald-400";
-  const downText = colorScheme === "cn" ? "text-emerald-400" : "text-red-400";
+  const upText = colorScheme === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+  const downText = colorScheme === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
 
   const filteredDailyRows = useMemo(() => {
     const list = [...equityCurve].reverse();
@@ -89,7 +89,7 @@ export default function LedgerRecordsTable({
                 onClick={() => setRecordFilter(k)}
                 className={`rounded-full border px-2.5 py-1 transition ${
                   recordFilter === k
-                    ? "border-amber-400/60 bg-amber-500/15 text-amber-300"
+                    ? "border-amber-400/60 bg-amber-500/15 text-[var(--amber)]"
                     : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-muted)]"
                 }`}
               >
@@ -126,10 +126,10 @@ export default function LedgerRecordsTable({
                       {fmtSigned(p.dailyReturnPct)}
                     </td>
                     <td className="px-3 py-2 text-[var(--ink-muted)]">{p.nav.toFixed(4)}</td>
-                    <td className="px-3 py-2 text-red-300/80">{p.drawdownPct.toFixed(2)}%</td>
+                    <td className="px-3 py-2 text-[var(--rose)]">{p.drawdownPct.toFixed(2)}%</td>
                     <td className="px-3 py-2">
                       {p.positionPct !== undefined ? (
-                        <span className={p.positionPct > 100 ? "font-semibold text-amber-300" : "text-[var(--ink-muted)]"}>
+                        <span className={p.positionPct > 100 ? "font-semibold text-[var(--amber)]" : "text-[var(--ink-muted)]"}>
                           {p.positionPct}%{p.positionPct > 100 ? " (融)" : ""}
                         </span>
                       ) : (
@@ -149,7 +149,7 @@ export default function LedgerRecordsTable({
                       ) : missedBigLoss ? (
                         <Link
                           href="/vault?import=cloud"
-                          className="inline-flex items-center gap-1 text-[11px] text-amber-300 hover:underline"
+                          className="inline-flex items-center gap-1 text-[11px] text-[var(--amber)] hover:underline"
                         >
                           <AlertTriangle className="h-3 w-3" />
                           暴跌漏复盘 → 去补录
@@ -163,7 +163,7 @@ export default function LedgerRecordsTable({
                         type="button"
                         onClick={() => onDeleteDaily(p.date)}
                         title="删除该日记录"
-                        className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-red-300"
+                        className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -199,7 +199,7 @@ export default function LedgerRecordsTable({
               {[...trades].reverse().map((t) => (
                 <tr key={t.id} className="hover:bg-[var(--surface-2)]/50">
                   <td className="px-3 py-2 text-[var(--ink-muted)]">{t.date}</td>
-                  <td className="px-3 py-2 font-sans font-medium text-[#f8fafc]">
+                  <td className="px-3 py-2 font-sans font-medium text-[var(--ink-strong)]">
                     {t.name} <span className="font-mono text-[10px] text-[var(--ink-dim)]">{t.symbol}</span>
                   </td>
                   <td className="px-3 py-2">
@@ -211,7 +211,7 @@ export default function LedgerRecordsTable({
                       {t.side === "BUY" ? "B 买" : "S 卖"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 font-semibold text-[#f8fafc]">{t.price.toFixed(2)}</td>
+                  <td className="px-3 py-2 font-semibold text-[var(--ink-strong)]">{t.price.toFixed(2)}</td>
                   <td className="px-3 py-2 text-[var(--ink-muted)]">{t.quantity}</td>
                   <td className="max-w-[260px] truncate px-3 py-2 font-sans text-[11px] text-[var(--ink-muted)]">
                     {t.tag && <span className="mr-1.5 text-[var(--accent)]">[{t.tag}]</span>}
@@ -228,7 +228,7 @@ export default function LedgerRecordsTable({
                     <button
                       type="button"
                       onClick={() => onDeleteTrade(t.id)}
-                      className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-red-300"
+                      className="rounded p-1 text-[var(--ink-dim)] hover:bg-red-500/15 hover:text-[var(--rose)]"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

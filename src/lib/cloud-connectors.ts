@@ -6,20 +6,22 @@ import {
   discoverMcpOAuth,
   exchangeOAuthCode,
   McpHttpClient,
+  McpSseClient,
   MCP_ENDPOINTS,
   refreshOAuthToken,
   registerDynamicOAuthClient,
   resolveMcpUrl,
   savePendingOAuthSession,
   type McpOAuthConnectorId,
+  type McpToolInfo,
 } from "./mcp-client";
 import { maskSecret } from "./provider";
 import { rebuildVault } from "./vault";
 import type { VaultIndex } from "./vault-builder";
 import { ensureWorkspace, fileExists, getWorkspacePaths, writeAtomic } from "./workspace";
 
-export type ConnectorId = "notion" | "feishu" | "yuque" | "dida365";
-export type ConnectorAuthMode = "api_token" | "mcp_oauth";
+export type ConnectorId = "notion" | "feishu" | "yuque" | "dida365" | "youdao";
+export type ConnectorAuthMode = "api_token" | "mcp_oauth" | "mcp_api_key";
 
 export type DidaProjectSummary = {
   id: string;
@@ -27,6 +29,12 @@ export type DidaProjectSummary = {
   kind?: string;
   isInbox?: boolean;
   isWelcome?: boolean;
+};
+
+export type YoudaoFolderSummary = {
+  id: string;
+  name: string;
+  isRoot?: boolean;
 };
 
 export type NotionConnectorConfig = {
@@ -73,11 +81,21 @@ export type DidaConnectorConfig = {
   discoveredProjects?: DidaProjectSummary[];
 };
 
+export type YoudaoConnectorConfig = {
+  apiKey: string;
+  folderId: string; // Comma-separated folder IDs or names (blank syncs root + top-level folders)
+  keyword: string; // Optional keyword for searchNotes
+  maxItems?: number; // default 30
+  sseUrl?: string; // default https://open.mail.163.com/api/ynote/mcp/sse
+  discoveredFolders?: YoudaoFolderSummary[];
+};
+
 export type ConnectorsStore = {
   notion?: NotionConnectorConfig;
   feishu?: FeishuConnectorConfig;
   yuque?: YuqueConnectorConfig;
   dida365?: DidaConnectorConfig;
+  youdao?: YoudaoConnectorConfig;
   lastSync?: Partial<Record<ConnectorId, { at: string; synced: number; message: string }>>;
 };
 
@@ -90,6 +108,7 @@ export type MaskedConnectorSummary = {
   authMode?: ConnectorAuthMode;
   supportsMcpOAuth?: boolean;
   discoveredProjects?: DidaProjectSummary[];
+  discoveredFolders?: YoudaoFolderSummary[];
   fields: Record<string, string>;
   lastSync?: { at: string; synced: number; message: string };
 };
@@ -175,6 +194,23 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
       },
       lastSync: store.lastSync?.dida365,
     },
+    {
+      id: "youdao",
+      name: "有道云笔记 (YoudaoNote)",
+      badge: "官方 MCP (SSE)",
+      configured: Boolean(store.youdao?.apiKey),
+      maskedSecret: maskSecret(store.youdao?.apiKey ?? ""),
+      authMode: "mcp_api_key",
+      supportsMcpOAuth: false,
+      discoveredFolders: store.youdao?.discoveredFolders ?? [],
+      fields: {
+        folderId: store.youdao?.folderId ?? "",
+        keyword: store.youdao?.keyword ?? "",
+        maxItems: String(store.youdao?.maxItems ?? 30),
+        sseUrl: store.youdao?.sseUrl || MCP_ENDPOINTS.youdao,
+      },
+      lastSync: store.lastSync?.youdao,
+    },
   ];
 }
 
@@ -242,6 +278,24 @@ export async function saveConnectorConfig(
       includeCompleted: payload.includeCompleted !== "false",
       skipWelcome: payload.skipWelcome !== "false",
       baseUrl,
+    };
+  } else if (id === "youdao") {
+    const incomingKey = (payload.apiKey ?? payload.token ?? "").trim();
+    const apiKey = incomingKey || store.youdao?.apiKey || "";
+    if (!apiKey) {
+      return { ok: false, error: "请先填写有道云笔记 API Key（在 mopen.163.com「API 管理」免费创建）" };
+    }
+    const sseUrl = (payload.sseUrl ?? store.youdao?.sseUrl ?? MCP_ENDPOINTS.youdao).trim() || MCP_ENDPOINTS.youdao;
+    if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\//i.test(sseUrl)) {
+      return { ok: false, error: "有道云笔记 MCP SSE 地址必须为 https://" };
+    }
+    store.youdao = {
+      ...(store.youdao ?? {}),
+      apiKey,
+      folderId: (payload.folderId ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      maxItems: Math.min(100, Math.max(1, Number(payload.maxItems) || 30)),
+      sseUrl,
     };
   }
 
@@ -819,6 +873,200 @@ async function syncNotionViaMcp(cfg: NotionConnectorConfig): Promise<number> {
   return synced;
 }
 
+/* ==================== YoudaoNote Official MCP-over-SSE Helpers ==================== */
+
+export type YoudaoEntryRaw = {
+  id: string;
+  name: string;
+  isDir: boolean;
+  parentId?: string;
+  eventDate?: string;
+  folderName?: string;
+};
+
+export function cleanYoudaoNoteTitle(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/\.(?:note|md|markdown)$/i, "").trim() || trimmed;
+}
+
+export function parseYoudaoTimestamp(val: unknown): string {
+  if (val === undefined || val === null || val === "") return "";
+  if (typeof val === "number" && Number.isFinite(val) && val > 0) {
+    const ms = val < 10_000_000_000 ? val * 1000 : val;
+    const bj = new Date(ms + 8 * 60 * 60 * 1000);
+    if (!Number.isNaN(bj.getTime())) return bj.toISOString().slice(0, 10);
+  }
+  const s = String(val).trim();
+  if (/^\d{10,13}$/.test(s)) {
+    const num = Number(s);
+    const ms = s.length <= 10 ? num * 1000 : num;
+    const bj = new Date(ms + 8 * 60 * 60 * 1000);
+    if (!Number.isNaN(bj.getTime())) return bj.toISOString().slice(0, 10);
+  }
+  return toBeijingDateStr(s);
+}
+
+export function extractYoudaoEntries(data: unknown): YoudaoEntryRaw[] {
+  let list = unwrapArray<Record<string, unknown>>(data, [
+    "notes",
+    "entries",
+    "files",
+    "items",
+    "list",
+    "records",
+    "data",
+    "result",
+  ]);
+  if (list.length === 0 && data && typeof data === "object" && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
+    for (const nestedKey of ["data", "result", "body"]) {
+      const nested = obj[nestedKey];
+      if (nested && typeof nested === "object") {
+        list = unwrapArray<Record<string, unknown>>(nested, [
+          "notes",
+          "entries",
+          "files",
+          "items",
+          "list",
+          "records",
+          "data",
+        ]);
+        if (list.length > 0) break;
+      }
+    }
+  }
+
+  const out: YoudaoEntryRaw[] = [];
+  const seen = new Set<string>();
+  for (const raw of list) {
+    if (!raw || typeof raw !== "object") continue;
+    const id = String(raw.id ?? raw.fileId ?? raw.entryId ?? raw.noteId ?? "").trim();
+    const name = String(raw.name ?? raw.title ?? raw.fileName ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+
+    const typeStr = String(raw.type ?? "").toLowerCase();
+    const isDir =
+      raw.dir === true ||
+      raw.isDir === true ||
+      raw.isFolder === true ||
+      typeStr === "dir" ||
+      typeStr === "folder" ||
+      typeStr === "directory";
+
+    const eventDate =
+      parseYoudaoTimestamp(raw.modifyTime) ||
+      parseYoudaoTimestamp(raw.modifiedTime) ||
+      parseYoudaoTimestamp(raw.updateTime) ||
+      parseYoudaoTimestamp(raw.createTime) ||
+      parseYoudaoTimestamp(raw.createdTime);
+
+    out.push({
+      id,
+      name: name || id,
+      isDir,
+      parentId: raw.parentId ? String(raw.parentId) : undefined,
+      eventDate: eventDate || undefined,
+    });
+  }
+  return out;
+}
+
+export function extractYoudaoNoteContent(res: { text: string; json: unknown }): string {
+  if (res.json && typeof res.json === "object" && !Array.isArray(res.json)) {
+    const obj = res.json as Record<string, unknown>;
+    for (const k of ["content", "text", "body", "markdown", "noteContent"]) {
+      if (typeof obj[k] === "string" && (obj[k] as string).trim()) {
+        return (obj[k] as string).trim();
+      }
+    }
+    if (obj.data && typeof obj.data === "object") {
+      const inner = obj.data as Record<string, unknown>;
+      for (const k of ["content", "text", "body", "markdown"]) {
+        if (typeof inner[k] === "string" && (inner[k] as string).trim()) {
+          return (inner[k] as string).trim();
+        }
+      }
+    }
+    if (typeof obj.data === "string" && obj.data.trim()) {
+      return obj.data.trim();
+    }
+  }
+  if (typeof res.json === "string" && res.json.trim()) {
+    return res.json.trim();
+  }
+  return res.text.trim();
+}
+
+function resolveYoudaoToolNames(tools: McpToolInfo[]): {
+  listTool: string;
+  readTool: string;
+  searchTool: string;
+  readParamKey: string;
+} {
+  const listTool =
+    tools.find((t) => /^listNotes$/i.test(t.name))?.name ||
+    tools.find((t) => /list.*note/i.test(t.name))?.name ||
+    "listNotes";
+  const readInfo =
+    tools.find((t) => /^getNoteTextContent$/i.test(t.name)) ||
+    tools.find((t) => /get.*note.*(?:text|content)/i.test(t.name));
+  const readTool = readInfo?.name || "getNoteTextContent";
+  const searchTool =
+    tools.find((t) => /^searchNotes$/i.test(t.name))?.name ||
+    tools.find((t) => /search.*note/i.test(t.name))?.name ||
+    "searchNotes";
+
+  let readParamKey = "fileId";
+  const props = (readInfo?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties;
+  if (props && !("fileId" in props)) {
+    if ("noteId" in props) readParamKey = "noteId";
+    else if ("id" in props) readParamKey = "id";
+  }
+
+  return { listTool, readTool, searchTool, readParamKey };
+}
+
+async function listYoudaoFolderEntries(
+  mcp: McpSseClient,
+  listTool: string,
+  parentId: string,
+  maxPages = 3,
+): Promise<YoudaoEntryRaw[]> {
+  const all: YoudaoEntryRaw[] = [];
+  const seen = new Set<string>();
+  let lastId: string | undefined;
+
+  for (let page = 0; page < maxPages; page++) {
+    const args: Record<string, unknown> = { parentId };
+    if (lastId) args.lastId = lastId;
+    const res = await mcp.callTool(listTool, args);
+    const batch = extractYoudaoEntries(res.json);
+    if (batch.length === 0) break;
+
+    let added = 0;
+    for (const item of batch) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      all.push(item);
+      added++;
+    }
+    if (added === 0 || batch.length < 15) break;
+    lastId = batch[batch.length - 1].id;
+  }
+
+  return all;
+}
+
+function formatYoudaoError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "网络或接口异常";
+  if (/HTTP\s*(401|403)|authentication failed|10002/i.test(msg)) {
+    return `有道云笔记 API Key 鉴权失败，请确认已复制网易开发者平台 (mopen.163.com)「API 管理」中绑定同一手机号的 API Key（原始信息：${msg.slice(0, 140)}）`;
+  }
+  return msg;
+}
+
 /* ==================== Test & Sync Implementations ==================== */
 
 export async function testConnector(
@@ -905,6 +1153,43 @@ export async function testConnector(
         message: `已连接滴答清单（收集箱 + ${personalLists.length} 个个人清单${welcomeLists.length > 0 ? `，已自动标记 ${welcomeLists.length} 个官方欢迎清单` : ""}）${warnEmpty}`,
         connectors: await getMaskedConnectors(),
       };
+    }
+
+    if (id === "youdao") {
+      const cfg = store.youdao;
+      if (!cfg?.apiKey) {
+        return { ok: false, error: "请先填写并保存有道云笔记 API Key（在 mopen.163.com 获取）" };
+      }
+      const mcp = new McpSseClient(cfg.sseUrl || MCP_ENDPOINTS.youdao, { "x-api-key": cfg.apiKey });
+      try {
+        const tools = await mcp.listTools();
+        const { listTool } = resolveYoudaoToolNames(tools);
+        const rootEntries = await listYoudaoFolderEntries(mcp, listTool, "0", 2);
+        const folders: YoudaoFolderSummary[] = [
+          { id: "0", name: "根目录全部笔记", isRoot: true },
+          ...rootEntries.filter((e) => e.isDir).map((e) => ({ id: e.id, name: e.name, isRoot: false })),
+        ];
+        const rootNotes = rootEntries.filter((e) => !e.isDir);
+        cfg.discoveredFolders = folders;
+        await writeStore(store);
+
+        const realFolders = folders.filter((f) => !f.isRoot);
+        const preview = realFolders.slice(0, 6).map((f) => f.name).join("、");
+        const folderHint =
+          realFolders.length > 0
+            ? `，发现 ${realFolders.length} 个顶层文件夹（${preview}${realFolders.length > 6 ? " 等" : ""}）与 ${rootNotes.length} 篇根目录笔记`
+            : `，发现 ${rootNotes.length} 篇根目录笔记`;
+
+        return {
+          ok: true,
+          message: `已通过官方 MCP (SSE) 连接有道云笔记（就绪 ${tools.length} 个工具${folderHint}）`,
+          connectors: await getMaskedConnectors(),
+        };
+      } catch (err) {
+        return { ok: false, error: formatYoudaoError(err) };
+      } finally {
+        mcp.close();
+      }
     }
 
     return { ok: false, error: "未知连接器类型" };
@@ -1199,6 +1484,144 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
           );
           if (saved.ok) synced++;
         }
+      }
+    } else if (id === "youdao") {
+      const cfg = store.youdao;
+      if (!cfg?.apiKey) {
+        return { ok: false, error: "请先填写并保存有道云笔记 API Key（在 mopen.163.com 获取）" };
+      }
+
+      const limit = Math.min(100, Math.max(1, cfg.maxItems || 30));
+      const mcp = new McpSseClient(cfg.sseUrl || MCP_ENDPOINTS.youdao, { "x-api-key": cfg.apiKey });
+
+      try {
+        const tools = await mcp.listTools();
+        const { listTool, readTool, searchTool, readParamKey } = resolveYoudaoToolNames(tools);
+
+        const candidateNotes: YoudaoEntryRaw[] = [];
+        const seenIds = new Set<string>();
+        const pushNote = (entry: YoudaoEntryRaw, folderName?: string) => {
+          if (entry.isDir || seenIds.has(entry.id) || candidateNotes.length >= limit) return;
+          seenIds.add(entry.id);
+          candidateNotes.push({ ...entry, folderName: folderName || entry.folderName });
+        };
+
+        const keyword = (cfg.keyword ?? "").trim();
+        if (keyword) {
+          for (let startIndex = 0; candidateNotes.length < limit && startIndex < 150; startIndex += 15) {
+            const searchRes = await mcp.callTool(searchTool, { keyword, startIndex });
+            const batch = extractYoudaoEntries(searchRes.json);
+            if (batch.length === 0) break;
+            let added = 0;
+            for (const item of batch) {
+              if (!item.isDir && !seenIds.has(item.id)) {
+                pushNote(item, `搜索:${keyword}`);
+                added++;
+              }
+            }
+            if (added === 0 || batch.length < 15) break;
+          }
+        } else {
+          const rootEntries = await listYoudaoFolderEntries(mcp, listTool, "0", 2);
+          const folders: YoudaoFolderSummary[] = [
+            { id: "0", name: "根目录全部笔记", isRoot: true },
+            ...rootEntries.filter((e) => e.isDir).map((e) => ({ id: e.id, name: e.name, isRoot: false })),
+          ];
+          cfg.discoveredFolders = folders;
+
+          const selectedTokens = (cfg.folderId ?? "")
+            .split(/[\n,;，；]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          if (selectedTokens.length > 0) {
+            const tokenSet = new Set(selectedTokens.map((s) => s.toLowerCase()));
+            const matchedFolders = folders.filter(
+              (f) =>
+                tokenSet.has(f.id.toLowerCase()) ||
+                tokenSet.has(f.name.toLowerCase()) ||
+                (f.isRoot && (tokenSet.has("0") || tokenSet.has("根目录") || tokenSet.has("root"))),
+            );
+            // Also allow raw folder IDs not in top-level root
+            const matchedIds = new Set(matchedFolders.map((f) => f.id));
+            for (const tok of selectedTokens) {
+              if (!matchedFolders.some((f) => f.id.toLowerCase() === tok.toLowerCase() || f.name.toLowerCase() === tok.toLowerCase())) {
+                if (!matchedIds.has(tok)) {
+                  matchedFolders.push({ id: tok, name: tok, isRoot: tok === "0" });
+                  matchedIds.add(tok);
+                }
+              }
+            }
+
+            for (const folder of matchedFolders) {
+              if (candidateNotes.length >= limit) break;
+              const entries =
+                folder.id === "0"
+                  ? rootEntries
+                  : await listYoudaoFolderEntries(mcp, listTool, folder.id, 3);
+              for (const entry of entries) {
+                if (candidateNotes.length >= limit) break;
+                if (!entry.isDir) {
+                  pushNote(entry, folder.isRoot ? "根目录" : folder.name);
+                } else if (!folder.isRoot) {
+                  // Depth-2 subfolder scan for selected folder
+                  const subEntries = await listYoudaoFolderEntries(mcp, listTool, entry.id, 2);
+                  for (const sub of subEntries) {
+                    if (candidateNotes.length >= limit) break;
+                    if (!sub.isDir) pushNote(sub, `${folder.name}/${entry.name}`);
+                  }
+                }
+              }
+            }
+          } else {
+            // Blank folder filter: sync root notes + top 10 folders (depth 1) up to maxItems
+            for (const entry of rootEntries) {
+              if (candidateNotes.length >= limit) break;
+              if (!entry.isDir) pushNote(entry, "根目录");
+            }
+            const topFolders = rootEntries.filter((e) => e.isDir).slice(0, 10);
+            for (const folder of topFolders) {
+              if (candidateNotes.length >= limit) break;
+              const entries = await listYoudaoFolderEntries(mcp, listTool, folder.id, 2);
+              for (const entry of entries) {
+                if (candidateNotes.length >= limit) break;
+                if (!entry.isDir) pushNote(entry, folder.name);
+              }
+            }
+          }
+        }
+
+        for (const note of candidateNotes) {
+          try {
+            const detailRes = await mcp.callTool(readTool, { [readParamKey]: note.id });
+            const body = extractYoudaoNoteContent(detailRes);
+            if (!body) continue;
+
+            const title = cleanYoudaoNoteTitle(note.name) || `有道复盘_${note.id.slice(0, 8)}`;
+            const dateMatch = /\b(20\d{2}-\d{2}-\d{2})\b/.exec(`${title}\n${body.slice(0, 400)}`);
+            const eventDate = note.eventDate || (dateMatch ? dateMatch[1] : undefined);
+            const tagList = note.folderName ? [note.folderName, "有道云笔记"] : ["有道云笔记"];
+
+            const saved = await importPastedReview(
+              {
+                title,
+                content: body,
+                eventDate,
+                sourcePlatform: note.folderName ? `有道云笔记 · ${note.folderName}` : "有道云笔记",
+                tags: Array.from(new Set(tagList)),
+                folder: "_云端_有道云笔记",
+              },
+              { skipRebuild: true },
+            );
+            if (saved.ok) synced++;
+          } catch {
+            /* skip unreadable note and continue */
+          }
+        }
+      } catch (err) {
+        return { ok: false, error: `同步失败：${formatYoudaoError(err)}` };
+      } finally {
+        mcp.close();
       }
     }
 

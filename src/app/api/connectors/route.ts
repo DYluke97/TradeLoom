@@ -11,7 +11,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_IDS = new Set<ConnectorId>(["notion", "feishu", "yuque", "dida365"]);
+const VALID_IDS = new Set<ConnectorId>(["notion", "feishu", "yuque", "dida365", "youdao"]);
 
 export async function GET() {
   const connectors = await getMaskedConnectors();

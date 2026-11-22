@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   Cloud,
   ExternalLink,
+  FolderOpen,
+  KeyRound,
   ListChecks,
   Loader2,
   LogIn,
@@ -16,7 +18,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ConnectorId, DidaProjectSummary, MaskedConnectorSummary } from "@/lib/cloud-connectors";
+import type {
+  ConnectorId,
+  DidaProjectSummary,
+  MaskedConnectorSummary,
+  YoudaoFolderSummary,
+} from "@/lib/cloud-connectors";
 
 type FieldSpec = {
   key: string;
@@ -76,6 +83,18 @@ const CONNECTOR_META: Record<
       { key: "domain", label: "开放平台域名", placeholder: "open.feishu.cn" },
     ],
   },
+  youdao: {
+    accent: "text-[#38bdf8]",
+    subtitle: "直连有道云笔记官方远程 MCP (SSE)，无需装 OpenClaw，支持目录点选与关键词全文同步",
+    tokenGuide:
+      "打开网易智能开发者平台 (mopen.163.com)，用绑定有道云笔记的手机号登录 → 进入「API 管理」免费生成 API Key（约 30 秒、免审核），粘贴到下方保存后点「测试并浏览目录」即可。",
+    fields: [
+      { key: "apiKey", label: "有道云笔记 API Key (x-api-key，留空保留已存密钥)", placeholder: "粘贴从 mopen.163.com 获取的 API Key", secret: true },
+      { key: "folderId", label: "同步目录筛选（逗号分隔文件夹名或 ID；留空同步根目录 + 前 10 个顶层目录）", placeholder: "留空自动拉取全部常见目录，或点上方目录胶囊勾选" },
+      { key: "keyword", label: "按关键词全文检索同步（可选，填写后将优先调用官方 searchNotes）", placeholder: "例如：复盘、交易计划（留空则按目录拉取）" },
+      { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
+    ],
+  },
   yuque: {
     accent: "text-[var(--emerald)]",
     subtitle: "直连语雀 API v2，原生 Markdown 无损拉取指定知识库的历史复盘文章",
@@ -96,14 +115,14 @@ const CLIP_PLATFORMS = [
     desc: "公开复盘长文可直接用「网页链接抓取」；私密笔记或触发登录校验的页面，推荐用浏览器一键剪藏小书签或 Ctrl+C 富文本粘贴入库。",
   },
   {
-    name: "有道云笔记",
-    badge: "富文本粘贴 / 剪藏 / 导出 MD",
-    desc: "有道云笔记个人端未开放简单 Token/MCP，最稳妥的方式是在网页/客户端复制后「快捷粘贴入库」（自动转 Markdown），或用浏览器剪藏一键收录。",
-  },
-  {
     name: "印象笔记 (Evernote)",
     badge: "富文本粘贴 / 剪藏 / HTML 导入",
     desc: "支持在客户端批量导出 .html 文件后直接拖入 TradeLoom 上传，或日常单篇使用「富文本粘贴 / 浏览器剪藏」零配置入库。",
+  },
+  {
+    name: "微信公众号 / 任意投研长文",
+    badge: "网页抓取 / 浏览器一键剪藏",
+    desc: "看到深度行业研报或个人公号复盘，可直接粘贴链接抓取正文，或用书签栏剪藏一键转 Markdown 存入本地 Obsidian 知识库。",
   },
 ];
 
@@ -121,6 +140,7 @@ export default function CloudConnectorsPanel() {
     feishu: {},
     yuque: {},
     dida365: {},
+    youdao: {},
   });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -130,7 +150,7 @@ export default function CloudConnectorsPanel() {
     const data = await res.json();
     if (data.ok && Array.isArray(data.connectors)) {
       // Show Dida365 & Notion (MCP OAuth enabled) first
-      const order: ConnectorId[] = ["dida365", "notion", "feishu", "yuque"];
+      const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
       const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
         (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
       );
@@ -195,6 +215,26 @@ export default function CloudConnectorsPanel() {
     updateField("dida365", "projectId", next.join(", "));
   }
 
+  function toggleYoudaoFolder(folder: YoudaoFolderSummary) {
+    const cur = parseSelectionList(drafts.youdao?.folderId ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const idKey = folder.id.toLowerCase();
+    const nameKey = folder.name.toLowerCase();
+    const rootMatched = folder.isRoot && (lowerSet.has("0") || lowerSet.has("根目录") || lowerSet.has("root"));
+    let next: string[];
+    if (lowerSet.has(idKey) || lowerSet.has(nameKey) || rootMatched) {
+      next = cur.filter(
+        (s) =>
+          s.toLowerCase() !== idKey &&
+          s.toLowerCase() !== nameKey &&
+          !(folder.isRoot && (s.toLowerCase() === "0" || s.toLowerCase() === "根目录" || s.toLowerCase() === "root")),
+      );
+    } else {
+      next = [...cur, folder.isRoot ? "0" : folder.name];
+    }
+    updateField("youdao", "folderId", next.join(", "));
+  }
+
   async function startMcpOAuth(id: "dida365" | "notion") {
     setBusyId(`${id}:oauth`);
     setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
@@ -249,7 +289,7 @@ export default function CloudConnectorsPanel() {
       const data = await res.json();
       if (data.ok) {
         if (data.connectors) {
-          const order: ConnectorId[] = ["dida365", "notion", "feishu", "yuque"];
+          const order: ConnectorId[] = ["dida365", "notion", "youdao", "feishu", "yuque"];
           const sorted = [...(data.connectors as MaskedConnectorSummary[])].sort(
             (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
           );
@@ -258,7 +298,7 @@ export default function CloudConnectorsPanel() {
         if (action === "save") {
           setDrafts((prev) => ({
             ...prev,
-            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "" },
+            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", apiKey: "" },
           }));
           setFeedback((prev) => ({
             ...prev,
@@ -267,7 +307,7 @@ export default function CloudConnectorsPanel() {
         } else if (action === "disconnect") {
           setDrafts((prev) => ({
             ...prev,
-            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", projectId: "" },
+            [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", apiKey: "", projectId: "", folderId: "" },
           }));
           setFeedback((prev) => ({
             ...prev,
@@ -304,9 +344,11 @@ export default function CloudConnectorsPanel() {
           </h2>
           <p className="mt-1 text-xs leading-6 text-[var(--ink-muted)]">
             <strong className="text-[var(--amber)]">滴答清单 / TickTick</strong> 与 <strong className="text-[#f8fafc]">Notion</strong> 已支持{" "}
-            <strong className="text-[var(--cyan)]">官方远程 MCP + 一键 OAuth 登录</strong>（免建开发者应用，本地保存令牌）；
+            <strong className="text-[var(--cyan)]">官方远程 MCP + 一键 OAuth 登录</strong>；
+            <strong className="text-[#38bdf8]">有道云笔记</strong> 已支持{" "}
+            <strong className="text-[var(--cyan)]">官方远程 MCP (SSE)</strong>（仅需 1 个 API Key，无需装 OpenClaw）；
             <strong className="text-[var(--ink)]">飞书 / 语雀</strong> 支持官方 API 直连；
-            <strong className="text-[var(--ink)]">雪球 / 有道 / 印象笔记</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
+            <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
           </p>
         </div>
         <Link
@@ -331,6 +373,9 @@ export default function CloudConnectorsPanel() {
           const selectedDidaTokens = new Set(
             parseSelectionList(drafts.dida365?.projectId ?? "").map((s) => s.toLowerCase()),
           );
+          const selectedYoudaoTokens = new Set(
+            parseSelectionList(drafts.youdao?.folderId ?? "").map((s) => s.toLowerCase()),
+          );
 
           return (
             <div key={c.id} className="scifi-card flex flex-col justify-between rounded-xl p-5">
@@ -341,7 +386,7 @@ export default function CloudConnectorsPanel() {
                       <h3 className={`text-sm font-semibold ${meta.accent}`}>{c.name}</h3>
                       <span
                         className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${
-                          c.authMode === "mcp_oauth"
+                          c.authMode === "mcp_oauth" || c.authMode === "mcp_api_key"
                             ? "border-[var(--cyan)]/45 bg-[var(--cyan-soft)] text-[var(--cyan)]"
                             : "border-[var(--border-strong)] bg-[var(--bg-deep)] text-[var(--ink-dim)]"
                         }`}
@@ -417,9 +462,79 @@ export default function CloudConnectorsPanel() {
                   </div>
                 )}
 
+                {/* YoudaoNote Official MCP Quick Action Bar */}
+                {c.id === "youdao" && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#38bdf8]/35 bg-[#38bdf8]/10 p-2.5">
+                    <a
+                      href="https://mopen.163.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#0284c7] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_12px_rgba(56,189,248,0.28)] transition hover:bg-[#0ea5e9]"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      去 mopen.163.com 获取 API Key
+                      <ExternalLink className="h-3 w-3 opacity-80" />
+                    </a>
+                    {c.configured && (
+                      <button
+                        type="button"
+                        disabled={busyId !== null}
+                        onClick={() => runAction("youdao", "disconnect")}
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                        清除密钥
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/75 px-3 py-2 text-[11px] leading-5 text-[var(--ink-dim)]">
                   {meta.tokenGuide}
                 </div>
+
+                {/* YoudaoNote Discovered Folders Pill Selector */}
+                {c.id === "youdao" && c.discoveredFolders && c.discoveredFolders.length > 0 && (
+                  <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                      <span className="inline-flex items-center gap-1">
+                        <FolderOpen className="h-3.5 w-3.5 text-[#38bdf8]" />
+                        已发现有道目录（点选指定同步；全不选 = 同步根目录 + 前 10 个文件夹）：
+                      </span>
+                      {selectedYoudaoTokens.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => updateField("youdao", "folderId", "")}
+                          className="text-[var(--cyan)] hover:underline"
+                        >
+                          清空勾选
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {c.discoveredFolders.map((f) => {
+                        const active =
+                          selectedYoudaoTokens.has(f.id.toLowerCase()) ||
+                          selectedYoudaoTokens.has(f.name.toLowerCase()) ||
+                          (f.isRoot && (selectedYoudaoTokens.has("0") || selectedYoudaoTokens.has("根目录")));
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => toggleYoudaoFolder(f)}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                              active
+                                ? "border-[#38bdf8] bg-[#38bdf8]/15 font-medium text-[#38bdf8]"
+                                : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[#38bdf8] hover:text-[var(--ink)]"
+                            }`}
+                          >
+                            <span>{f.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Dida365 Discovered Projects Pill Selector + Options */}
                 {c.id === "dida365" && (
@@ -576,7 +691,11 @@ export default function CloudConnectorsPanel() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
                   >
                     {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlugZap className="h-3.5 w-3.5" />}
-                    {c.id === "dida365" ? "测试并刷新清单" : "测试连接"}
+                    {c.id === "dida365"
+                      ? "测试并刷新清单"
+                      : c.id === "youdao"
+                        ? "测试并浏览目录"
+                        : "测试连接"}
                   </button>
                   <button
                     type="button"
@@ -603,7 +722,7 @@ export default function CloudConnectorsPanel() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#f8fafc]">
             <Bookmark className="h-4 w-4 text-[var(--emerald)]" />
-            雪球 / 有道云笔记 / 印象笔记（推荐：富文本粘贴 · URL 抓取 · 浏览器一键剪藏）
+            雪球 / 印象笔记 / 微信公众号（推荐：富文本粘贴 · URL 抓取 · 浏览器一键剪藏）
           </div>
           <Link
             href="/vault?import=cloud"

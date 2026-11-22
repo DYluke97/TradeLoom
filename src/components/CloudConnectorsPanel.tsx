@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Bookmark,
+  BookOpen,
   CheckCircle2,
   Cloud,
   ExternalLink,
@@ -26,6 +27,7 @@ import type {
   DidaProjectSummary,
   MaskedConnectorSummary,
   YoudaoFolderSummary,
+  YuqueRepoSummary,
 } from "@/lib/cloud-connectors";
 
 type FieldSpec = {
@@ -109,12 +111,14 @@ const CONNECTOR_META: Record<
   },
   yuque: {
     accent: "text-[var(--emerald)]",
-    subtitle: "直连语雀 API v2，原生 Markdown 无损拉取指定知识库的历史复盘文章",
+    subtitle: "支持官方 API v2 知识库胶囊点选、语雀小记 (Notes) 同步与跨库关键词搜索；免费用户可走免会员剪藏/导入通道",
     tokenGuide:
-      "语雀官方暂未提供托管远程 MCP，请在语雀右上角「账户设置 → Token」创建个人只读 Token（需语雀会员）；知识库路径形如 your_login/trading-review。",
+      "【超级会员 / 团队旗舰版】前往语雀「设置 → Token」创建只读 Token 贴入下方，点「测试并浏览知识库」即可勾选同步知识库与小记；【语雀免费版用户】无需开会员，直接点上方「免会员：剪藏 / 导出 MD 导入」即可无损入库。",
     fields: [
-      { key: "token", label: "X-Auth-Token (留空保留已存密钥)", placeholder: "输入语雀 Personal Token", secret: true },
-      { key: "namespace", label: "知识库路径（留空自动读取首个知识库）", placeholder: "例如：username/trading-notes" },
+      { key: "token", label: "X-Auth-Token (留空保留已存密钥)", placeholder: "输入语雀 Personal / Team Token", secret: true },
+      { key: "namespace", label: "同步知识库筛选（逗号分隔路径；留空自动同步全部知识库，或点上方胶囊勾选）", placeholder: "例如：username/trading-notes（留空同步全部）" },
+      { key: "keyword", label: "跨库关键词全文检索（可选，填写后调用官方 /search 精准拉取）", placeholder: "例如：复盘、交割（留空则按知识库拉取）" },
+      { key: "baseUrl", label: "API 地址或团队空间域名（支持直接填 https://xxx.yuque.com）", placeholder: "https://www.yuque.com/api/v2" },
       { key: "maxItems", label: "单次最多同步篇数", placeholder: "30" },
     ],
   },
@@ -244,6 +248,20 @@ export default function CloudConnectorsPanel() {
       next = [...cur, proj.isInbox ? "inbox" : proj.name];
     }
     updateField("dida365", "projectId", next.join(", "));
+  }
+
+  function toggleYuqueRepo(repo: YuqueRepoSummary) {
+    const cur = parseSelectionList(drafts.yuque?.namespace ?? "");
+    const lowerSet = new Set(cur.map((s) => s.toLowerCase()));
+    const nsKey = repo.namespace.toLowerCase();
+    const nameKey = repo.name.toLowerCase();
+    let next: string[];
+    if (lowerSet.has(nsKey) || lowerSet.has(nameKey)) {
+      next = cur.filter((s) => s.toLowerCase() !== nsKey && s.toLowerCase() !== nameKey);
+    } else {
+      next = [...cur, repo.namespace];
+    }
+    updateField("yuque", "namespace", next.join(", "));
   }
 
   function toggleYoudaoFolder(folder: YoudaoFolderSummary) {
@@ -596,6 +614,9 @@ export default function CloudConnectorsPanel() {
           const selectedYoudaoTokens = new Set(
             parseSelectionList(drafts.youdao?.folderId ?? "").map((s) => s.toLowerCase()),
           );
+          const selectedYuqueTokens = new Set(
+            parseSelectionList(drafts.yuque?.namespace ?? "").map((s) => s.toLowerCase()),
+          );
 
           return (
             <div key={c.id} className="scifi-card flex flex-col justify-between rounded-xl p-5">
@@ -891,6 +912,100 @@ export default function CloudConnectorsPanel() {
                   {meta.tokenGuide}
                 </div>
 
+                {/* Yuque Dual-Path Action Bar (VIP Token + Free Clip/Import) */}
+                {c.id === "yuque" && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--emerald)]/35 bg-[var(--emerald-soft)]/50 p-2.5">
+                    <a
+                      href="https://www.yuque.com/settings/tokens"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#10b981]"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      去语雀获取 Token（超级会员）
+                      <ExternalLink className="h-3 w-3 opacity-80" />
+                    </a>
+                    <Link
+                      href="/vault?import=cloud"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--emerald)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--emerald)] transition hover:bg-[var(--emerald)]/15"
+                    >
+                      免会员：剪藏 / 导出 MD 导入 →
+                    </Link>
+                    {c.configured && (
+                      <button
+                        type="button"
+                        disabled={busyId !== null}
+                        onClick={() => runAction("yuque", "disconnect")}
+                        className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-500/35 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        {isDisconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+                        清除密钥
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Yuque Notes Option + Discovered Repos Pill Selector */}
+                {c.id === "yuque" && (
+                  <div className="space-y-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--ink-muted)]">
+                      <input
+                        type="checkbox"
+                        checked={(drafts.yuque?.includeNotes ?? "true") !== "false"}
+                        onChange={(e) =>
+                          updateField("yuque", "includeNotes", e.target.checked ? "true" : "false")
+                        }
+                        className="h-3.5 w-3.5 accent-[var(--emerald)]"
+                      />
+                      <span>同时拉取「语雀小记 (Notes)」（盘中随手记与复盘碎片，推荐）</span>
+                    </label>
+
+                    {c.discoveredRepos && c.discoveredRepos.length > 0 && (
+                      <div className="space-y-1.5 border-t border-[var(--border)] pt-2">
+                        <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
+                          <span className="inline-flex items-center gap-1">
+                            <BookOpen className="h-3.5 w-3.5 text-[var(--emerald)]" />
+                            已发现知识库（点选指定同步；全不选 = 同步全部知识库）：
+                          </span>
+                          {selectedYuqueTokens.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateField("yuque", "namespace", "")}
+                              className="text-[var(--emerald)] hover:underline"
+                            >
+                              清空勾选
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.discoveredRepos.map((r) => {
+                            const active =
+                              selectedYuqueTokens.has(r.namespace.toLowerCase()) ||
+                              selectedYuqueTokens.has(r.name.toLowerCase());
+                            return (
+                              <button
+                                key={r.namespace}
+                                type="button"
+                                onClick={() => toggleYuqueRepo(r)}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition ${
+                                  active
+                                    ? "border-[var(--emerald)] bg-[var(--emerald-soft)] font-medium text-[var(--emerald)]"
+                                    : "border-[var(--border-strong)] bg-[var(--surface-2)] text-[var(--ink-muted)] hover:border-[var(--emerald)] hover:text-[var(--ink)]"
+                                }`}
+                              >
+                                <span>{r.name}</span>
+                                {typeof r.itemsCount === "number" && (
+                                  <span className="text-[9px] opacity-70">({r.itemsCount})</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* YoudaoNote Discovered Folders Pill Selector */}
                 {c.id === "youdao" && c.discoveredFolders && c.discoveredFolders.length > 0 && (
                   <div className="space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3">
@@ -1099,7 +1214,9 @@ export default function CloudConnectorsPanel() {
                       ? "测试并刷新清单"
                       : c.id === "youdao"
                         ? "测试并浏览目录"
-                        : "测试连接"}
+                        : c.id === "yuque"
+                          ? "测试并浏览知识库"
+                          : "测试连接"}
                   </button>
                   <button
                     type="button"

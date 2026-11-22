@@ -68,11 +68,22 @@ export type FeishuConnectorConfig = {
   maxItems?: number; // default 20
 };
 
+export type YuqueRepoSummary = {
+  id: string;
+  namespace: string;
+  name: string;
+  description?: string;
+  itemsCount?: number;
+};
+
 export type YuqueConnectorConfig = {
   token: string;
-  namespace: string; // e.g. login/repo_slug (optional: blank syncs first repo)
-  baseUrl?: string; // default https://www.yuque.com/api/v2
+  namespace: string; // Comma-separated repo namespaces (e.g. login/repo1, login/repo2); blank syncs all discovered repos
+  keyword?: string; // Optional full-text search query via GET /search?q=...&type=doc
+  includeNotes?: boolean; // Sync Yuque Notes (语雀小记) via GET /notes (default true)
+  baseUrl?: string; // default https://www.yuque.com/api/v2 (auto-normalizes team host like https://team.yuque.com)
   maxItems?: number;
+  discoveredRepos?: YuqueRepoSummary[];
 };
 
 export type DidaConnectorConfig = {
@@ -120,6 +131,7 @@ export type MaskedConnectorSummary = {
   supportsMcpOAuth?: boolean;
   discoveredProjects?: DidaProjectSummary[];
   discoveredFolders?: YoudaoFolderSummary[];
+  discoveredRepos?: YuqueRepoSummary[];
   fields: Record<string, string>;
   lastSync?: { at: string; synced: number; message: string };
 };
@@ -187,13 +199,16 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
     {
       id: "yuque",
       name: "语雀 (Yuque)",
-      badge: "API v2",
+      badge: "API v2 · 小记/知识库",
       configured: Boolean(store.yuque?.token),
       maskedSecret: maskSecret(store.yuque?.token ?? ""),
       authMode: "api_token",
       supportsMcpOAuth: false,
+      discoveredRepos: store.yuque?.discoveredRepos ?? [],
       fields: {
         namespace: store.yuque?.namespace ?? "",
+        keyword: store.yuque?.keyword ?? "",
+        includeNotes: store.yuque?.includeNotes === false ? "false" : "true",
         baseUrl: store.yuque?.baseUrl || "https://www.yuque.com/api/v2",
         maxItems: String(store.yuque?.maxItems ?? 30),
       },
@@ -281,14 +296,19 @@ export async function saveConnectorConfig(
     };
   } else if (id === "yuque") {
     const token = (payload.token ?? "").trim() || store.yuque?.token || "";
-    if (!token) return { ok: false, error: "请填写语雀 API Token (X-Auth-Token)" };
-    const baseUrl = (payload.baseUrl ?? "https://www.yuque.com/api/v2").trim().replace(/\/+$/, "");
-    if (!baseUrl.startsWith("https://")) {
-      return { ok: false, error: "语雀 API 地址必须为 https://" };
+    if (!token) {
+      return { ok: false, error: "请填写语雀 API Token（超级会员可在 yuque.com/settings/tokens 创建；免费用户推荐用剪藏或导出 MD 导入）" };
+    }
+    const baseUrl = normalizeYuqueBaseUrl(payload.baseUrl ?? store.yuque?.baseUrl);
+    if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\//i.test(baseUrl)) {
+      return { ok: false, error: "语雀 API 地址或团队空间域名必须为 https://" };
     }
     store.yuque = {
+      ...(store.yuque ?? {}),
       token,
       namespace: (payload.namespace ?? "").trim(),
+      keyword: (payload.keyword ?? "").trim(),
+      includeNotes: payload.includeNotes !== "false",
       baseUrl,
       maxItems: Math.min(100, Math.max(1, Number(payload.maxItems) || 30)),
     };
@@ -1120,6 +1140,102 @@ function formatYoudaoError(err: unknown): string {
   return msg;
 }
 
+/* ==================== Yuque Official API v2 / MCP-Parity Helpers ==================== */
+
+export function normalizeYuqueBaseUrl(raw?: string): string {
+  const cleaned = (raw ?? "").trim().replace(/\/+$/, "");
+  if (!cleaned) return "https://www.yuque.com/api/v2";
+  if (/\/api\/v2$/i.test(cleaned)) return cleaned;
+  return `${cleaned}/api/v2`;
+}
+
+export function extractYuqueNoteText(note: Record<string, unknown>): string {
+  for (const k of ["body_markdown", "markdown", "body", "abstract", "description"]) {
+    if (typeof note[k] === "string" && (note[k] as string).trim()) {
+      const val = (note[k] as string).trim();
+      // Strip HTML/Lake tags if the field returned HTML
+      if (val.startsWith("<") && /<\/[a-z]+>/i.test(val)) {
+        const plain = val
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/(?:p|div|li|h[1-6]|blockquote)>/gi, "\n\n")
+          .replace(/<[^>]+>/g, "")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&amp;/g, "&")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+        if (plain) return plain;
+      }
+      return val;
+    }
+  }
+  const contentObj = note.content as Record<string, unknown> | undefined;
+  if (contentObj && typeof contentObj === "object") {
+    for (const k of ["abstract", "body", "markdown", "html"]) {
+      if (typeof contentObj[k] === "string" && (contentObj[k] as string).trim()) {
+        return (contentObj[k] as string)
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/(?:p|div|li)>/gi, "\n\n")
+          .replace(/<[^>]+>/g, "")
+          .trim();
+      }
+    }
+  }
+  return "";
+}
+
+async function fetchYuqueUserAndRepos(
+  base: string,
+  headers: Record<string, string>,
+): Promise<{ login: string; name: string; repos: YuqueRepoSummary[] }> {
+  const userRes = await fetch(`${base}/user`, { headers, signal: AbortSignal.timeout(12000) });
+  const userData = (await userRes.json().catch(() => ({}))) as {
+    data?: { name?: string; login?: string };
+    message?: string;
+  };
+  if (!userRes.ok || !userData.data?.login) {
+    throw new Error(`语雀认证失败 (${userRes.status})：${userData.message ?? "Token 无效或已过期"}`);
+  }
+  const login = userData.data.login;
+  const name = userData.data.name || login;
+
+  const repos: YuqueRepoSummary[] = [];
+  const seen = new Set<string>();
+  try {
+    const reposRes = await fetch(`${base}/users/${encodeURIComponent(login)}/repos?limit=100`, {
+      headers,
+      signal: AbortSignal.timeout(12000),
+    });
+    if (reposRes.ok) {
+      const reposJson = (await reposRes.json()) as {
+        data?: Array<{
+          id?: number | string;
+          namespace?: string;
+          name?: string;
+          description?: string;
+          items_count?: number;
+        }>;
+      };
+      for (const r of reposJson.data ?? []) {
+        const ns = String(r.namespace ?? "").trim();
+        if (!ns || seen.has(ns)) continue;
+        seen.add(ns);
+        repos.push({
+          id: String(r.id ?? ns),
+          namespace: ns,
+          name: String(r.name ?? ns).trim(),
+          description: r.description ? String(r.description).trim() : undefined,
+          itemsCount: typeof r.items_count === "number" ? r.items_count : undefined,
+        });
+      }
+    }
+  } catch {
+    /* non-fatal */
+  }
+  return { login, name, repos };
+}
+
 /* ==================== Test & Sync Implementations ==================== */
 
 export async function testConnector(
@@ -1181,15 +1297,21 @@ export async function testConnector(
     if (id === "yuque") {
       const cfg = store.yuque;
       if (!cfg?.token) return { ok: false, error: "请先保存语雀 X-Auth-Token" };
-      const base = (cfg.baseUrl || "https://www.yuque.com/api/v2").replace(/\/+$/, "");
-      const res = await fetch(`${base}/user`, {
-        headers: { "X-Auth-Token": cfg.token, "User-Agent": "TradeLoom/1.0" },
-      });
-      const data = (await res.json()) as { data?: { name?: string; login?: string }; message?: string };
-      if (!res.ok) return { ok: false, error: `语雀认证失败 (${res.status})：${data.message ?? "Token 无效"}` };
+      const base = normalizeYuqueBaseUrl(cfg.baseUrl);
+      const headers = { "X-Auth-Token": cfg.token, "User-Agent": "TradeLoom/1.0" };
+      const { name, repos } = await fetchYuqueUserAndRepos(base, headers);
+      cfg.discoveredRepos = repos;
+      await writeStore(store);
+
+      const preview = repos.slice(0, 6).map((r) => r.name).join("、");
+      const repoHint =
+        repos.length > 0
+          ? `，发现 ${repos.length} 个知识库（${preview}${repos.length > 6 ? " 等" : ""}）`
+          : "（未发现知识库，仍可同步「语雀小记」或手动填写知识库路径）";
       return {
         ok: true,
-        message: `已连接语雀账号：${data.data?.name || data.data?.login || "OK"}`,
+        message: `已连接语雀账号：${name}${repoHint}`,
+        connectors: await getMaskedConnectors(),
       };
     }
 
@@ -1479,50 +1601,219 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
     } else if (id === "yuque") {
       const cfg = store.yuque;
       if (!cfg?.token) return { ok: false, error: "请先保存语雀配置" };
-      const base = (cfg.baseUrl || "https://www.yuque.com/api/v2").replace(/\/+$/, "");
+      const base = normalizeYuqueBaseUrl(cfg.baseUrl);
+      const siteOrigin = base.replace(/\/api\/v2$/i, "");
       const headers = { "X-Auth-Token": cfg.token, "User-Agent": "TradeLoom/1.0" };
-      let namespace = cfg.namespace.trim();
+      const limit = Math.min(100, Math.max(1, cfg.maxItems || 30));
+      const keyword = (cfg.keyword ?? "").trim();
+      const includeNotes = cfg.includeNotes !== false;
 
-      if (!namespace) {
-        const userRes = await fetch(`${base}/user`, { headers });
-        const userData = (await userRes.json()) as { data?: { login?: string } };
-        const login = userData.data?.login;
-        if (!login) return { ok: false, error: "无法获取语雀用户信息，请手动填写知识库路径 (如 username/repo)" };
-        const reposRes = await fetch(`${base}/users/${encodeURIComponent(login)}/repos`, { headers });
-        const reposData = (await reposRes.json()) as { data?: Array<{ namespace?: string }> };
-        namespace = reposData.data?.[0]?.namespace ?? "";
-        if (!namespace) return { ok: false, error: "未找到语雀知识库，请手动填写知识库路径 (如 username/repo)" };
-      }
+      const { repos: discoveredRepos } = await fetchYuqueUserAndRepos(base, headers);
+      cfg.discoveredRepos = discoveredRepos;
 
-      const docsRes = await fetch(`${base}/repos/${namespace}/docs`, { headers });
-      if (!docsRes.ok) return { ok: false, error: `读取语雀知识库 ${namespace} 失败 (HTTP ${docsRes.status})` };
-      const docsData = (await docsRes.json()) as {
-        data?: Array<{ slug: string; title: string; created_at?: string; updated_at?: string }>;
-      };
-      const docs = (docsData.data ?? []).slice(0, cfg.maxItems || 30);
+      const seenDocKeys = new Set<string>();
+      const importYuqueDoc = async (
+        repoNamespace: string,
+        repoLabel: string,
+        slugOrId: string,
+        fallbackTitle: string,
+        fallbackDate?: string,
+        numericDocId?: number,
+      ) => {
+        const key = `${repoNamespace}/${slugOrId}`;
+        if (seenDocKeys.has(key) || synced >= limit) return;
+        seenDocKeys.add(key);
 
-      for (const doc of docs) {
-        const detailRes = await fetch(`${base}/repos/${namespace}/docs/${encodeURIComponent(doc.slug)}`, {
-          headers,
-        });
-        if (!detailRes.ok) continue;
-        const detailData = (await detailRes.json()) as {
-          data?: { title?: string; body?: string; created_at?: string };
-        };
-        const md = detailData.data?.body?.trim() ?? "";
-        if (!md) continue;
+        let title = fallbackTitle;
+        let md = "";
+        let eventDate = fallbackDate || "";
+        let slug = slugOrId;
+
+        const detailRes = await fetch(
+          `${base}/repos/${repoNamespace}/docs/${encodeURIComponent(slugOrId)}`,
+          { headers, signal: AbortSignal.timeout(15000) },
+        );
+        if (detailRes.ok) {
+          const detailData = (await detailRes.json()) as {
+            data?: { id?: number; slug?: string; title?: string; body?: string; created_at?: string; updated_at?: string };
+          };
+          if (detailData.data) {
+            title = detailData.data.title || title;
+            md = (detailData.data.body ?? "").trim();
+            slug = detailData.data.slug || slug;
+            eventDate = toBeijingDateStr(detailData.data.updated_at || detailData.data.created_at) || eventDate;
+            if (!md && detailData.data.id) numericDocId = detailData.data.id;
+          }
+        }
+
+        // YFM reader fallback (same endpoint as official yuque-mcp-server getYmdDoc)
+        if (!md && numericDocId) {
+          try {
+            const yfmRes = await fetch(`${base}/yfm/docs?doc_id=${numericDocId}`, {
+              headers,
+              signal: AbortSignal.timeout(12000),
+            });
+            if (yfmRes.ok) {
+              const yfmJson = (await yfmRes.json()) as { data?: { yfm?: string; markdown?: string; body?: string } };
+              md = (yfmJson.data?.yfm || yfmJson.data?.markdown || yfmJson.data?.body || "").trim();
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (!md) return;
         const saved = await importPastedReview(
           {
-            title: detailData.data?.title || doc.title,
+            title: title || `语雀复盘_${slug}`,
             content: md,
-            eventDate: (detailData.data?.created_at || doc.created_at || "").slice(0, 10),
-            sourcePlatform: "语雀",
-            sourceUrl: `https://www.yuque.com/${namespace}/${doc.slug}`,
+            eventDate: eventDate || undefined,
+            sourcePlatform: repoLabel ? `语雀 · ${repoLabel}` : "语雀",
+            sourceUrl: `${siteOrigin}/${repoNamespace}/${slug}`,
+            tags: repoLabel ? [repoLabel, "语雀"] : ["语雀"],
             folder: "_云端_语雀",
           },
           { skipRebuild: true },
         );
         if (saved.ok) synced++;
+      };
+
+      if (keyword) {
+        for (let page = 1; page <= 4 && synced < limit; page++) {
+          const searchRes = await fetch(
+            `${base}/search?q=${encodeURIComponent(keyword)}&type=doc&page=${page}`,
+            { headers, signal: AbortSignal.timeout(15000) },
+          );
+          if (!searchRes.ok) break;
+          const searchJson = (await searchRes.json()) as {
+            data?: Array<{
+              id?: number;
+              title?: string;
+              url?: string;
+              target?: { id?: number; slug?: string; title?: string; updated_at?: string; book?: { namespace?: string; name?: string } };
+            }>;
+          };
+          const hits = Array.isArray(searchJson.data) ? searchJson.data : [];
+          if (hits.length === 0) break;
+          for (const hit of hits) {
+            if (synced >= limit) break;
+            const ns = hit.target?.book?.namespace || "";
+            const slug = hit.target?.slug || "";
+            if (!ns || !slug) continue;
+            await importYuqueDoc(
+              ns,
+              hit.target?.book?.name || ns,
+              slug,
+              (hit.target?.title || hit.title || "").replace(/<\/?em>/gi, ""),
+              toBeijingDateStr(hit.target?.updated_at),
+              hit.target?.id || hit.id,
+            );
+          }
+          if (hits.length < 20) break;
+        }
+      } else {
+        const selectedTokens = (cfg.namespace ?? "")
+          .split(/[\n,;，；]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        let targetRepos: YuqueRepoSummary[] = [];
+        if (selectedTokens.length > 0) {
+          const tokenSet = new Set(selectedTokens.map((s) => s.toLowerCase()));
+          targetRepos = discoveredRepos.filter(
+            (r) => tokenSet.has(r.namespace.toLowerCase()) || tokenSet.has(r.name.toLowerCase()),
+          );
+          for (const tok of selectedTokens) {
+            if (tok.includes("/") && !targetRepos.some((r) => r.namespace.toLowerCase() === tok.toLowerCase())) {
+              targetRepos.push({ id: tok, namespace: tok, name: tok });
+            }
+          }
+        } else {
+          targetRepos = discoveredRepos.slice(0, 8);
+        }
+
+        for (const repo of targetRepos) {
+          if (synced >= limit) break;
+          const docsRes = await fetch(
+            `${base}/repos/${repo.namespace}/docs?limit=${Math.min(100, limit)}`,
+            { headers, signal: AbortSignal.timeout(15000) },
+          );
+          if (!docsRes.ok) continue;
+          const docsData = (await docsRes.json()) as {
+            data?: Array<{ id?: number; slug: string; title: string; created_at?: string; updated_at?: string }>;
+          };
+          for (const doc of docsData.data ?? []) {
+            if (synced >= limit) break;
+            await importYuqueDoc(
+              repo.namespace,
+              repo.name,
+              doc.slug,
+              doc.title,
+              toBeijingDateStr(doc.updated_at || doc.created_at),
+              doc.id,
+            );
+          }
+        }
+      }
+
+      // Sync Yuque Notes (语雀小记) via GET /notes (official yuque-mcp-server route)
+      if (includeNotes && synced < limit) {
+        try {
+          const notesRes = await fetch(`${base}/notes?page=1&limit=${Math.min(30, limit - synced)}`, {
+            headers,
+            signal: AbortSignal.timeout(15000),
+          });
+          if (notesRes.ok) {
+            const notesJson = (await notesRes.json()) as {
+              data?: { notes?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+            };
+            const noteList = Array.isArray(notesJson.data)
+              ? notesJson.data
+              : Array.isArray(notesJson.data?.notes)
+                ? notesJson.data.notes
+                : [];
+            for (const note of noteList) {
+              if (synced >= limit) break;
+              const noteId = note.id ? Number(note.id) : 0;
+              let body = extractYuqueNoteText(note);
+              if (!body && noteId) {
+                try {
+                  const detailRes = await fetch(`${base}/notes/${noteId}`, {
+                    headers,
+                    signal: AbortSignal.timeout(12000),
+                  });
+                  if (detailRes.ok) {
+                    const detailJson = (await detailRes.json()) as { data?: Record<string, unknown> };
+                    if (detailJson.data) body = extractYuqueNoteText(detailJson.data);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+              if (!body) continue;
+              const eventDate = toBeijingDateStr(
+                String(note.updated_at ?? note.published_at ?? note.created_at ?? ""),
+              );
+              const firstLine = body.split(/\r?\n/)[0]?.replace(/^#+\s*/, "").trim().slice(0, 36);
+              const title = firstLine || `语雀小记_${eventDate || noteId || synced + 1}`;
+              const saved = await importPastedReview(
+                {
+                  title,
+                  content: body,
+                  eventDate: eventDate || undefined,
+                  sourcePlatform: "语雀 · 小记",
+                  sourceUrl: `${siteOrigin}/dashboard/notes`,
+                  tags: ["语雀小记", "语雀"],
+                  folder: "_云端_语雀",
+                },
+                { skipRebuild: true },
+              );
+              if (saved.ok) synced++;
+            }
+          }
+        } catch {
+          /* non-fatal if account/plan does not expose /notes */
+        }
       }
     } else if (id === "dida365") {
       await ensureFreshOAuthToken(store, "dida365");

@@ -17,8 +17,10 @@ import {
   cleanYoudaoNoteTitle,
   extractYoudaoEntries,
   extractYoudaoNoteContent,
+  extractYuqueNoteText,
   isDidaWelcomeProject,
   isDidaWelcomeTask,
+  normalizeYuqueBaseUrl,
   parseYoudaoTimestamp,
 } from "../src/lib/cloud-connectors";
 import {
@@ -357,5 +359,20 @@ describe("Feishu Agent Integration (RFC 8628 One-Click Registration + lark-cli p
       title: "11月交易纪律",
       markdown: "# 核心纪律\n\n- 严控回撤",
     });
+  });
+});
+
+describe("Yuque MCP-parity helpers (host normalization + Notes extraction)", () => {
+  it("normalizes default and custom team-space Yuque hosts to /api/v2", () => {
+    expect(normalizeYuqueBaseUrl("")).toBe("https://www.yuque.com/api/v2");
+    expect(normalizeYuqueBaseUrl("https://my-team.yuque.com/")).toBe("https://my-team.yuque.com/api/v2");
+    expect(normalizeYuqueBaseUrl("https://www.yuque.com/api/v2/")).toBe("https://www.yuque.com/api/v2");
+  });
+
+  it("extracts clean text from Yuque Notes markdown and HTML/Lake envelopes", () => {
+    expect(extractYuqueNoteText({ body_markdown: "# 盘中观察\n- 严守纪律" })).toBe("# 盘中观察\n- 严守纪律");
+    expect(extractYuqueNoteText({ body: "<p>今日复盘：<strong>减仓锁盈</strong></p><p>等待回踩</p>" })).toBe(
+      "今日复盘：减仓锁盈\n\n等待回踩",
+    );
   });
 });

@@ -22,6 +22,8 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { dispatchVaultChanged } from "@/components/CreateVaultModal";
+import type { VaultSummary } from "@/lib/vault-types";
 import type {
   ConnectorId,
   DidaProjectSummary,
@@ -201,6 +203,8 @@ function parseSelectionList(raw: string): string[] {
 
 export default function CloudConnectorsPanel() {
   const [connectors, setConnectors] = useState<MaskedConnectorSummary[]>([]);
+  const [vaultList, setVaultList] = useState<VaultSummary[]>([]);
+  const [targetVaultId, setTargetVaultId] = useState<string>("default");
   const [drafts, setDrafts] = useState<Record<ConnectorId, Record<string, string>>>({
     notion: {},
     feishu: {},
@@ -253,6 +257,24 @@ export default function CloudConnectorsPanel() {
       });
     }
   }
+
+  useEffect(() => {
+    const loadVaultList = async () => {
+      try {
+        const res = await fetch("/api/vaults", { cache: "no-store" });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.vaults)) {
+          setVaultList(data.vaults);
+          if (data.activeVaultId) setTargetVaultId(data.activeVaultId);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    loadVaultList();
+    window.addEventListener("tradeloom:vault-changed", loadVaultList);
+    return () => window.removeEventListener("tradeloom:vault-changed", loadVaultList);
+  }, []);
 
   useEffect(() => {
     loadConnectors();
@@ -646,6 +668,7 @@ export default function CloudConnectorsPanel() {
           id,
           action,
           fields: action === "save" ? drafts[id] : undefined,
+          targetVaultId: action === "sync" ? targetVaultId : undefined,
         }),
       });
       const data = await res.json();
@@ -686,6 +709,9 @@ export default function CloudConnectorsPanel() {
             [id]: { ok: true, text: "已断开当前账号授权，可重新登录切换账号。" },
           }));
         } else {
+          if (action === "sync") {
+            dispatchVaultChanged(targetVaultId);
+          }
           setFeedback((prev) => ({
             ...prev,
             [id]: { ok: true, text: data.message || "操作成功" },
@@ -736,7 +762,33 @@ export default function CloudConnectorsPanel() {
         </Link>
       </div>
 
-      {/* 4 Official Connectors */}
+      {/* Target Vault Selector (Global Auth, Per-Vault Sync Destination) */}
+      {vaultList.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/35 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="font-semibold text-[#f8fafc]">同步目标知识库：</span>
+            <select
+              value={targetVaultId}
+              onChange={(e) => setTargetVaultId(e.target.value)}
+              className="rounded-lg border border-[var(--cyan)]/50 bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[#f8fafc] focus:border-[var(--cyan)] focus:outline-none"
+            >
+              {vaultList.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}（{v.stats.docsCount} 篇复盘）{v.isDemo ? " [示范库]" : ""}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-[var(--ink-muted)]">
+              9 大平台账号全局共享（只需授权一次）；点击下方「拉取同步」将精准落入上方选中的知识库并重建双链。
+            </span>
+          </div>
+          <Link href="/vaults" className="text-[11px] font-medium text-[var(--cyan)] hover:underline">
+            管理全部知识库 →
+          </Link>
+        </div>
+      )}
+
+      {/* 9 Official Connectors */}
       <div className="grid gap-4 lg:grid-cols-2">
         {connectors.map((c) => {
           const meta = CONNECTOR_META[c.id];

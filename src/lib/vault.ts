@@ -4,21 +4,34 @@ import path from "node:path";
 import { loadConceptRules } from "./concepts";
 import { carrierOf, convertFile, guessTitle, MAX_INPUT_BYTES } from "./convert";
 import { buildVault, wrapFirstUnlinkedOccurrence, type VaultDoc, type VaultIndex } from "./vault-builder";
-import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
+import {
+  DEFAULT_VAULT_ID,
+  ensureWorkspace,
+  fileExists,
+  getActiveVaultId,
+  getWorkspacePaths,
+  insideRoot,
+  isValidVaultId,
+  runWithVault,
+  writeAtomic,
+} from "./workspace";
 import { createZipBuffer, type ZipInputEntry } from "./zip";
 
 const sha = (buf: Buffer | string) => createHash("sha256").update(buf).digest("hex");
 
-let vaultBuildQueue: Promise<unknown> = Promise.resolve();
+const vaultBuildQueues = new Map<string, Promise<unknown>>();
 
 async function buildVaultWithUserConcepts(): Promise<VaultIndex> {
-  const run = async (): Promise<VaultIndex> => {
-    const paths = await ensureWorkspace();
-    const { rules } = await loadConceptRules();
-    return buildVault(paths.sources, paths.vault, paths.manuals, rules);
-  };
-  const next = vaultBuildQueue.then(run, run);
-  vaultBuildQueue = next.catch(() => {});
+  const vaultId = getActiveVaultId();
+  const prev = vaultBuildQueues.get(vaultId) ?? Promise.resolve();
+  const run = async (): Promise<VaultIndex> =>
+    runWithVault(vaultId, async () => {
+      const paths = await ensureWorkspace(vaultId);
+      const { rules } = await loadConceptRules();
+      return buildVault(paths.sources, paths.vault, paths.manuals, rules);
+    });
+  const next = prev.then(run, run);
+  vaultBuildQueues.set(vaultId, next.catch(() => {}));
   return next;
 }
 
@@ -293,12 +306,12 @@ export async function hasLoadedSamples(index: VaultIndex): Promise<boolean> {
 
 async function moveFileToTrash(sourceFullPath: string, labelRel: string): Promise<string> {
   const paths = await ensureWorkspace();
-  const trashDir = path.join(paths.root, ".trash");
+  const trashDir = path.join(paths.vaultRoot, ".trash");
   await mkdir(trashDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
   const flatName = labelRel.replace(/[\\/]+/g, "__");
   const trashRel = `.trash/${stamp}_${flatName}`;
-  await rename(sourceFullPath, path.join(paths.root, trashRel));
+  await rename(sourceFullPath, path.join(paths.vaultRoot, trashRel));
   return trashRel;
 }
 
@@ -337,7 +350,11 @@ export async function clearSampleReviews(): Promise<{ removed: number; index: Va
   return { removed, index };
 }
 
-async function collectFilesRecursively(dir: string, prefix = ""): Promise<ZipInputEntry[]> {
+async function collectFilesRecursively(
+  dir: string,
+  zipRootName = "TradeLoom-Vault",
+  prefix = "",
+): Promise<ZipInputEntry[]> {
   const out: ZipInputEntry[] = [];
   let entries;
   try {
@@ -349,17 +366,21 @@ async function collectFilesRecursively(dir: string, prefix = ""): Promise<ZipInp
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...(await collectFilesRecursively(full, rel)));
+      out.push(...(await collectFilesRecursively(full, zipRootName, rel)));
     } else if (entry.isFile() && rel !== "index.json") {
       const [data, info] = await Promise.all([readFile(full), stat(full)]);
-      out.push({ path: `TradeLoom-Vault/${rel}`, data, mtime: info.mtime });
+      out.push({ path: `${zipRootName}/${rel}`, data, mtime: info.mtime });
     }
   }
   return out;
 }
 
-export async function exportVaultZipBuffer(): Promise<Buffer> {
-  const { vaultDir } = await loadOrBuildVault();
-  const entries = await collectFilesRecursively(vaultDir);
-  return createZipBuffer(entries);
+export async function exportVaultZipBuffer(vaultId?: string): Promise<Buffer> {
+  const targetId = vaultId && isValidVaultId(vaultId) ? vaultId.trim() : getActiveVaultId();
+  const zipRootName = targetId === DEFAULT_VAULT_ID ? "TradeLoom-Vault" : `TradeLoom-Vault-${targetId}`;
+  return runWithVault(targetId, async () => {
+    const { vaultDir } = await loadOrBuildVault();
+    const entries = await collectFilesRecursively(vaultDir, zipRootName);
+    return createZipBuffer(entries);
+  });
 }

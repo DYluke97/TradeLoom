@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       action?: "save" | "test" | "sync" | "disconnect";
       id?: string;
       fields?: Record<string, string>;
+      targetVaultId?: string;
     };
 
     const id = body.id as ConnectorId;
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === "sync") {
-      const synced = await syncConnector(id);
+      const synced = await syncConnector(id, body.targetVaultId);
       if (!synced.ok) return NextResponse.json(synced, { status: 422 });
       return NextResponse.json(synced);
     }

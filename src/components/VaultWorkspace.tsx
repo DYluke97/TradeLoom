@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CloudImportModal from "@/components/CloudImportModal";
+import ConceptTaxonomyEditor from "@/components/ConceptTaxonomyEditor";
+import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import MarkdownView from "@/components/MarkdownView";
 import ObsidianGraph from "@/components/ObsidianGraph";
 import type { ParsedMarkdown } from "@/lib/markdown";
@@ -102,7 +104,9 @@ export default function VaultWorkspace() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [showUnlinked, setShowUnlinked] = useState(true);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
+  const paramConcepts = searchParams.get("concepts");
   const [cloudImportOpen, setCloudImportOpen] = useState(paramImport === "cloud");
+  const [conceptsOpen, setConceptsOpen] = useState(paramConcepts === "1");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
@@ -128,6 +132,12 @@ export default function VaultWorkspace() {
       setCloudImportOpen(true);
     }
   }, [paramImport]);
+
+  useEffect(() => {
+    if (paramConcepts === "1") {
+      setConceptsOpen(true);
+    }
+  }, [paramConcepts]);
 
   const loadIndex = useCallback(async () => {
     const res = await fetch("/api/vault", { cache: "no-store" });
@@ -397,13 +407,14 @@ export default function VaultWorkspace() {
             >
               <Download className="h-3.5 w-3.5" />
             </a>
-            <Link
-              href="/settings?tab=concepts"
-              title="自定义主题词典并重新编排双链"
+            <button
+              type="button"
+              onClick={() => setConceptsOpen(true)}
+              title="管理本库关键词词典并重织双链（仅作用于当前知识库）"
               className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => setCenterMode((m) => (m === "graph" ? "card" : "graph"))}
@@ -1011,9 +1022,49 @@ export default function VaultWorkspace() {
         onImported={(nextIndex, cardRel, message) => {
           setIndex(nextIndex);
           setStatusMsg(message);
+          dispatchVaultChanged();
           if (cardRel) openCard(cardRel);
         }}
       />
+
+      {conceptsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#04060c]/80 p-4 backdrop-blur-sm"
+          onClick={() => {
+            setConceptsOpen(false);
+            loadIndex();
+            dispatchVaultChanged();
+          }}
+        >
+          <div
+            className="flex max-h-[86vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[#0f1422] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-deep)] px-5 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[#f8fafc]">本库核心关键词词典（仅作用于当前知识库）</h3>
+                <p className="text-[11px] text-[var(--ink-dim)]">
+                  决定哪些交易术语会被自动提取为主题节点与双链连线；不同知识库拥有各自独立的词典。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setConceptsOpen(false);
+                  loadIndex();
+                  dispatchVaultChanged();
+                }}
+                className="rounded-lg p-1.5 text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5">
+              <ConceptTaxonomyEditor />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

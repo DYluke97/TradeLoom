@@ -52,7 +52,16 @@ import {
   readLocalYinxiangSkillToken,
   YINXIANG_DEFAULT_BASE_URL,
 } from "./yinxiang-skill";
-import { ensureWorkspace, fileExists, getWorkspacePaths, writeAtomic } from "./workspace";
+import {
+  ensureWorkspace,
+  fileExists,
+  getActiveVaultId,
+  getWorkspacePaths,
+  isValidVaultId,
+  runWithVault,
+  writeAtomic,
+} from "./workspace";
+import { getVaultMetaById } from "./vaults";
 
 export type ConnectorId =
   | "notion"
@@ -1753,16 +1762,57 @@ export async function testConnector(
 }
 
 export type SyncResult =
-  | { ok: true; synced: number; message: string; index: VaultIndex; connectors: MaskedConnectorSummary[] }
+  | {
+      ok: true;
+      synced: number;
+      message: string;
+      targetVaultId: string;
+      targetVaultName: string;
+      index: VaultIndex;
+      connectors: MaskedConnectorSummary[];
+    }
   | { ok: false; error: string };
 
-export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
-  const store = await readStore();
-  let synced = 0;
-  let skippedWelcome = 0;
-  let extraNotice = "";
+function applyVaultFilterOverrides<T extends Record<string, unknown>>(
+  cfg: T | undefined,
+  overrides: Record<string, string> | undefined,
+): T | undefined {
+  if (!cfg || !overrides) return cfg;
+  const merged: Record<string, unknown> = { ...cfg };
+  for (const [k, v] of Object.entries(overrides)) {
+    if (typeof v === "string" && v.trim() !== "") {
+      merged[k] = v.trim();
+    }
+  }
+  return merged as T;
+}
 
-  try {
+export async function syncConnector(id: ConnectorId, targetVaultId?: string): Promise<SyncResult> {
+  const resolvedVaultId =
+    targetVaultId && isValidVaultId(targetVaultId) ? targetVaultId.trim() : getActiveVaultId();
+  const vaultMeta = await getVaultMetaById(resolvedVaultId);
+  const targetVaultName = vaultMeta?.name ?? "我的主复盘库";
+
+  return runWithVault(resolvedVaultId, async () => {
+    const store = await readStore();
+    const filterOverrides = vaultMeta?.connectorFilters?.[id];
+    if (filterOverrides) {
+      if (id === "notion" && store.notion) store.notion = applyVaultFilterOverrides(store.notion, filterOverrides);
+      if (id === "feishu" && store.feishu) store.feishu = applyVaultFilterOverrides(store.feishu, filterOverrides);
+      if (id === "yuque" && store.yuque) store.yuque = applyVaultFilterOverrides(store.yuque, filterOverrides);
+      if (id === "dida365" && store.dida365) store.dida365 = applyVaultFilterOverrides(store.dida365, filterOverrides);
+      if (id === "youdao" && store.youdao) store.youdao = applyVaultFilterOverrides(store.youdao, filterOverrides);
+      if (id === "tencent_docs" && store.tencent_docs) store.tencent_docs = applyVaultFilterOverrides(store.tencent_docs, filterOverrides);
+      if (id === "ima" && store.ima) store.ima = applyVaultFilterOverrides(store.ima, filterOverrides);
+      if (id === "onenote" && store.onenote) store.onenote = applyVaultFilterOverrides(store.onenote, filterOverrides);
+      if (id === "yinxiang" && store.yinxiang) store.yinxiang = applyVaultFilterOverrides(store.yinxiang, filterOverrides);
+    }
+
+    let synced = 0;
+    let skippedWelcome = 0;
+    let extraNotice = "";
+
+    try {
     if (id === "notion") {
       await ensureFreshOAuthToken(store, "notion");
       const cfg = store.notion;
@@ -2580,19 +2630,23 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
     const skipNote = skippedWelcome > 0 ? `（已自动跳过 ${skippedWelcome} 条官方新手教程）` : "";
     const message =
       synced > 0
-        ? `成功拉取 ${synced} 篇云端复盘并重建 Obsidian 双链图谱${skipNote}${extraNotice}`
-        : `连接正常，但未拉取到个人复盘正文${skipNote}${extraNotice}（请核对是否授权对了主号，或在目录/知识库列表中勾选目标范围）`;
+        ? `成功拉取 ${synced} 篇云端复盘至【${targetVaultName}】并重建双链图谱${skipNote}${extraNotice}`
+        : `连接正常，但未向【${targetVaultName}】拉取到个人复盘正文${skipNote}${extraNotice}（请核对是否授权对了主号，或在目录/知识库列表中勾选目标范围）`;
 
-    store.lastSync = {
-      ...(store.lastSync ?? {}),
+    // Persist lastSync without overwriting global filters with per-vault overrides
+    const freshStore = await readStore();
+    freshStore.lastSync = {
+      ...(freshStore.lastSync ?? {}),
       [id]: { at: new Date().toISOString(), synced, message },
     };
-    await writeStore(store);
+    await writeStore(freshStore);
 
     return {
       ok: true,
       synced,
       message,
+      targetVaultId: resolvedVaultId,
+      targetVaultName,
       index,
       connectors: await getMaskedConnectors(),
     };
@@ -2602,4 +2656,5 @@ export async function syncConnector(id: ConnectorId): Promise<SyncResult> {
       error: `同步失败：${err instanceof Error ? err.message : "网络或接口异常"}`,
     };
   }
+  });
 }

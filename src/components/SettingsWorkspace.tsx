@@ -128,7 +128,7 @@ export default function SettingsWorkspace() {
           }`}
         >
           <KeyRound className="h-3.5 w-3.5" />
-          大模型 API
+          AI 大模型配置（全局共享）
         </button>
 
         <button
@@ -141,7 +141,7 @@ export default function SettingsWorkspace() {
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />
-          分析 Skill 工坊
+          AI 提炼规则工坊（全局共享）
           {customSkillCount > 0 && (
             <span className="rounded-full bg-[var(--cyan-soft)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--cyan)]">
               +{customSkillCount}
@@ -159,7 +159,7 @@ export default function SettingsWorkspace() {
           }`}
         >
           <Hash className="h-3.5 w-3.5" />
-          自定义主题词典 & 双链编排
+          当前库关键词词典（仅当前库）
         </button>
 
         <button
@@ -172,7 +172,7 @@ export default function SettingsWorkspace() {
           }`}
         >
           <Cloud className="h-3.5 w-3.5" />
-          云端平台连接器（飞书 / Notion / 语雀 / 滴答）
+          云端同步中心（9 大平台 · 全局授权）
         </button>
       </div>
 

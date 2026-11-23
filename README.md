@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./docs/brand/tradeloom-logo.svg" alt="TradeLoom Logo" width="88" height="88" />
+
 # TradeLoom · 织脉
 
 **Local-First 投研复盘双链知识库 × A 股实盘投资账本 × 个人交易方法论演化引擎**
@@ -17,6 +19,10 @@
 [![Privacy](https://img.shields.io/badge/Privacy-100%25_Local--First-475569.svg)](#七安全与隐私红线)
 
 [为什么做 TradeLoom](#一为什么做-tradeloom) · [核心特性](#二核心功能体系) · [工作台路由](#三多库并行与八大工作台) · [快速开始（4 种方式）](#四快速开始按人群任选-4-种方式) · [5 分钟闭环](#五5-分钟上手闭环) · [安全与隐私](#七安全与隐私红线)
+
+<br />
+
+<img src="./docs/brand/tradeloom-social-preview.png" alt="TradeLoom · 织脉 全景概览" width="860" />
 
 </div>
 

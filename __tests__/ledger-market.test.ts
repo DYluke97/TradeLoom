@@ -32,7 +32,50 @@ describe("Sprint 3: A-share symbol normalization, CSV broker import, quant analy
     const cyb = normalizeAShareSymbol("399006", "index");
     expect(cyb).toEqual({ code: "399006", market: "SZ", secid: "0.399006", txCode: "sz399006" });
 
+    const shBond = normalizeAShareSymbol("113050");
+    expect(shBond).toEqual({ code: "113050", market: "SH", secid: "1.113050", txCode: "sh113050" });
+
+    const szBond = normalizeAShareSymbol("128130");
+    expect(szBond).toEqual({ code: "128130", market: "SZ", secid: "0.128130", txCode: "sz128130" });
+
     expect(normalizeAShareSymbol("INVALID")).toBeNull();
+  });
+
+  it("decodes UTF-16LE BOM TSV exports and preserves empty leading columns without shifting indices", () => {
+    const tsvText = [
+      "备注\t成交日期\t证券代码\t证券名称\t买卖标志\t成交价格\t成交数量",
+      "\t2026-03-10\t113050\t南银转债\t买入\t118.50\t100",
+    ].join("\r\n");
+    const bom = Buffer.from([0xff, 0xfe]);
+    const body = Buffer.from(tsvText, "utf16le");
+    const preview = previewLedgerCsv(Buffer.concat([bom, body]));
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    expect(preview.encoding).toBe("utf-16le");
+    expect(preview.delimiter).toBe("\t");
+    expect(preview.sampleRows[0][preview.mapping.date!]).toBe("2026-03-10");
+    expect(preview.sampleRows[0][preview.mapping.symbol!]).toBe("113050");
+  });
+
+  it("compounds mixed raw NAV and dailyReturnPct records smoothly without resetting or exploding", () => {
+    const store: LedgerStore = {
+      version: 1,
+      updatedAt: "2026-03-05T00:00:00Z",
+      settings: { benchmarkCode: "000300", colorScheme: "cn" },
+      dailyRecords: [
+        { id: "m1", date: "2026-03-01", nav: 100, source: "csv" },
+        { id: "m2", date: "2026-03-02", dailyReturnPct: 5, source: "manual" },
+        { id: "m3", date: "2026-03-03", nav: 105, source: "csv" },
+        { id: "m4", date: "2026-03-04", nav: 115.5, source: "csv" },
+      ],
+      trades: [],
+    };
+    const analytics = computeLedgerAnalytics(store, []);
+    expect(analytics.equityCurve[1].cumReturnPct).toBeCloseTo(5.0, 2);
+    expect(analytics.equityCurve[2].dailyReturnPct).toBe(0);
+    expect(analytics.equityCurve[2].cumReturnPct).toBeCloseTo(5.0, 2);
+    expect(analytics.equityCurve[3].dailyReturnPct).toBeCloseTo(10.0, 2);
+    expect(analytics.kpi.cumReturnPct).toBeCloseTo(15.5, 2);
   });
 
   it("parses Chinese broker trade CSV, skips banner rows, and redacts sensitive account columns", () => {
@@ -153,8 +196,28 @@ describe("Sprint 3: A-share symbol normalization, CSV broker import, quant analy
         expect(r2Dup.error).toContain("跳过 2 行");
       }
 
+      // Cross-period cost basis check: buy in Jan @ 100, sell in Feb @ 120 -> Feb brief reflects +20% realized PnL
+      const crossCsv = [
+        "成交日期,证券代码,证券名称,方向,成交价,数量,手续费,资金账号",
+        "2026-01-15,600519,贵州茅台,买入,1400.0,100,0,ACC999888777",
+        "2026-02-10,600519,贵州茅台,卖出,1540.0,100,0,ACC999888777",
+      ].join("\n");
+      const rCross = await importLedgerCsv({
+        buf: Buffer.from(crossCsv, "utf-8"),
+        mapping: { date: 0, symbol: 1, name: 2, side: 3, price: 4, quantity: 5, note: 7 },
+      });
+      expect(rCross.ok).toBe(true);
+      if (rCross.ok) {
+        // Explicit mapping attempting to map sensitive column #7 ("资金账号") into note must be stripped
+        const mtSell = rCross.store.trades.find((t) => t.symbol === "600519" && t.date === "2026-02-10");
+        expect(mtSell?.note).toBeUndefined();
+      }
+
       const brief = await buildPeriodQuantBrief("2026-02-01", "2026-02-28");
       expect(brief).not.toBeNull();
+      const mtStat = brief!.stockStats.find((s) => s.symbol === "600519");
+      expect(mtStat?.realizedPnlPct).toBeCloseTo(10.0, 1);
+      expect(mtStat?.tradeCount).toBe(1);
       const serialized = JSON.stringify(brief);
       expect(serialized).not.toContain("9876543");
       expect(serialized).not.toContain("10291358");

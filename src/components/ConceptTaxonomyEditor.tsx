@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { CheckCircle2, Hash, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import type { ConceptRule } from "@/lib/concepts";
 
 type DraftRule = {
@@ -44,15 +45,24 @@ export default function ConceptTaxonomyEditor() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadRules = useCallback(() => {
+    setError("");
+    setNotice("");
     fetch("/api/concepts", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.rules)) {
           setRules(data.rules.map(toDraft));
         }
-      });
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadRules();
+    window.addEventListener("tradeloom:vault-changed", loadRules);
+    return () => window.removeEventListener("tradeloom:vault-changed", loadRules);
+  }, [loadRules]);
 
   function handleAddRule(e: React.FormEvent) {
     e.preventDefault();
@@ -108,6 +118,7 @@ export default function ConceptTaxonomyEditor() {
         return;
       }
       setRules(data.rules.map(toDraft));
+      dispatchVaultChanged();
       const c = data.index?.counts;
       setNotice(
         c
@@ -132,6 +143,7 @@ export default function ConceptTaxonomyEditor() {
       const data = await res.json();
       if (data.ok) {
         setRules(data.rules.map(toDraft));
+        dispatchVaultChanged();
         const c = data.index?.counts;
         setNotice(
           `已恢复内置 10 组交易词典并重新编排（${c?.topics ?? 0} 个主题 · ${c?.links ?? 0} 条双链）。`,

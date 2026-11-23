@@ -597,24 +597,36 @@ export async function deleteVault(
     return { ok: false, error: `找不到知识库：${vaultId}` };
   }
 
-  const [removed] = reg.vaults.splice(idx, 1);
-  if (reg.activeVaultId === vaultId) {
-    const sorted = [...reg.vaults].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
-    reg.activeVaultId = sorted[0]?.id ?? DEFAULT_VAULT_ID;
-  }
-  await saveVaultRegistry(reg);
-
+  const target = reg.vaults[idx];
   const root = getGlobalWorkspaceRoot();
-  const managedDir = path.join(root, "vaults", removed.id);
+  const managedDir = path.join(root, "vaults", target.id);
   let trashedTo: string | null = null;
   if (await fileExists(managedDir)) {
     const trashParent = path.join(root, ".trash", "vaults");
     await mkdir(trashParent, { recursive: true });
     const stamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
-    const trashRel = `.trash/vaults/${stamp}_${removed.id}`;
-    await rename(managedDir, path.join(root, trashRel));
-    trashedTo = trashRel;
+    const trashRel = `.trash/vaults/${stamp}_${target.id}`;
+    try {
+      await rename(managedDir, path.join(root, trashRel));
+      trashedTo = trashRel;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code === "EPERM" || code === "EBUSY" || code === "EACCES") {
+        return {
+          ok: false,
+          error: "该知识库目录正被其他程序（如 Obsidian 或资源管理器）占用，请先关闭相关窗口后再试。",
+        };
+      }
+      throw err;
+    }
   }
+
+  reg.vaults.splice(idx, 1);
+  if (reg.activeVaultId === vaultId) {
+    const sorted = [...reg.vaults].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
+    reg.activeVaultId = sorted[0]?.id ?? DEFAULT_VAULT_ID;
+  }
+  await saveVaultRegistry(reg);
 
   const overview = await getVaultsOverview();
   return { ok: true, trashedTo, overview };
@@ -639,7 +651,7 @@ export async function createOrResetDemoVault(opts?: {
       id: DEMO_VAULT_ID,
       name: "体验示范库（A 股双轨实盘）",
       description: "内置 6 篇复盘 + 示例交割账本 + 免配模型即可预览的示范交易手册，随时可删绝不污染正式库。",
-      color: "#06b6d4",
+      color: "#0f766e",
       templateId: "short-term",
       defaultSkillId: "short-term",
       isDemo: true,

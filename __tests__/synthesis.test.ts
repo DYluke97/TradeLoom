@@ -180,4 +180,20 @@ describe("stage precheck & evidence-grounded synthesis", () => {
     expect(md).toContain("### M1：冰点期控仓纪律");
     expect(md).toContain("Map-Reduce");
   });
+
+  it("never silently drops >50 selected docs in precheck and reports exact over-limit omissions chronologically", () => {
+    const docs: MaterializedDoc[] = [];
+    for (let i = 0; i < 120; i++) {
+      const year = 2022 + Math.floor(i / 24);
+      const month = String(1 + (Math.floor(i / 2) % 12)).padStart(2, "0");
+      const day = String(1 + ((i * 7) % 28)).padStart(2, "0");
+      docs.push(makeDoc(`doc-${i}`, `${year}-${month}-${day}`, "复盘正文内容测试。".repeat(100)));
+    }
+    const { snapshot } = buildPrecheck(docs, 80_000);
+    expect(snapshot.selected_ids).toHaveLength(120);
+    expect(snapshot.included_ids.length + snapshot.omitted_ids.length).toBe(120);
+    expect(snapshot.over_limit_ids.length).toBeGreaterThan(0);
+    expect(snapshot.date_range.from).toBe("2022-01-01");
+    expect(snapshot.total_chars).toBeLessThanOrEqual(80_000);
+  });
 });

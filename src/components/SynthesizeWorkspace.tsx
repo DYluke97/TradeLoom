@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BookMarked, Calendar, CheckSquare, Cpu, Layers, Loader2, Play, ShieldCheck, Square, StopCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import ReportView from "@/components/ReportView";
 import type { MaskedProviderStatus } from "@/lib/provider";
 import type { SkillSpec } from "@/lib/skills";
@@ -51,7 +52,8 @@ export default function SynthesizeWorkspace() {
       fetch("/api/skills", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/provider", { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/manuals", { cache: "no-store" }).then((r) => r.json()),
-    ]).then(([v, s, p, m]) => {
+      fetch("/api/vaults", { cache: "no-store" }).then((r) => r.json()),
+    ]).then(([v, s, p, m, ov]) => {
       if (v.ok) {
         setVault(v.index);
         const docs = (v.index.documents ?? []) as VaultDoc[];
@@ -61,8 +63,10 @@ export default function SynthesizeWorkspace() {
         setSkills(s.skills);
         const paramSkill =
           typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("skill") : null;
-        if (paramSkill && s.skills.some((sk: SkillSpec) => sk.id === paramSkill)) {
-          setSkillId(paramSkill);
+        const vaultDefaultSkill = ov?.ok ? ov.activeVault?.defaultSkillId : null;
+        const preferred = paramSkill || vaultDefaultSkill;
+        if (preferred && s.skills.some((sk: SkillSpec) => sk.id === preferred)) {
+          setSkillId(preferred);
         }
       }
       if (p.ok) setProvider(p.status);
@@ -237,6 +241,7 @@ export default function SynthesizeWorkspace() {
               setStreamStatus(evt.message);
             } else if (evt.type === "done" && evt.report) {
               setReport(evt.report);
+              dispatchVaultChanged();
               refreshManuals().catch(() => {});
             } else if (evt.type === "error") {
               setError(evt.error || "提炼失败");
@@ -248,6 +253,7 @@ export default function SynthesizeWorkspace() {
         if (!data.ok) setError(data.error || "提炼失败");
         else {
           setReport(data.report);
+          dispatchVaultChanged();
           refreshManuals().catch(() => {});
         }
       }
@@ -445,7 +451,7 @@ export default function SynthesizeWorkspace() {
                       setSnapshot(null);
                       setFromDate(e.target.value);
                     }}
-                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] [color-scheme:dark] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
+                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
                   />
                 </label>
                 <label className="block text-[11px] text-[var(--ink-dim)]">
@@ -473,7 +479,7 @@ export default function SynthesizeWorkspace() {
                       setSnapshot(null);
                       setToDate(e.target.value);
                     }}
-                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] [color-scheme:dark] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
+                    className="mt-1 w-full cursor-pointer rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-1.5 text-xs text-[var(--ink)] hover:border-[var(--accent)]/60 focus:border-[var(--accent)] focus:outline-none"
                   />
                 </label>
                 <label className="text-[11px] text-[var(--ink-dim)]">
@@ -688,7 +694,8 @@ export default function SynthesizeWorkspace() {
                   外发预检通过（0 Token 消耗）
                 </div>
                 <div className="text-[var(--ink)]">
-                  将纳入 <strong>{snapshot.included_ids.length}</strong> {sourceTab === "manuals" ? "份阶段手册" : "篇复盘"}（共{" "}
+                  将纳入 <strong>{snapshot.included_ids.length}</strong> / {snapshot.selected_ids.length}{" "}
+                  {sourceTab === "manuals" ? "份阶段手册" : "篇复盘"}（共{" "}
                   <strong>{snapshot.total_chars.toLocaleString()}</strong> / {snapshot.limit.toLocaleString()} 字），
                   已切片生成 <strong>{snapshot.evidence_count}</strong> 条可核验证据 ID。
                 </div>
@@ -696,6 +703,20 @@ export default function SynthesizeWorkspace() {
                   时间范围：{snapshot.date_range.from ?? "—"} ~ {snapshot.date_range.to ?? "—"} · 指纹：
                   {snapshot.fingerprint.slice(0, 12)}
                 </div>
+                {(snapshot.over_limit_ids.length > 0 || snapshot.omitted_ids.length > 0) && (
+                  <div className="mt-2 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber-soft)] p-2.5 text-[11px] leading-5 text-[var(--ink)]">
+                    <div className="font-semibold text-[var(--amber)]">
+                      {snapshot.over_limit_ids.length > 0
+                        ? `有 ${snapshot.over_limit_ids.length} 篇超出单次 ${snapshot.limit.toLocaleString()} 字上限，整篇未纳入本轮装箱`
+                        : `有 ${snapshot.omitted_ids.length} 篇因正文为空或超限未纳入本轮装箱`}
+                    </div>
+                    {snapshot.over_limit_ids.length > 0 && sourceTab === "docs" && (
+                      <div className="mt-0.5 text-[var(--ink-muted)]">
+                        建议：先用左侧「快速按年份框选」分年度生成阶段手册，再切换至「阶段手册二次综合 · Map-Reduce」跨年合并为终极交易手册，避免遗漏后期记录。
+                      </div>
+                    )}
+                  </div>
+                )}
                 {quantBrief ? (
                   <div className="mt-2 rounded-lg border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-2.5 text-[11px] text-[var(--ink)]">
                     <div className="flex flex-wrap items-center justify-between gap-2">

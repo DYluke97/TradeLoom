@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readdir, readFile, rename, stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConceptRules } from "./concepts";
 import { carrierOf, convertFile, guessTitle, MAX_INPUT_BYTES } from "./convert";
@@ -228,9 +228,14 @@ export type ImportOutcome =
  * Imports a user-uploaded file (.md / .txt / .docx / .html / .pdf):
  * - PDF: stored verbatim in `sources/_导入/` so it can be viewed inline & extracted page-by-page.
  * - md/txt/docx/html: original archived in `vault/_inbox/`, converted to clean Markdown in `sources/_导入/`.
- * - Automatically rebuilds the Obsidian bi-directional vault.
+ * - Automatically rebuilds the Obsidian bi-directional vault unless `options.skipRebuild` is true
+ *   (used by batch upload to write all files first and rebuild ONCE at the end).
  */
-export async function importUploadedFile(fileName: string, buf: Buffer): Promise<ImportOutcome> {
+export async function importUploadedFile(
+  fileName: string,
+  buf: Buffer,
+  options?: { skipRebuild?: boolean },
+): Promise<ImportOutcome> {
   if (buf.length === 0) return { ok: false, status: 400, error: "上传的文件为空" };
   if (buf.length > MAX_INPUT_BYTES) {
     return { ok: false, status: 413, error: `文件超过 ${MAX_INPUT_BYTES / 1024 / 1024} MB 上限` };
@@ -250,9 +255,9 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
     : `${new Date().toISOString().slice(0, 10)}_导入材料_`;
 
   if (carrier === "pdf") {
-    const destRel = `_导入/${datePrefix}${safeBase}.pdf`;
+    const destRel = `_导入/${datePrefix}${safeBase}_${shortHash}.pdf`;
     await writeAtomic(path.join(paths.sources, destRel), buf);
-    const index = await buildVaultWithUserConcepts();
+    const index = options?.skipRebuild ? (null as unknown as VaultIndex) : await buildVaultWithUserConcepts();
     return { ok: true, sourceRel: destRel, carrier: "pdf", warnings: [], index };
   }
 
@@ -281,9 +286,9 @@ export async function importUploadedFile(fileName: string, buf: Buffer): Promise
     ].join("\n");
   }
 
-  const destRel = `_导入/${datePrefix}${safeBase}.md`;
+  const destRel = `_导入/${datePrefix}${safeBase}_${shortHash}.md`;
   await writeAtomic(path.join(paths.sources, destRel), mdBody);
-  const index = await buildVaultWithUserConcepts();
+  const index = options?.skipRebuild ? (null as unknown as VaultIndex) : await buildVaultWithUserConcepts();
 
   return { ok: true, sourceRel: destRel, carrier, warnings: converted.warnings, index };
 }
@@ -311,7 +316,17 @@ async function moveFileToTrash(sourceFullPath: string, labelRel: string): Promis
   const stamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
   const flatName = labelRel.replace(/[\\/]+/g, "__");
   const trashRel = `.trash/${stamp}_${flatName}`;
-  await rename(sourceFullPath, path.join(paths.vaultRoot, trashRel));
+  const destFullPath = path.join(paths.vaultRoot, trashRel);
+  try {
+    await rename(sourceFullPath, destFullPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "EXDEV") {
+      await copyFile(sourceFullPath, destFullPath);
+      await rm(sourceFullPath, { force: true });
+    } else {
+      throw err;
+    }
+  }
   return trashRel;
 }
 

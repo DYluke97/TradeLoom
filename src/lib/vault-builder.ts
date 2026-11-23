@@ -1,10 +1,26 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_CONCEPT_RULES, extractAutoConcepts, type ConceptRule } from "./concepts";
 import { carrierOf, decodeText, guessTitle, type CarrierKind } from "./convert";
 import { extractTags, extractWikiLinks } from "./markdown";
 import { writeAtomic } from "./workspace";
+
+const IO_CONCURRENCY = 24;
+
+async function runPool<T>(items: readonly T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+  if (items.length === 0) return;
+  let nextIdx = 0;
+  const count = Math.min(concurrency, items.length);
+  await Promise.all(
+    Array.from({ length: count }, async () => {
+      while (nextIdx < items.length) {
+        const current = nextIdx++;
+        await worker(items[current]);
+      }
+    }),
+  );
+}
 
 export { DEFAULT_CONCEPT_RULES, extractAutoConcepts, type ConceptRule };
 
@@ -239,9 +255,8 @@ export async function buildVault(
   await mkdir(vaultRoot, { recursive: true });
 
   // Clean generated vault directories (preserving _inbox & .obsidian user settings)
-  for (const dir of ["10-时间轴", "10-每日", "20-卡片", "30-主题", "40-交易手册"]) {
-    await rm(path.join(vaultRoot, dir), { recursive: true, force: true });
-  }
+  const managedDirs = ["10-时间轴", "10-每日", "20-卡片", "30-主题", "40-交易手册"];
+  await Promise.all(managedDirs.map((dir) => rm(path.join(vaultRoot, dir), { recursive: true, force: true })));
 
   const found = await scanSources(sourceRoot);
   const documents: VaultDoc[] = [];
@@ -249,48 +264,68 @@ export async function buildVault(
   const cardContents = new Map<string, string>();
   const fileMeta = new Map<string, { title: string; nodeType: VaultNodeType; eventDate?: string | null }>();
 
-  for (const item of found) {
-    let info;
-    try {
-      info = await stat(item.full);
-      if (!info.isFile()) continue;
-    } catch {
-      continue;
+  const scannedDocs: Array<{ doc: VaultDoc; rawText: string } | null> = new Array(found.length).fill(null);
+  await runPool(
+    found.map((item, idx) => ({ item, idx })),
+    IO_CONCURRENCY,
+    async ({ item, idx }) => {
+      let info;
+      try {
+        info = await stat(item.full);
+        if (!info.isFile()) return;
+      } catch {
+        return;
+      }
+      const buf = await readFile(item.full);
+      const digest = sha(buf);
+      const docId = sha(item.rel).slice(0, 12);
+      const baseName = path.basename(item.rel, path.extname(item.rel));
+
+      let text = "";
+      if (item.carrier === "md" || item.carrier === "txt" || item.carrier === "html") {
+        text = decodeText(buf).text;
+      }
+
+      const title = text ? guessTitle(text, baseName) : baseName;
+      const eventDate = detectEventDate(baseName, text);
+      const kind = detectKind(item.rel);
+      const tags = text ? extractTags(text) : [];
+      const wikilinks = text ? extractWikiLinks(text) : [];
+      const autoConcepts = text ? extractAutoConcepts(text, conceptRules) : [];
+      const cardFile = `20-卡片/${safeFileName(baseName)}.md`;
+
+      scannedDocs[idx] = {
+        rawText: text,
+        doc: {
+          doc_id: docId,
+          title,
+          kind,
+          carrier: item.carrier,
+          event_date: eventDate,
+          tags,
+          auto_concepts: autoConcepts,
+          wikilinks,
+          card: cardFile,
+          source_rel: item.rel,
+          bytes: info.size,
+          sha256: digest,
+        },
+      };
+    },
+  );
+
+  const usedCardRels = new Set<string>();
+  for (const entry of scannedDocs) {
+    if (!entry) continue;
+    let cardRel = entry.doc.card;
+    if (usedCardRels.has(cardRel)) {
+      const stem = path.basename(cardRel, ".md");
+      cardRel = `20-卡片/${stem}_${entry.doc.doc_id.slice(0, 6)}.md`;
     }
-    const buf = await readFile(item.full);
-    const digest = sha(buf);
-    const docId = sha(item.rel).slice(0, 12);
-    const baseName = path.basename(item.rel, path.extname(item.rel));
-
-    let text = "";
-    if (item.carrier === "md" || item.carrier === "txt" || item.carrier === "html") {
-      text = decodeText(buf).text;
-    }
-
-    const title = text ? guessTitle(text, baseName) : baseName;
-    const eventDate = detectEventDate(baseName, text);
-    const kind = detectKind(item.rel);
-    const tags = text ? extractTags(text) : [];
-    const wikilinks = text ? extractWikiLinks(text) : [];
-    const autoConcepts = text ? extractAutoConcepts(text, conceptRules) : [];
-    const cardFile = `20-卡片/${safeFileName(baseName)}.md`;
-
-    if (text) rawSourceTextByCard.set(cardFile, text);
-
-    documents.push({
-      doc_id: docId,
-      title,
-      kind,
-      carrier: item.carrier,
-      event_date: eventDate,
-      tags,
-      auto_concepts: autoConcepts,
-      wikilinks,
-      card: cardFile,
-      source_rel: item.rel,
-      bytes: info.size,
-      sha256: digest,
-    });
+    usedCardRels.add(cardRel);
+    entry.doc.card = cardRel;
+    if (entry.rawText) rawSourceTextByCard.set(cardRel, entry.rawText);
+    documents.push(entry.doc);
   }
 
   documents.sort((a, b) => {
@@ -408,7 +443,6 @@ export async function buildVault(
     }
 
     const md = lines.join("\n") + "\n";
-    await writeAtomic(path.join(vaultRoot, doc.card), md);
     cardContents.set(doc.card, md);
     fileMeta.set(doc.card, { title: doc.title, nodeType: "card", eventDate: doc.event_date });
   }
@@ -438,12 +472,31 @@ export async function buildVault(
       ),
       "",
     ].join("\n");
-    await writeAtomic(path.join(vaultRoot, rel), md);
     cardContents.set(rel, md);
     fileMeta.set(rel, { title: `${day}`, nodeType: "timeline", eventDate: day });
   }
 
-  // 3) Write 10-时间轴/YYYY年.md & YYYY-MM.md
+  // 3) Write 10-时间轴/YYYY年.md & YYYY-MM.md (with real bi-directional links to active 30-主题 hubs)
+  const topicsByDocId = new Map<string, string[]>();
+  for (const [topic, tDocs] of byTopic.entries()) {
+    for (const d of tDocs) {
+      const arr = topicsByDocId.get(d.doc_id) ?? [];
+      arr.push(topic);
+      topicsByDocId.set(d.doc_id, arr);
+    }
+  }
+  const summarizeTopics = (docsList: VaultDoc[]): Array<{ topic: string; count: number }> => {
+    const counts = new Map<string, number>();
+    for (const d of docsList) {
+      for (const topic of topicsByDocId.get(d.doc_id) ?? []) {
+        counts.set(topic, (counts.get(topic) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([topic, count]) => ({ topic, count }))
+      .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+  };
+
   const years = [...byYear.keys()].sort().reverse();
   const timelineTree: TimelineYearNode[] = [];
 
@@ -458,6 +511,7 @@ export async function buildVault(
     for (const ym of yearMonths) {
       const mDocs = byMonth.get(ym)!;
       const mDays = days.filter((d) => d.startsWith(`${ym}-`)).reverse();
+      const mTopics = summarizeTopics(mDocs);
       monthNodes.push({
         month: ym,
         count: mDocs.length,
@@ -476,6 +530,12 @@ export async function buildVault(
         `所属年份：[[10-时间轴/${year}年|${year} 年]] · 返回 [[00-总览]]`,
         "",
         `本月共收录 **${mDocs.length}** 篇复盘，覆盖 **${mDays.length}** 个交易日：`,
+        ...(mTopics.length > 0
+          ? [
+              "",
+              `本月关联主题：${mTopics.map((t) => `[[30-主题/${t.topic}|#${t.topic}]]（${t.count} 篇）`).join(" · ")}`,
+            ]
+          : []),
         "",
         ...mDays.flatMap((d) => [
           `## [[10-每日/${d}|${d}]]`,
@@ -483,13 +543,13 @@ export async function buildVault(
           "",
         ]),
       ].join("\n");
-      await writeAtomic(path.join(vaultRoot, mRel), mMd);
       cardContents.set(mRel, mMd);
       fileMeta.set(mRel, { title: `${ym} 月度索引`, nodeType: "timeline", eventDate: `${ym}-01` });
     }
 
     timelineTree.push({ year, count: yearDocs.length, months: monthNodes });
 
+    const yTopics = summarizeTopics(yearDocs);
     const yRel = `10-时间轴/${year}年.md`;
     const yMd = [
       "---",
@@ -500,23 +560,37 @@ export async function buildVault(
       `# ${year} 年复盘档案`,
       "",
       `全年共收录 **${yearDocs.length}** 篇复盘笔记，横跨 **${yearMonths.length}** 个月份。返回 [[00-总览]]`,
+      ...(yTopics.length > 0
+        ? [
+            "",
+            "## 年度高频主题",
+            "",
+            ...yTopics.map((t) => `- [[30-主题/${t.topic}|#${t.topic}]]（${t.count} 篇）`),
+          ]
+        : []),
       "",
       "## 月度导航",
       "",
       ...yearMonths.map((ym) => `- [[10-时间轴/${ym}|${ym}]]（${byMonth.get(ym)!.length} 篇）`),
       "",
     ].join("\n");
-    await writeAtomic(path.join(vaultRoot, yRel), yMd);
     cardContents.set(yRel, yMd);
     fileMeta.set(yRel, { title: `${year} 年档案`, nodeType: "timeline", eventDate: `${year}-01-01` });
   }
 
-  // 4) Write 30-主题/<topic>.md
+  // 4) Write 30-主题/<topic>.md (with cross-year distribution links back to 10-时间轴/YYYY年.md)
   const topics = [...byTopic.keys()].sort(
     (a, b) => byTopic.get(b)!.length - byTopic.get(a)!.length || a.localeCompare(b),
   );
   for (const topic of topics) {
     const tDocs = byTopic.get(topic)!;
+    const tYearCounts = new Map<string, number>();
+    for (const d of tDocs) {
+      if (!d.event_date) continue;
+      const y = d.event_date.slice(0, 4);
+      tYearCounts.set(y, (tYearCounts.get(y) ?? 0) + 1);
+    }
+    const tYears = [...tYearCounts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
     const rel = `30-主题/${topic}.md`;
     const md = [
       "---",
@@ -527,6 +601,12 @@ export async function buildVault(
       `# 主题双链：${topic}`,
       "",
       `以下 **${tDocs.length}** 篇复盘（含跨年记录与自定义词典匹配）关联到 \`#${topic}\`：`,
+      ...(tYears.length > 0
+        ? [
+            "",
+            `跨年度分布：${tYears.map(([y, cnt]) => `[[10-时间轴/${y}年|${y} 年]]（${cnt} 篇）`).join(" · ")}`,
+          ]
+        : []),
       "",
       ...tDocs.map(
         (d) =>
@@ -536,7 +616,6 @@ export async function buildVault(
       "返回 [[00-总览]]",
       "",
     ].join("\n");
-    await writeAtomic(path.join(vaultRoot, rel), md);
     cardContents.set(rel, md);
     fileMeta.set(rel, { title: `#${topic}`, nodeType: "topic" });
   }
@@ -551,7 +630,6 @@ export async function buildVault(
         if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
         const raw = await readFile(path.join(manualsRoot, entry.name), "utf8");
         const rel = `40-交易手册/${entry.name}`;
-        await writeAtomic(path.join(vaultRoot, rel), raw);
         const title = guessTitle(raw, path.basename(entry.name, ".md"));
         cardContents.set(rel, raw);
         fileMeta.set(rel, { title, nodeType: "manual" });
@@ -589,9 +667,19 @@ export async function buildVault(
       : ["- 前往「阶段提炼」生成你的第一份交易手册，手册将自动写回 `40-交易手册/` 并与历史复盘形成双向闭环。"]),
     "",
   ].join("\n");
-  await writeAtomic(path.join(vaultRoot, overviewRel), overviewMd);
   cardContents.set(overviewRel, overviewMd);
   fileMeta.set(overviewRel, { title: "知识库总览 (MOC)", nodeType: "overview" });
+
+  // Flush all reproducible derived Obsidian mirror files concurrently (only `index.json` below needs fsync commit)
+  const dirsNeeded = new Set<string>();
+  for (const rel of cardContents.keys()) {
+    const dir = path.dirname(path.join(vaultRoot, rel));
+    dirsNeeded.add(dir);
+  }
+  await Promise.all([...dirsNeeded].map((d) => mkdir(d, { recursive: true })));
+  await runPool([...cardContents.entries()], IO_CONCURRENCY, async ([rel, content]) => {
+    await writeFile(path.join(vaultRoot, rel), content, "utf8");
+  });
 
   // 7) Build full bi-directional wikilink graph
   const allRels = [...cardContents.keys()].sort();

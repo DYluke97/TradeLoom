@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BookOpen, ChevronDown, ChevronRight, FileStack, Layers, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import ReportView from "@/components/ReportView";
 import type { SynthesisReport } from "@/lib/synthesis";
 
@@ -25,8 +26,9 @@ export default function ManualsArchive() {
   const [loading, setLoading] = useState(true);
   const [viewFilter, setViewFilter] = useState<ViewFilter>("tree");
   const [collapsedL2, setCollapsedL2] = useState<Record<string, boolean>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  async function refresh() {
+  async function refresh(resetSelection = false) {
     setLoading(true);
     try {
       const res = await fetch("/api/manuals", { cache: "no-store" });
@@ -34,10 +36,12 @@ export default function ManualsArchive() {
       if (data.ok) {
         const list = (data.manuals ?? []) as SynthesisReport[];
         setManuals(list);
-        if (list.length > 0 && !activeId) {
+        setActiveId((prev) => {
+          if (!resetSelection && prev && list.some((m) => m.id === prev)) return prev;
+          if (list.length === 0) return null;
           const firstL2 = list.find(isL2Synthesis);
-          setActiveId((firstL2 ?? list[0]).id);
-        }
+          return (firstL2 ?? list[0]).id;
+        });
       }
     } finally {
       setLoading(false);
@@ -46,16 +50,59 @@ export default function ManualsArchive() {
 
   useEffect(() => {
     refresh();
+    const onChanged = () => {
+      setConfirmDeleteId(null);
+      refresh(true);
+    };
+    window.addEventListener("tradeloom:vault-changed", onChanged);
+    return () => window.removeEventListener("tradeloom:vault-changed", onChanged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleDelete(id: string) {
-    await fetch(`/api/manuals?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const res = await fetch(`/api/manuals?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setConfirmDeleteId(null);
+    if (!res.ok) return;
     setManuals((prev) => {
       const next = prev.filter((m) => m.id !== id);
       if (activeId === id) setActiveId(next[0]?.id ?? null);
       return next;
     });
+    dispatchVaultChanged();
+  }
+
+  function renderDeleteAction(id: string, titleText: string) {
+    if (confirmDeleteId === id) {
+      return (
+        <div className="flex shrink-0 items-center gap-1 rounded-md border border-[var(--rose)]/40 bg-[var(--rose-soft)] px-1.5 py-0.5 text-[10px]">
+          <button
+            type="button"
+            onClick={() => handleDelete(id)}
+            className="font-semibold text-[var(--rose)] hover:underline"
+          >
+            移入回收站
+          </button>
+          <span className="text-[var(--ink-dim)]">·</span>
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteId(null)}
+            className="text-[var(--ink-muted)] hover:text-[var(--ink)]"
+          >
+            取消
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirmDeleteId(id)}
+        title={titleText}
+        className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
+      >
+        <Trash2 className="h-[15px] w-[15px]" />
+      </button>
+    );
   }
 
   const hierarchy = useMemo(() => {
@@ -138,14 +185,7 @@ export default function ManualsArchive() {
             {m.statistics.rules_count} 条规则 · {m.statistics.timeline_count} 节点 · {m.statistics.docs_count} 篇样本
           </div>
         </button>
-        <button
-          type="button"
-          onClick={() => handleDelete(m.id)}
-          title="删除该手册"
-          className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
-        >
-          <Trash2 className="h-[15px] w-[15px]" />
-        </button>
+        {renderDeleteAction(m.id, "移入本地回收站")}
       </div>
     );
   }
@@ -242,14 +282,7 @@ export default function ManualsArchive() {
                                 {parent.statistics.rules_count} 条规则 · {parent.statistics.timeline_count} 节点 · 综合 {children.length || parent.statistics.docs_count} 份阶段手册
                               </div>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(parent.id)}
-                              title="删除该总纲"
-                              className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
-                            >
-                              <Trash2 className="h-[15px] w-[15px]" />
-                            </button>
+                            {renderDeleteAction(parent.id, "移入本地回收站")}
                           </div>
 
                           {children.length > 0 && (
@@ -348,14 +381,7 @@ export default function ManualsArchive() {
                         {parent.statistics.rules_count} 条规则 · {parent.statistics.timeline_count} 节点
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(parent.id)}
-                      title="删除该总纲"
-                      className="rounded p-1 text-[var(--ink-dim)] opacity-0 hover:text-[var(--rose)] group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-[15px] w-[15px]" />
-                    </button>
+                    {renderDeleteAction(parent.id, "移入本地回收站")}
                   </div>
                 );
               })

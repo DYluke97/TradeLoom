@@ -102,6 +102,9 @@ export default function VaultWorkspace() {
   const [docData, setDocData] = useState<DocResponse | null>(null);
   const [query, setQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
+  const [collapsedDays, setCollapsedDays] = useState<Record<string, boolean>>({});
   const [showUnlinked, setShowUnlinked] = useState(true);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
   const paramConcepts = searchParams.get("concepts");
@@ -111,6 +114,7 @@ export default function VaultWorkspace() {
   const [draft, setDraft] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draggingFiles, setDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -143,8 +147,20 @@ export default function VaultWorkspace() {
     const res = await fetch("/api/vault", { cache: "no-store" });
     const data = await res.json();
     if (data.ok) {
-      setIndex(data.index);
+      const nextIndex = data.index as VaultIndex;
+      setIndex(nextIndex);
       setHasSamples(Boolean(data.hasSamples));
+      if ((nextIndex?.counts?.total ?? 0) > 30) {
+        setCollapsedGroups((prev) => (Object.keys(prev).length === 0 ? { "20-卡片": true } : prev));
+      }
+      const firstYear = nextIndex?.timelineTree?.[0];
+      if (firstYear) {
+        setExpandedYears((prev) => (Object.keys(prev).length === 0 ? { [firstYear.year]: true } : prev));
+        const firstMonth = firstYear.months?.[0];
+        if (firstMonth) {
+          setExpandedMonths((prev) => (Object.keys(prev).length === 0 ? { [firstMonth.month]: true } : prev));
+        }
+      }
     }
   }, []);
 
@@ -157,6 +173,9 @@ export default function VaultWorkspace() {
     if (data.ok) {
       setDocData(data);
       setDraft(data.text ?? "");
+    } else if (card !== "00-总览.md") {
+      setActiveCard("00-总览.md");
+      setOpenTabs(["00-总览.md"]);
     } else {
       setStatusMsg(data.error || "加载卡片失败");
     }
@@ -249,6 +268,7 @@ export default function VaultWorkspace() {
       const data = await res.json();
       if (data.ok && data.index) {
         setIndex(data.index);
+        dispatchVaultChanged();
         setStatusMsg(`导入完成：成功 ${data.succeeded}/${data.total} 份，双链与未链接提及索引已更新。`);
         const firstDoc = data.index.documents?.[0];
         if (firstDoc) openCard(firstDoc.card);
@@ -280,6 +300,7 @@ export default function VaultWorkspace() {
       if (data.ok && data.index) {
         setIndex(data.index);
         setHasSamples(Boolean(data.hasSamples));
+        dispatchVaultChanged();
         openCard("00-总览.md");
         await loadDoc("00-总览.md", "card");
         setStatusMsg(
@@ -308,6 +329,7 @@ export default function VaultWorkspace() {
       if (data.ok && data.index) {
         setIndex(data.index);
         setHasSamples(Boolean(data.hasSamples));
+        dispatchVaultChanged();
         setConfirmDelete(false);
         const remainingTabs = openTabs.filter((t) => t !== deletingCard);
         const nextCard = remainingTabs[remainingTabs.length - 1] ?? "00-总览.md";
@@ -375,10 +397,53 @@ export default function VaultWorkspace() {
     }
   }
 
+  const docsByDay = useMemo(() => {
+    const map = new Map<string, VaultDoc[]>();
+    for (const doc of index?.documents ?? []) {
+      if (!doc.event_date) continue;
+      const arr = map.get(doc.event_date) ?? [];
+      arr.push(doc);
+      map.set(doc.event_date, arr);
+    }
+    return map;
+  }, [index]);
+
+  const filteredTimelineTree = useMemo(() => {
+    const tree = index?.timelineTree ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return tree;
+    return tree
+      .map((yNode) => {
+        const yearMatches = yNode.year.includes(q) || `${yNode.year}年`.includes(q);
+        const months = yNode.months
+          .map((mNode) => {
+            const monthMatches = yearMatches || mNode.month.toLowerCase().includes(q);
+            const days = mNode.days.filter((dNode) => {
+              if (monthMatches || dNode.day.toLowerCase().includes(q)) return true;
+              const dayDocs = docsByDay.get(dNode.day) ?? [];
+              return dayDocs.some(
+                (doc) =>
+                  doc.title.toLowerCase().includes(q) ||
+                  doc.kind.toLowerCase().includes(q) ||
+                  doc.card.toLowerCase().includes(q),
+              );
+            });
+            if (days.length === 0 && !monthMatches) return null;
+            return { ...mNode, days };
+          })
+          .filter((m): m is NonNullable<typeof m> => Boolean(m));
+        if (months.length === 0 && !yearMatches) return null;
+        return { ...yNode, months };
+      })
+      .filter((y): y is NonNullable<typeof y> => Boolean(y));
+  }, [index, query, docsByDay]);
+
   const groupedFiles = useMemo(() => {
     const q = query.trim().toLowerCase();
     const groups = new Map<string, VaultFileItem[]>();
     for (const f of index?.files ?? []) {
+      // 10-时间轴 and 10-每日 are rendered together as a unified 4-level hierarchical tree
+      if (f.group === "10-时间轴" || f.group === "10-每日") continue;
       if (q && !f.title.toLowerCase().includes(q) && !f.rel.toLowerCase().includes(q)) continue;
       const arr = groups.get(f.group) ?? [];
       arr.push(f);
@@ -387,11 +452,68 @@ export default function VaultWorkspace() {
     return [...groups.entries()];
   }, [index, query]);
 
+  const entryGroup = groupedFiles.find(([g]) => g === "00-入口");
+  const otherGroups = groupedFiles.filter(([g]) => g !== "00-入口");
+
+  // Auto-expand ancestor year & month when navigating to a timeline node or card
+  useEffect(() => {
+    const yearMatch = /^10-时间轴\/(\d{4})年\.md$/.exec(activeCard);
+    if (yearMatch) {
+      setExpandedYears((prev) => ({ ...prev, [yearMatch[1]]: true }));
+      return;
+    }
+    const monthMatch = /^10-时间轴\/(\d{4}-\d{2})\.md$/.exec(activeCard);
+    if (monthMatch) {
+      setExpandedYears((prev) => ({ ...prev, [monthMatch[1].slice(0, 4)]: true }));
+      setExpandedMonths((prev) => ({ ...prev, [monthMatch[1]]: true }));
+      return;
+    }
+    const dayMatch = /^10-每日\/(\d{4}-\d{2}-\d{2})\.md$/.exec(activeCard);
+    if (dayMatch) {
+      setExpandedYears((prev) => ({ ...prev, [dayMatch[1].slice(0, 4)]: true }));
+      setExpandedMonths((prev) => ({ ...prev, [dayMatch[1].slice(0, 7)]: true }));
+      return;
+    }
+    const doc = index?.documents.find((d) => d.card === activeCard);
+    if (doc?.event_date) {
+      setExpandedYears((prev) => ({ ...prev, [doc.event_date!.slice(0, 4)]: true }));
+      setExpandedMonths((prev) => ({ ...prev, [doc.event_date!.slice(0, 7)]: true }));
+    }
+  }, [activeCard, index]);
+
   const breadcrumbParts = activeCard.split("/");
   const unlinkedList = docData?.unlinked ?? [];
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-[var(--bg)]">
+    <div
+      className="relative flex h-full min-h-0 w-full overflow-hidden bg-[var(--bg)]"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          if (!draggingFiles) setDraggingFiles(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDraggingFiles(false);
+      }}
+      onDrop={(e) => {
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          setDraggingFiles(false);
+          handleUpload(e.dataTransfer.files);
+        }
+      }}
+    >
+      {draggingFiles && (
+        <div
+          onDragLeave={() => setDraggingFiles(false)}
+          className="pointer-events-none absolute inset-3 z-40 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--accent)] bg-[var(--surface)]/92 backdrop-blur-sm"
+        >
+          <Upload className="h-8 w-8 text-[var(--accent)]" />
+          <p className="mt-2 text-sm font-semibold text-[var(--ink-strong)]">松开鼠标即可导入当前知识库并自动编织双链</p>
+          <p className="mt-1 text-xs text-[var(--ink-muted)]">支持批量拖入 .md / .txt / .docx / .html / .pdf 复盘文件</p>
+        </div>
+      )}
       {/* LEFT PANE: Obsidian File Explorer */}
       <aside className="flex w-[268px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] select-none">
         {/* Explorer Action Toolbar */}
@@ -503,9 +625,282 @@ export default function VaultWorkspace() {
           )}
         </div>
 
-        {/* Collapsible Obsidian Folder Tree */}
+        {/* Collapsible Obsidian Folder Tree (with 4-level Year -> Month -> Day -> Review Doc timeline) */}
         <div className="flex-1 space-y-1 overflow-y-auto px-1.5 py-2">
-          {groupedFiles.map(([group, items]) => {
+          {/* 00-入口 */}
+          {entryGroup && (() => {
+            const [group, items] = entryGroup;
+            const collapsed = Boolean(collapsedGroups[group]) && !query.trim();
+            return (
+              <div key={group}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  className="flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-[11px] font-medium text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                >
+                  <span className="flex items-center gap-1 truncate">
+                    {collapsed ? (
+                      <ChevronRight className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    ) : (
+                      <ChevronDown className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    )}
+                    {collapsed ? (
+                      <Folder className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    ) : (
+                      <FolderOpen className="h-[15px] w-[15px] shrink-0 text-[var(--accent)]/80" />
+                    )}
+                    <span className="truncate">{group}</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-[var(--ink-dim)]">{items.length}</span>
+                </button>
+                {!collapsed && (
+                  <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--border)] pl-1.5">
+                    {items.map((item) => {
+                      const active = item.rel === activeCard && centerMode !== "graph";
+                      return (
+                        <button
+                          key={item.rel}
+                          type="button"
+                          onClick={() => openCard(item.rel)}
+                          className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs transition ${
+                            active
+                              ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                              : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                          }`}
+                        >
+                          <FileNodeIcon type={item.nodeType} />
+                          <span className="truncate">{item.title}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 10-时间轴：年 -> 月 -> 日 -> 复盘文档 多层嵌套索引树 */}
+          {filteredTimelineTree.length > 0 && (() => {
+            const timelineCollapsed = Boolean(collapsedGroups["10-时间轴"]) && !query.trim();
+            const q = query.trim().toLowerCase();
+            return (
+              <div key="10-时间轴">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup("10-时间轴")}
+                  className="flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-[11px] font-medium text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                >
+                  <span className="flex items-center gap-1 truncate">
+                    {timelineCollapsed ? (
+                      <ChevronRight className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    ) : (
+                      <ChevronDown className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    )}
+                    {timelineCollapsed ? (
+                      <Folder className="h-[15px] w-[15px] shrink-0 text-[var(--ink-dim)]" />
+                    ) : (
+                      <FolderOpen className="h-[15px] w-[15px] shrink-0 text-[var(--amber)]/85" />
+                    )}
+                    <span className="truncate">10-时间轴</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-[var(--ink-dim)]">
+                    {filteredTimelineTree.length}年 · {index?.counts.dated ?? 0}
+                  </span>
+                </button>
+
+                {!timelineCollapsed && (
+                  <div className="ml-2.5 mt-0.5 space-y-0.5 border-l border-[var(--border)] pl-1">
+                    {filteredTimelineTree.map((yNode) => {
+                      const yearRel = `10-时间轴/${yNode.year}年.md`;
+                      const yearOpen = Boolean(q) || Boolean(expandedYears[yNode.year]);
+                      const yearActive = yearRel === activeCard && centerMode !== "graph";
+                      return (
+                        <div key={yNode.year}>
+                          <div
+                            className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-xs transition ${
+                              yearActive
+                                ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedYears((prev) => ({ ...prev, [yNode.year]: !prev[yNode.year] }))
+                              }
+                              aria-label={`展开或折叠 ${yNode.year} 年`}
+                              className="rounded p-0.5 text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                            >
+                              {yearOpen ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedYears((prev) => ({ ...prev, [yNode.year]: true }));
+                                openCard(yearRel);
+                              }}
+                              className="flex min-w-0 flex-1 items-center justify-between gap-1 py-0.5 pr-1 text-left"
+                            >
+                              <span className="flex min-w-0 items-center gap-1.5 truncate">
+                                <Calendar className="h-3.5 w-3.5 shrink-0 text-[var(--amber)]/85" />
+                                <span className="truncate font-medium">{yNode.year} 年档案</span>
+                              </span>
+                              <span className="shrink-0 font-mono text-[10px] text-[var(--ink-dim)]">
+                                {yNode.count}
+                              </span>
+                            </button>
+                          </div>
+
+                          {yearOpen && (
+                            <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--border)] pl-1">
+                              {yNode.months.map((mNode) => {
+                                const monthRel = `10-时间轴/${mNode.month}.md`;
+                                const monthOpen = Boolean(q) || Boolean(expandedMonths[mNode.month]);
+                                const monthActive = monthRel === activeCard && centerMode !== "graph";
+                                return (
+                                  <div key={mNode.month}>
+                                    <div
+                                      className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-xs transition ${
+                                        monthActive
+                                          ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                          : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExpandedMonths((prev) => ({
+                                            ...prev,
+                                            [mNode.month]: !prev[mNode.month],
+                                          }))
+                                        }
+                                        aria-label={`展开或折叠 ${mNode.month}`}
+                                        className="rounded p-0.5 text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                                      >
+                                        {monthOpen ? (
+                                          <ChevronDown className="h-3.5 w-3.5" />
+                                        ) : (
+                                          <ChevronRight className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExpandedMonths((prev) => ({ ...prev, [mNode.month]: true }));
+                                          openCard(monthRel);
+                                        }}
+                                        className="flex min-w-0 flex-1 items-center justify-between gap-1 py-0.5 pr-1 text-left"
+                                      >
+                                        <span className="truncate font-mono text-[11px]">{mNode.month} 月度索引</span>
+                                        <span className="shrink-0 font-mono text-[10px] text-[var(--ink-dim)]">
+                                          {mNode.count}
+                                        </span>
+                                      </button>
+                                    </div>
+
+                                    {monthOpen && (
+                                      <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--border)] pl-1">
+                                        {mNode.days.map((dNode) => {
+                                          const dayRel = `10-每日/${dNode.day}.md`;
+                                          const dayActive = dayRel === activeCard && centerMode !== "graph";
+                                          const allDayDocs = docsByDay.get(dNode.day) ?? [];
+                                          const visibleDocs = q
+                                            ? allDayDocs.filter(
+                                                (doc) =>
+                                                  doc.title.toLowerCase().includes(q) ||
+                                                  doc.kind.toLowerCase().includes(q) ||
+                                                  dNode.day.includes(q) ||
+                                                  mNode.month.includes(q) ||
+                                                  yNode.year.includes(q),
+                                              )
+                                            : allDayDocs;
+                                          const dayOpen = Boolean(q) || !collapsedDays[dNode.day];
+                                          return (
+                                            <div key={dNode.day}>
+                                              <div
+                                                className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] transition ${
+                                                  dayActive
+                                                    ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                                    : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                                                }`}
+                                              >
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setCollapsedDays((prev) => ({
+                                                      ...prev,
+                                                      [dNode.day]: !prev[dNode.day],
+                                                    }))
+                                                  }
+                                                  aria-label={`展开或折叠 ${dNode.day}`}
+                                                  className="rounded p-0.5 text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                                                >
+                                                  {dayOpen ? (
+                                                    <ChevronDown className="h-3 w-3" />
+                                                  ) : (
+                                                    <ChevronRight className="h-3 w-3" />
+                                                  )}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openCard(dayRel)}
+                                                  className="flex min-w-0 flex-1 items-center justify-between gap-1 py-0.5 pr-1 text-left"
+                                                >
+                                                  <span className="truncate font-mono">{dNode.day}</span>
+                                                  <span className="shrink-0 font-mono text-[10px] text-[var(--ink-dim)]">
+                                                    {dNode.count}
+                                                  </span>
+                                                </button>
+                                              </div>
+
+                                              {dayOpen && visibleDocs.length > 0 && (
+                                                <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--border)]/70 pl-1">
+                                                  {visibleDocs.map((doc) => {
+                                                    const docActive = doc.card === activeCard && centerMode !== "graph";
+                                                    return (
+                                                      <button
+                                                        key={doc.doc_id}
+                                                        type="button"
+                                                        onClick={() => openCard(doc.card)}
+                                                        title={`${doc.event_date} · ${doc.kind} · ${doc.title}`}
+                                                        className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11.5px] transition ${
+                                                          docActive
+                                                            ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                                                            : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                                                        }`}
+                                                      >
+                                                        <FileText className="h-3.5 w-3.5 shrink-0 text-[var(--ink-dim)]" />
+                                                        <span className="truncate">{doc.title}</span>
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 20-卡片 / 30-主题 / 40-交易手册 */}
+          {otherGroups.map(([group, items]) => {
             const collapsed = Boolean(collapsedGroups[group]) && !query.trim();
             return (
               <div key={group}>

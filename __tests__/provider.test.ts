@@ -1,5 +1,10 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
-import { validateProviderUrl } from "@/lib/provider";
+import { saveProviderConfig, validateProviderUrl } from "@/lib/provider";
+import { middleware } from "@/middleware";
 
 describe("provider URL validation & OpenAI base URL normalization", () => {
   it("normalizes root base URLs to /v1/chat/completions", () => {
@@ -38,5 +43,76 @@ describe("provider URL validation & OpenAI base URL normalization", () => {
 
     const insecure = validateProviderUrl("http://api.deepseek.com/v1/chat/completions");
     expect(insecure.ok).toBe(false);
+  });
+
+  it("refuses to reuse stored API key when switching provider origin and blocks cross-site/rebinding API calls", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "tradeloom-prov-"));
+    const prev = process.env.TRADELOOM_WORKSPACE_DIR;
+    process.env.TRADELOOM_WORKSPACE_DIR = tmp;
+    try {
+      const saved = await saveProviderConfig({
+        url: "https://api.deepseek.com/v1/chat/completions",
+        model: "deepseek-chat",
+        apiKey: "sk-test-1234567890",
+      });
+      expect(saved.ok).toBe(true);
+
+      // Same origin model switch is allowed to keep key
+      const sameOrigin = await saveProviderConfig({
+        url: "https://api.deepseek.com/v1/chat/completions",
+        model: "deepseek-reasoner",
+        keepExistingKey: true,
+      });
+      expect(sameOrigin.ok).toBe(true);
+
+      // Different remote origin MUST NOT silently reuse old API key
+      const diffOrigin = await saveProviderConfig({
+        url: "https://evil.example.com/v1/chat/completions",
+        model: "gpt-4o",
+        keepExistingKey: true,
+      });
+      expect(diffOrigin.ok).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.TRADELOOM_WORKSPACE_DIR;
+      else process.env.TRADELOOM_WORKSPACE_DIR = prev;
+      await rm(tmp, { recursive: true, force: true });
+    }
+
+    // Middleware blocks DNS rebinding Host and cross-site CSRF mutations while allowing same-origin & clip token route
+    const rebindReq = new NextRequest("http://127.0.0.1:3200/api/vault", {
+      method: "GET",
+      headers: { host: "attacker-rebind.com:3200" },
+    });
+    expect(middleware(rebindReq).status).toBe(403);
+
+    const csrfReq = new NextRequest("http://127.0.0.1:3200/api/vaults", {
+      method: "POST",
+      headers: {
+        host: "127.0.0.1:3200",
+        origin: "https://evil.example.com",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(middleware(csrfReq).status).toBe(403);
+
+    const sameOriginReq = new NextRequest("http://127.0.0.1:3200/api/vaults", {
+      method: "POST",
+      headers: {
+        host: "127.0.0.1:3200",
+        origin: "http://127.0.0.1:3200",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(middleware(sameOriginReq).status).toBe(200);
+
+    const clipReq = new NextRequest("http://127.0.0.1:3200/api/vault/clip", {
+      method: "POST",
+      headers: {
+        host: "127.0.0.1:3200",
+        origin: "https://xueqiu.com",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(middleware(clipReq).status).toBe(200);
   });
 });

@@ -167,7 +167,19 @@ export async function saveProviderConfig(input: {
   let apiKey = (input.apiKey ?? "").trim();
   if (input.keepExistingKey && !apiKey) {
     const existing = await loadProviderConfig();
-    apiKey = existing.config?.apiKey ?? "";
+    if (existing.config?.url) {
+      try {
+        const oldOrigin = new URL(existing.config.url).origin.toLowerCase();
+        const newOrigin = new URL(validUrl.href).origin.toLowerCase();
+        if (oldOrigin === newOrigin) {
+          apiKey = existing.config.apiKey ?? "";
+        } else if (!validUrl.isLocal) {
+          return { ok: false, error: "更换 API 服务域名时请重新填写对应的 API Key（防止旧密钥跨域名外发）" };
+        }
+      } catch {
+        /* require fresh key below */
+      }
+    }
   }
   if (!validUrl.isLocal && !apiKey) {
     return { ok: false, error: "远程 HTTPS API 必须填写 API Key（本机 Ollama 可留空）" };

@@ -92,7 +92,12 @@ export function normalizeAShareSymbol(
   let market: "SH" | "SZ" | "BJ";
   if (explicitMarket) {
     market = explicitMarket;
-  } else if (code.startsWith("6") || code.startsWith("5")) {
+  } else if (
+    code.startsWith("6") ||
+    code.startsWith("5") ||
+    code.startsWith("11") ||
+    code.startsWith("900")
+  ) {
     market = "SH";
   } else if (code.startsWith("8") || code.startsWith("4") || code.startsWith("92")) {
     market = "BJ";
@@ -268,6 +273,7 @@ export async function getAShareDailyBars(args: {
   const fetchStartDate = new Date(start + "T00:00:00Z");
   fetchStartDate.setUTCDate(fetchStartDate.getUTCDate() - 45);
   const fetchStart = fetchStartDate.toISOString().slice(0, 10);
+  const fetchEnd = end < today ? end : today;
 
   let fetched: { name: string; bars: MarketBar[] } | null = null;
   let source: "eastmoney" | "tencent" = "eastmoney";
@@ -281,14 +287,38 @@ export async function getAShareDailyBars(args: {
   if (!fetched) {
     source = "tencent";
     try {
-      fetched = await fetchFromTencent(norm.txCode, kind, fetchStart, today);
+      fetched = await fetchFromTencent(norm.txCode, kind, fetchStart, fetchEnd);
     } catch {
       fetched = null;
     }
   }
 
   if (fetched && fetched.bars.length > 0) {
-    const merged = mergeBars(cached?.bars ?? [], fetched.bars);
+    let baseExisting = cached?.bars ?? [];
+    if (kind === "stock" && baseExisting.length > 0) {
+      const existingByDate = new Map(baseExisting.map((b) => [b.date, b]));
+      const hasQfqDrift = fetched.bars.some((b) => {
+        const old = existingByDate.get(b.date);
+        return old !== undefined && Math.abs(old.close - b.close) > 0.015;
+      });
+      if (hasQfqDrift) {
+        if (baseExisting[0].date < fetched.bars[0].date) {
+          try {
+            const fullRefetch =
+              source === "eastmoney"
+                ? await fetchFromEastmoney(norm.secid, kind, baseExisting[0].date, today)
+                : await fetchFromTencent(norm.txCode, kind, baseExisting[0].date, fetchEnd);
+            if (fullRefetch && fullRefetch.bars.length > 0) {
+              fetched = fullRefetch;
+            }
+          } catch {
+            /* keep fetched range */
+          }
+        }
+        baseExisting = [];
+      }
+    }
+    const merged = mergeBars(baseExisting, fetched.bars);
     const fullSeries: MarketSeries = {
       symbol: norm.code,
       secid: norm.secid,

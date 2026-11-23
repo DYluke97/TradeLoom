@@ -188,8 +188,29 @@ export async function convertFile(fileName: string, buf: Buffer): Promise<Conver
 }
 
 export function guessTitle(md: string, fallback: string): string {
+  const normalized = md.replace(/\r\n?/g, "\n");
+  let body = normalized;
+
+  // 1) Parse YAML frontmatter if present: prefer explicit `title:` field and never leak raw YAML keys
+  const fmMatch = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(normalized);
+  if (fmMatch) {
+    const fmBlock = fmMatch[1];
+    const titleMatch = /^[ \t]*title[ \t]*:[ \t]*(.+?)[ \t]*$/m.exec(fmBlock);
+    if (titleMatch) {
+      let rawTitle = titleMatch[1].trim();
+      if (
+        (rawTitle.startsWith('"') && rawTitle.endsWith('"') && rawTitle.length >= 2) ||
+        (rawTitle.startsWith("'") && rawTitle.endsWith("'") && rawTitle.length >= 2)
+      ) {
+        rawTitle = rawTitle.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'").trim();
+      }
+      if (rawTitle) return rawTitle.slice(0, 120);
+    }
+    body = normalized.slice(fmMatch[0].length);
+  }
+
   let firstLine: string | null = null;
-  for (const line of md.split("\n")) {
+  for (const line of body.split("\n")) {
     const t = line.trim();
     if (!t || t === "---") continue;
     if (firstLine === null) firstLine = t;

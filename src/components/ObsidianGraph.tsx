@@ -43,6 +43,20 @@ const NODE_LABELS: Record<VaultNodeType, string> = {
 };
 
 type LayoutMode = "orbital" | "layered";
+type GraphDensityMode = "skeleton" | "full";
+
+function isYearTimelineRel(rel: string): boolean {
+  return /^10-时间轴\/\d{4}年\.md$/.test(rel);
+}
+
+function isMonthTimelineRel(rel: string): boolean {
+  return /^10-时间轴\/\d{4}-\d{2}\.md$/.test(rel);
+}
+
+function monthParentYearRel(rel: string): string | null {
+  const m = /^10-时间轴\/(\d{4})-\d{2}\.md$/.exec(rel);
+  return m ? `10-时间轴/${m[1]}年.md` : null;
+}
 
 type SimNode = {
   rel: string;
@@ -115,6 +129,20 @@ function placeOnRing(
   });
 }
 
+function sampleEvenly<T>(items: T[], cap: number): T[] {
+  if (items.length <= cap) return items;
+  if (cap <= 0) return [];
+  if (cap === 1) return [items[0]];
+  const out: T[] = [];
+  const step = (items.length - 1) / (cap - 1);
+  for (let i = 0; i < cap; i++) {
+    out.push(items[Math.round(i * step)]);
+  }
+  return out;
+}
+
+const MAX_GLOBAL_GRAPH_NODES = 160;
+
 function buildGraphTopology(
   index: VaultIndex | null,
   activeRel: string,
@@ -123,8 +151,9 @@ function buildGraphTopology(
   width: number,
   height: number,
   filterType: VaultNodeType | "all",
-): { nodes: SimNode[]; edges: SimEdge[]; guide: GuideOverlay | null } {
-  if (!index) return { nodes: [], edges: [], guide: null };
+  densityMode: GraphDensityMode,
+): { nodes: SimNode[]; edges: SimEdge[]; guide: GuideOverlay | null; totalFiltered: number } {
+  if (!index) return { nodes: [], edges: [], guide: null, totalFiltered: 0 };
   const fileMap = new Map<string, VaultFileItem>(index.files.map((f) => [f.rel, f]));
   const cx = width / 2;
   const cy = height / 2;
@@ -217,18 +246,70 @@ function buildGraphTopology(
         cy,
         rings: [{ r: innerR, label: "", color: "var(--graph-ring)" }],
       },
+      totalFiltered: nodes.length,
     };
   }
 
-  // Global Graph: Structured Orbital or Swimlane Architecture
-  const candidates = index.files
+  // Global Graph: Abstraction-Ordered Hierarchy (Inside -> Outside)
+  // Core (MOC + Manuals) -> Orbit 01 (Topics + Year Hubs) -> Orbit 02 (Month Hubs) -> Orbit 03 (Review Cards)
+  const allFiltered = index.files
     .filter((f) => filterType === "all" || f.nodeType === filterType)
     .map((f) => ({
       file: f,
       degree: (index.links[f.rel]?.out.length ?? 0) + (index.links[f.rel]?.in.length ?? 0),
-    }))
-    .sort((a, b) => b.degree - a.degree)
-    .slice(0, 120);
+    }));
+  const totalFiltered = allFiltered.length;
+
+  let candidates = allFiltered;
+  if (filterType === "all") {
+    const overviews = allFiltered.filter((c) => c.file.nodeType === "overview");
+    const manuals = allFiltered.filter((c) => c.file.nodeType === "manual");
+    const topics = allFiltered.filter((c) => c.file.nodeType === "topic").sort((a, b) => b.degree - a.degree);
+    const years = allFiltered
+      .filter((c) => isYearTimelineRel(c.file.rel))
+      .sort((a, b) => (a.file.eventDate ?? "").localeCompare(b.file.eventDate ?? ""));
+    const months = allFiltered
+      .filter((c) => isMonthTimelineRel(c.file.rel))
+      .sort((a, b) => (a.file.eventDate ?? "").localeCompare(b.file.eventDate ?? ""));
+    const cardsChrono = allFiltered
+      .filter((c) => c.file.nodeType === "card")
+      .sort((a, b) => (a.file.eventDate ?? "9999").localeCompare(b.file.eventDate ?? "9999"));
+
+    if (densityMode === "skeleton") {
+      // Macro Knowledge Skeleton: Core MOC + Manuals + Topics + Years + Months (zero leaf hairball)
+      const picked: typeof allFiltered = [
+        ...overviews,
+        ...manuals.slice(0, 16),
+        ...topics.slice(0, 36),
+        ...years,
+      ];
+      const monthBudget = Math.max(0, MAX_GLOBAL_GRAPH_NODES - picked.length);
+      picked.push(...sampleEvenly(months, monthBudget));
+      candidates = picked;
+    } else {
+      // Full View: Core + Hubs + Outermost Cards Ring (sampled evenly across all years if > cap)
+      const picked: typeof allFiltered = [
+        ...overviews,
+        ...manuals.slice(0, 12),
+        ...topics.slice(0, 28),
+        ...years,
+      ];
+      const remaining = Math.max(0, MAX_GLOBAL_GRAPH_NODES - picked.length);
+      const monthBudget = Math.min(months.length, Math.max(12, Math.floor(remaining * 0.4)));
+      const cardBudget = Math.min(cardsChrono.length, Math.max(0, remaining - monthBudget));
+      picked.push(...sampleEvenly(months, monthBudget));
+      picked.push(...sampleEvenly(cardsChrono, cardBudget));
+      candidates = picked;
+    }
+  } else if (allFiltered.length > MAX_GLOBAL_GRAPH_NODES) {
+    const chronoSorted = [...allFiltered].sort((a, b) =>
+      (a.file.eventDate ?? "9999").localeCompare(b.file.eventDate ?? "9999"),
+    );
+    candidates =
+      filterType === "card"
+        ? sampleEvenly(chronoSorted, MAX_GLOBAL_GRAPH_NODES)
+        : [...allFiltered].sort((a, b) => b.degree - a.degree).slice(0, MAX_GLOBAL_GRAPH_NODES);
+  }
 
   const buckets: Record<VaultNodeType, typeof candidates> = {
     overview: [],
@@ -243,30 +324,46 @@ function buildGraphTopology(
   buckets.timeline.sort((a, b) => (a.file.eventDate ?? "9999").localeCompare(b.file.eventDate ?? "9999"));
   buckets.topic.sort((a, b) => b.degree - a.degree);
 
+  const yearItems = buckets.timeline.filter((c) => isYearTimelineRel(c.file.rel));
+  const monthItems = buckets.timeline.filter((c) => isMonthTimelineRel(c.file.rel));
+  const dayItems = buckets.timeline.filter((c) => !isYearTimelineRel(c.file.rel) && !isMonthTimelineRel(c.file.rel));
+
   const nodes: SimNode[] = [];
   let guide: GuideOverlay | null = null;
 
   if (layoutMode === "layered") {
-    const colSpecs: Array<{ key: string; label: string; color: string; x: number; items: typeof candidates }> = [
-      { key: "timeline", label: "01 // 时间轴（年/月/日）", color: "var(--graph-node-timeline)", x: width * 0.14, items: buckets.timeline },
-      { key: "card", label: "02 // 复盘原件卡片", color: "var(--graph-node-card)", x: width * 0.38, items: buckets.card },
-      { key: "topic", label: "03 // 主题与概念星核", color: "var(--graph-node-topic)", x: width * 0.66, items: buckets.topic },
+    const rawCols: Array<{ key: string; label: string; color: string; items: typeof candidates }> = [
       {
         key: "manual",
-        label: "04 // 总览 & 交易手册",
+        label: "01 // 总览 & 交易手册",
         color: "var(--graph-node-manual)",
-        x: width * 0.89,
         items: [...buckets.overview, ...buckets.manual],
       },
+      { key: "topic", label: "02 // 核心主题星核", color: "var(--graph-node-topic)", items: buckets.topic },
+      {
+        key: "timeline",
+        label: "03 // 时间轴（年 / 月）",
+        color: "var(--graph-node-timeline)",
+        items: [...yearItems, ...monthItems, ...dayItems],
+      },
+      { key: "card", label: "04 // 复盘原件卡片", color: "var(--graph-node-card)", items: buckets.card },
     ];
+    const activeCols = rawCols.filter((c) => c.items.length > 0);
+    const colSpecs = activeCols.map((c, idx) => ({
+      ...c,
+      x:
+        activeCols.length === 1
+          ? width * 0.5
+          : width * (0.13 + (idx / (activeCols.length - 1)) * 0.74),
+    }));
 
     const usableH = height - 140;
     for (const col of colSpecs) {
       const count = col.items.length;
       if (count === 0) continue;
-      const useTwoLanes = count > 10;
+      const useTwoLanes = count > 14;
       col.items.forEach((item, idx) => {
-        const lane = useTwoLanes ? (idx % 2 === 0 ? -52 : 52) : 0;
+        const lane = useTwoLanes ? (idx % 2 === 0 ? -48 : 48) : 0;
         const rowCount = useTwoLanes ? Math.ceil(count / 2) : count;
         const rowIdx = useTwoLanes ? Math.floor(idx / 2) : idx;
         const yStep = usableH / Math.max(rowCount, 1);
@@ -284,7 +381,7 @@ function buildGraphTopology(
           vy: 0,
           fx: null,
           fy: null,
-          r: Math.min(10.5, 5.2 + Math.sqrt(item.degree) * 0.72),
+          r: Math.min(10.5, 5.2 + Math.sqrt(item.degree) * 0.65),
           degree: item.degree,
           isCenter: item.file.rel === activeRel,
         });
@@ -296,10 +393,28 @@ function buildGraphTopology(
       columns: colSpecs.map((c) => ({ x: c.x, label: c.label, color: c.color })),
     };
   } else {
-    const rCard = 165;
-    const rTopic = 295;
-    const rTimeline = 415;
+    const outerLeaves = [...buckets.card, ...dayItems];
+    const hasOuterCards = outerLeaves.length > 0;
+    const hasTopics = buckets.topic.length > 0;
+    const hasYears = yearItems.length > 0;
+    const hasMonths = monthItems.length > 0;
 
+    // Dedicated full-360° concentric rings: Topics and Years each own an independent symmetric orbit
+    const rManual = hasOuterCards ? 64 : 72;
+    const rTopic = hasOuterCards ? 128 : 145;
+    const rYear = hasTopics ? (hasOuterCards ? 228 : 255) : rTopic;
+    const rMonth = hasYears
+      ? hasOuterCards
+        ? 322
+        : 365
+      : hasTopics
+        ? hasOuterCards
+          ? 248
+          : 280
+        : rTopic;
+    const rCard = hasTopics || hasYears || hasMonths ? 418 : 260;
+
+    // Center: Master MOC
     if (buckets.overview.length > 0) {
       const ov = buckets.overview[0];
       nodes.push({
@@ -314,95 +429,197 @@ function buildGraphTopology(
         vy: 0,
         fx: null,
         fy: null,
-        r: 12,
+        r: 12.5,
         degree: ov.degree,
         isCenter: ov.file.rel === activeRel,
       });
     }
 
+    // Inner Satellite Ring: Distilled Playbook Manuals
     if (buckets.manual.length > 0) {
       nodes.push(
         ...placeOnRing(
           buckets.manual.map((m, i) => ({ ...m, preferredAngle: (i / buckets.manual.length) * Math.PI * 2 })),
           cx,
           cy,
-          88,
+          rManual,
           activeRel,
         ),
       );
     }
 
-    const cardAngleMap = new Map<string, number>();
-    nodes.push(
-      ...placeOnRing(
-        buckets.card.map((c, i) => {
-          const angle = (i / Math.max(buckets.card.length, 1)) * Math.PI * 2 - Math.PI / 2;
-          cardAngleMap.set(c.file.rel, angle);
-          return { ...c, preferredAngle: angle };
-        }),
-        cx,
-        cy,
-        rCard,
-        activeRel,
-      ),
-    );
+    const hubAngleMap = new Map<string, number>();
 
-    const preferredAngleFor = (rel: string, fallbackIdx: number, total: number): number => {
-      const link = index.links[rel];
-      if (!link) return (fallbackIdx / Math.max(total, 1)) * Math.PI * 2;
-      let sx = 0;
-      let sy = 0;
-      let hits = 0;
-      for (const peer of [...link.out, ...link.in]) {
-        const ang = cardAngleMap.get(peer);
-        if (ang !== undefined) {
-          sx += Math.cos(ang);
-          sy += Math.sin(ang);
-          hits++;
+    // ORBIT 01 (Dedicated 360° Topic Ring): Core Theme Hubs evenly spaced across full circle
+    if (hasTopics) {
+      const tStep = (Math.PI * 2) / buckets.topic.length;
+      const tStart = -Math.PI / 2 + tStep / 2;
+      buckets.topic.forEach((tItem, idx) => {
+        const angle = tStart + tStep * idx;
+        hubAngleMap.set(tItem.file.rel, angle);
+        const x = cx + Math.cos(angle) * rTopic;
+        const y = cy + Math.sin(angle) * rTopic;
+        nodes.push({
+          rel: tItem.file.rel,
+          title: tItem.file.title,
+          nodeType: tItem.file.nodeType,
+          homeX: x,
+          homeY: y,
+          x,
+          y,
+          vx: 0,
+          vy: 0,
+          fx: null,
+          fy: null,
+          r: Math.min(11, 6.4 + Math.sqrt(tItem.degree) * 0.48),
+          degree: tItem.degree,
+          isCenter: tItem.file.rel === activeRel,
+        });
+      });
+    }
+
+    // ORBIT 02 (Dedicated 360° Year Ring): Year Archives evenly spaced across full circle
+    const yearWedgeMap = new Map<string, { center: number; span: number }>();
+    if (hasYears) {
+      const yStep = (Math.PI * 2) / yearItems.length;
+      const yStart = -Math.PI / 2 + yStep / 2;
+      yearItems.forEach((yItem, idx) => {
+        const angle = yStart + yStep * idx;
+        hubAngleMap.set(yItem.file.rel, angle);
+        yearWedgeMap.set(yItem.file.rel, { center: angle, span: yStep * 0.84 });
+        const x = cx + Math.cos(angle) * rYear;
+        const y = cy + Math.sin(angle) * rYear;
+        nodes.push({
+          rel: yItem.file.rel,
+          title: yItem.file.title,
+          nodeType: yItem.file.nodeType,
+          homeX: x,
+          homeY: y,
+          x,
+          y,
+          vx: 0,
+          vy: 0,
+          fx: null,
+          fy: null,
+          r: Math.min(10.5, 6.2 + Math.sqrt(yItem.degree) * 0.56),
+          degree: yItem.degree,
+          isCenter: yItem.file.rel === activeRel,
+        });
+      });
+    }
+
+    // ORBIT 03 (Dedicated 360° Month Ring): Month Hubs fanned out cleanly outside their parent year's wedge
+    if (hasMonths) {
+      const monthsByYear = new Map<string, typeof monthItems>();
+      const orphanMonths: typeof monthItems = [];
+      for (const m of monthItems) {
+        const parent = monthParentYearRel(m.file.rel);
+        if (parent && yearWedgeMap.has(parent)) {
+          const arr = monthsByYear.get(parent) ?? [];
+          arr.push(m);
+          monthsByYear.set(parent, arr);
+        } else {
+          orphanMonths.push(m);
         }
       }
-      if (hits === 0) return (fallbackIdx / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
-      return Math.atan2(sy / hits, sx / hits);
+
+      for (const [parentRel, group] of monthsByYear.entries()) {
+        const wedge = yearWedgeMap.get(parentRel)!;
+        group.forEach((mItem, idx) => {
+          const t = group.length === 1 ? 0 : idx / (group.length - 1) - 0.5;
+          const angle = wedge.center + t * wedge.span;
+          const rOffset = group.length >= 6 ? (idx % 2 === 0 ? -13 : 15) : 0;
+          const finalR = rMonth + rOffset;
+          hubAngleMap.set(mItem.file.rel, angle);
+          const x = cx + Math.cos(angle) * finalR;
+          const y = cy + Math.sin(angle) * finalR;
+          nodes.push({
+            rel: mItem.file.rel,
+            title: mItem.file.title,
+            nodeType: mItem.file.nodeType,
+            homeX: x,
+            homeY: y,
+            x,
+            y,
+            vx: 0,
+            vy: 0,
+            fx: null,
+            fy: null,
+            r: Math.min(8.2, 4.6 + Math.sqrt(mItem.degree) * 0.52),
+            degree: mItem.degree,
+            isCenter: mItem.file.rel === activeRel,
+          });
+        });
+      }
+
+      if (orphanMonths.length > 0) {
+        nodes.push(
+          ...placeOnRing(
+            orphanMonths.map((m, i) => ({
+              ...m,
+              preferredAngle: (i / orphanMonths.length) * Math.PI * 2 - Math.PI / 2,
+            })),
+            cx,
+            cy,
+            rMonth,
+            activeRel,
+            true,
+          ),
+        );
+      }
+    }
+
+    // ORBIT 04 (Outermost Ring, Largest Circumference): Original Review Cards & Leaf Days
+    if (hasOuterCards) {
+      const preferredOuterAngle = (rel: string, fallbackIdx: number, total: number): number => {
+        const link = index.links[rel];
+        if (!link) return (fallbackIdx / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
+        let sx = 0;
+        let sy = 0;
+        let weight = 0;
+        for (const peer of [...link.out, ...link.in]) {
+          const ang = hubAngleMap.get(peer);
+          if (ang !== undefined) {
+            // Pull cards strongly toward their parent month/year sector across the full 360° ring
+            const w = peer.startsWith("10-时间轴/") ? 3.2 : 0.8;
+            sx += Math.cos(ang) * w;
+            sy += Math.sin(ang) * w;
+            weight += w;
+          }
+        }
+        if (weight === 0) return (fallbackIdx / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
+        return Math.atan2(sy / weight, sx / weight);
+      };
+
+      nodes.push(
+        ...placeOnRing(
+          outerLeaves.map((leaf, i) => ({
+            ...leaf,
+            preferredAngle: preferredOuterAngle(leaf.file.rel, i, outerLeaves.length),
+          })),
+          cx,
+          cy,
+          rCard,
+          activeRel,
+          true,
+        ),
+      );
+    }
+
+    const rings: Array<{ r: number; label: string; color: string }> = [];
+    let orbitIdx = 1;
+    const pushRing = (r: number, title: string) => {
+      rings.push({
+        r,
+        label: `ORBIT 0${orbitIdx++} · ${title}`,
+        color: "var(--graph-ring)",
+      });
     };
-
-    nodes.push(
-      ...placeOnRing(
-        buckets.topic.map((t, i) => ({
-          ...t,
-          preferredAngle: preferredAngleFor(t.file.rel, i, buckets.topic.length),
-        })),
-        cx,
-        cy,
-        rTopic,
-        activeRel,
-        true,
-      ),
-    );
-
-    nodes.push(
-      ...placeOnRing(
-        buckets.timeline.map((t, i) => ({
-          ...t,
-          preferredAngle: preferredAngleFor(t.file.rel, i, buckets.timeline.length),
-        })),
-        cx,
-        cy,
-        rTimeline,
-        activeRel,
-        true,
-      ),
-    );
-
-    guide = {
-      kind: "rings",
-      cx,
-      cy,
-      rings: [
-        { r: rCard, label: "ORBIT 01 · 复盘卡片层", color: "var(--graph-ring)" },
-        { r: rTopic, label: "ORBIT 02 · 主题概念星环", color: "var(--graph-ring)" },
-        { r: rTimeline, label: "ORBIT 03 · 时间轴外轨", color: "var(--graph-ring)" },
-      ],
-    };
+    if (hasTopics) pushRing(rTopic, "主题星核环");
+    if (hasYears) pushRing(rYear, "年度档案环");
+    if (hasMonths) pushRing(rMonth, "月度时间索引");
+    if (hasOuterCards) pushRing(rCard, "复盘原件卡片外环");
+    guide = { kind: "rings", cx, cy, rings };
   }
 
   const shown = new Set(nodes.map((n) => n.rel));
@@ -415,18 +632,35 @@ function buildGraphTopology(
       const key = n.rel < target ? `${n.rel}->${target}` : `${target}->${n.rel}`;
       if (edgeSeen.has(key)) continue;
       edgeSeen.add(key);
-      const isOverviewEdge =
-        nodeTypeByRel.get(n.rel) === "overview" || nodeTypeByRel.get(target) === "overview";
+      const tA = nodeTypeByRel.get(n.rel);
+      const tB = nodeTypeByRel.get(target);
+      // Skip redundant "month -> overview" return-home shortcuts when the parent year hub is already shown
+      // so the hierarchy stays crystal-clear: Overview -> Year -> Month -> Cards
+      const monthRel =
+        tA === "overview" && isMonthTimelineRel(target)
+          ? target
+          : tB === "overview" && isMonthTimelineRel(n.rel)
+            ? n.rel
+            : null;
+      if (monthRel) {
+        const parentYear = monthParentYearRel(monthRel);
+        if (parentYear && shown.has(parentYear)) continue;
+      }
+      // Primary structural backbone edges (MOC -> Topic/Year -> Month) stay crisp;
+      // cross-dimensional Topic <-> Year/Month and leaf Card edges stay subtle ambient until hovered/locked
+      const isLeafEdge = tA === "card" || tB === "card";
+      const isCrossTopicTimeline =
+        (tA === "topic" && tB === "timeline") || (tB === "topic" && tA === "timeline");
       edges.push({
         from: n.rel,
         to: target,
         direction: "peer",
-        structural: !isOverviewEdge,
+        structural: !isLeafEdge && !isCrossTopicTimeline,
       });
     }
   }
 
-  return { nodes, edges, guide };
+  return { nodes, edges, guide, totalFiltered };
 }
 
 export default function ObsidianGraph({
@@ -446,12 +680,16 @@ export default function ObsidianGraph({
   const height = mode === "global" ? 900 : 245;
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("orbital");
+  const [densityMode, setDensityMode] = useState<GraphDensityMode>("skeleton");
   const [hoveredRel, setHoveredRel] = useState<string | null>(null);
   const [lockedRel, setLockedRel] = useState<string | null>(null);
   const [draggingRel, setDraggingRel] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<VaultNodeType | "all">("all");
   const [showSettings, setShowSettings] = useState(false);
-  const [showAllLabels, setShowAllLabels] = useState(mode === "global");
+  const [showAllLabels, setShowAllLabels] = useState(false);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const userToggledLabelsRef = useRef(false);
+  const userToggledDensityRef = useRef(false);
 
   // Tactile Damped Physics Controls
   const [archPull, setArchPull] = useState(mode === "global" ? 0.045 : 0.06);
@@ -505,6 +743,7 @@ export default function ObsidianGraph({
 
   const startLoop = useCallback(() => {
     if (rafRef.current !== null) return;
+    let settledFrames = 0;
 
     const step = () => {
       const nodes = nodesRef.current;
@@ -516,7 +755,7 @@ export default function ObsidianGraph({
 
       const { archPull: kHome, damping: damp, springPull: kEdge } = physicsRef.current;
       const byRel = new Map<string, SimNode>(nodes.map((n) => [n.rel, n]));
-      const minSpacing = mode === "global" ? 68 : 34;
+      const minSpacing = mode === "global" ? (nodes.length > 90 ? 44 : 68) : 34;
 
       // 1) Architectural Restoring Force
       for (const n of nodes) {
@@ -605,8 +844,9 @@ export default function ObsidianGraph({
       }
 
       setRenderTick((t) => (t + 1) % 100000);
+      settledFrames++;
 
-      if (dragNodeRef.current || kineticEnergy > 0.04) {
+      if (dragNodeRef.current || (kineticEnergy > 0.04 && settledFrames < 180)) {
         rafRef.current = requestAnimationFrame(step);
       } else {
         rafRef.current = null;
@@ -617,10 +857,19 @@ export default function ObsidianGraph({
   }, [mode]);
 
   useEffect(() => {
-    const topo = buildGraphTopology(index, activeRel, mode, layoutMode, width, height, filterType);
+    if (!index || userToggledDensityRef.current) return;
+    setDensityMode(index.counts.total > 30 ? "skeleton" : "full");
+  }, [index]);
+
+  useEffect(() => {
+    const topo = buildGraphTopology(index, activeRel, mode, layoutMode, width, height, filterType, densityMode);
     nodesRef.current = topo.nodes;
     edgesRef.current = topo.edges;
     guideRef.current = topo.guide;
+    setTotalFiltered(topo.totalFiltered);
+    if (!userToggledLabelsRef.current) {
+      setShowAllLabels(mode === "global" && topo.nodes.length <= 42);
+    }
     setLockedRel(null);
     setTransform(defaultTransform);
     setRenderTick((t) => (t + 1) % 100000);
@@ -631,7 +880,7 @@ export default function ObsidianGraph({
         rafRef.current = null;
       }
     };
-  }, [index, activeRel, mode, layoutMode, width, height, filterType, defaultTransform, startLoop]);
+  }, [index, activeRel, mode, layoutMode, width, height, filterType, densityMode, defaultTransform, startLoop]);
 
   const clientToWorld = useCallback(
     (clientX: number, clientY: number) => {
@@ -848,7 +1097,10 @@ export default function ObsidianGraph({
             {mode === "global" ? "全息星轨双链图谱" : "局部神经星图"}
           </span>
           <span className="rounded border border-[var(--border)] bg-[var(--bg-deep)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--cyan)]">
-            {nodes.length} NODES · {edges.length} LINKS
+            {mode === "global" && totalFiltered > nodes.length
+              ? `${nodes.length} / ${totalFiltered} NODES`
+              : `${nodes.length} NODES`}{" "}
+            · {edges.length} LINKS
           </span>
         </div>
 
@@ -881,6 +1133,42 @@ export default function ObsidianGraph({
                   架构泳道
                 </button>
               </div>
+
+              {filterType === "all" && (
+                <div
+                  className="mr-1 inline-flex rounded border border-[var(--border)] bg-[var(--bg-deep)] p-0.5 text-[11px]"
+                  title="骨架脉络仅展示总览/手册/主题/年/月枢纽；全量展开在外圈展示复盘原件卡片"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      userToggledDensityRef.current = true;
+                      setDensityMode("skeleton");
+                    }}
+                    className={`rounded px-2 py-0.5 transition ${
+                      densityMode === "skeleton"
+                        ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                        : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    骨架脉络
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      userToggledDensityRef.current = true;
+                      setDensityMode("full");
+                    }}
+                    className={`rounded px-2 py-0.5 transition ${
+                      densityMode === "full"
+                        ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                        : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    全量展开
+                  </button>
+                </div>
+              )}
 
               <div className="mr-1 flex flex-wrap items-center gap-0.5 text-[11px]">
                 {(["all", "card", "topic", "timeline", "manual"] as const).map((t) => (
@@ -1022,12 +1310,16 @@ export default function ObsidianGraph({
                       {ring.label && (
                         <text
                           x={guide.cx}
-                          y={guide.cy - ring.r - 8}
+                          y={guide.cy - ring.r - 7}
                           textAnchor="middle"
                           fill="var(--ink-dim)"
                           fontSize={9.5}
                           fontFamily="monospace"
-                          letterSpacing={2}
+                          letterSpacing={1.8}
+                          paintOrder="stroke"
+                          stroke="var(--graph-bg)"
+                          strokeWidth={4}
+                          strokeLinejoin="round"
                         >
                           {ring.label}
                         </text>
@@ -1097,8 +1389,8 @@ export default function ObsidianGraph({
                                   ? "var(--graph-edge-structural)"
                                   : "var(--graph-edge)"
                         }
-                        strokeWidth={(highlighted ? 2.4 : e.structural ? 1.35 : 1.05) / Math.sqrt(transform.k)}
-                        opacity={dimmed ? 0.08 : highlighted ? 0.95 : 1}
+                        strokeWidth={(highlighted ? 2.2 : e.structural ? 1.35 : 0.85) / Math.sqrt(transform.k)}
+                        opacity={dimmed ? 0.06 : highlighted ? 0.95 : e.structural ? 0.72 : 0.16}
                         
                       />
                       {/* Animated neon energy pulse along highlighted links */}
@@ -1135,7 +1427,14 @@ export default function ObsidianGraph({
                     isFocused ||
                     isInLockedSubgraph ||
                     transform.k >= 1.25 ||
-                    (mode === "local" ? nodes.length <= 14 : n.nodeType !== "timeline" || n.degree >= 4);
+                    (mode === "local"
+                      ? nodes.length <= 14
+                      : nodes.length > 42
+                        ? n.nodeType === "overview" ||
+                          n.nodeType === "manual" ||
+                          n.nodeType === "topic" ||
+                          isYearTimelineRel(n.rel)
+                        : n.nodeType !== "timeline" || isYearTimelineRel(n.rel) || n.degree >= 4);
 
                   return (
                     <g
@@ -1338,7 +1637,10 @@ export default function ObsidianGraph({
               <input
                 type="checkbox"
                 checked={showAllLabels}
-                onChange={(e) => setShowAllLabels(e.target.checked)}
+                onChange={(e) => {
+                  userToggledLabelsRef.current = true;
+                  setShowAllLabels(e.target.checked);
+                }}
                 className="accent-[var(--cyan)]"
               />
             </label>

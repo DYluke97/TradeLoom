@@ -443,11 +443,30 @@ export function extractLarkCliDocBody(envelope: LarkCliEnvelope<unknown> | null,
   return { markdown: rawStdout.trim() };
 }
 
+const SAFE_PROFILE_RE = /^[a-zA-Z0-9_-]{1,48}$/;
+const CMD_METACHAR_RE = /[\r\n\0"&|<>^%]/;
+
 async function resolveLarkCliCommand(): Promise<{ bin: string; prefixArgs: string[] } | null> {
   const candidates: Array<{ bin: string; prefixArgs: string[] }> = [];
   if (process.platform === "win32") {
     candidates.push({ bin: "lark-cli.exe", prefixArgs: [] });
     if (process.env.APPDATA) {
+      // Prefer invoking the @larksuite/cli JS entrypoint directly via node.exe (avoids cmd.exe batch parsing)
+      const pkgDir = path.join(process.env.APPDATA, "npm", "node_modules", "@larksuite", "cli");
+      try {
+        const pkgRaw = JSON.parse(await readFile(path.join(pkgDir, "package.json"), "utf8")) as {
+          bin?: string | Record<string, string>;
+        };
+        const binRel =
+          typeof pkgRaw.bin === "string"
+            ? pkgRaw.bin
+            : pkgRaw.bin?.["lark-cli"] ?? Object.values(pkgRaw.bin ?? {})[0];
+        if (binRel) {
+          candidates.push({ bin: process.execPath, prefixArgs: [path.resolve(pkgDir, binRel)] });
+        }
+      } catch {
+        /* fallback to .cmd with strict arg sanitization below */
+      }
       candidates.push({
         bin: "cmd.exe",
         prefixArgs: ["/d", "/s", "/c", path.join(process.env.APPDATA, "npm", "lark-cli.cmd")],
@@ -483,6 +502,17 @@ export async function runLarkCli(
   envelope: LarkCliEnvelope<unknown> | null;
   errorMessage?: string;
 }> {
+  const cleanProfile = options?.profile?.trim() ?? "";
+  if (cleanProfile && !SAFE_PROFILE_RE.test(cleanProfile)) {
+    return {
+      ok: false,
+      stdout: "",
+      stderr: "",
+      envelope: null,
+      errorMessage: "飞书 CLI Profile 名称仅允许字母、数字、下划线与连字符",
+    };
+  }
+
   const resolved = await resolveLarkCliCommand();
   if (!resolved) {
     return {
@@ -495,9 +525,20 @@ export async function runLarkCli(
     };
   }
 
+  const isCmdShell = resolved.bin.toLowerCase().endsWith("cmd.exe");
+  if (isCmdShell && args.some((a) => CMD_METACHAR_RE.test(a))) {
+    return {
+      ok: false,
+      stdout: "",
+      stderr: "",
+      envelope: null,
+      errorMessage: "安全拦截：飞书 CLI 参数包含非法特殊字符",
+    };
+  }
+
   const finalArgs = [...resolved.prefixArgs];
-  if (options?.profile?.trim()) {
-    finalArgs.push("--profile", options.profile.trim());
+  if (cleanProfile) {
+    finalArgs.push("--profile", cleanProfile);
   }
   finalArgs.push(...args);
 

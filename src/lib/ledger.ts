@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import {
+  buildStockSummaries,
   computeLedgerAnalytics,
   type LedgerAnalytics,
   type PeriodQuantBrief,
@@ -13,6 +14,7 @@ import {
   parseRawCsvTable,
   parseTradeSide,
   previewLedgerCsv,
+  SENSITIVE_COL_RE,
   type CsvColumnMapping,
   type CsvImportKind,
 } from "./ledger-csv";
@@ -244,7 +246,18 @@ export async function importLedgerCsv(args: {
   }
   const auto = autoMapCsvColumns(headers);
   const kind = args.kind ?? auto.kind;
-  const map: CsvColumnMapping = { ...auto.mapping, ...(args.mapping ?? {}) };
+  const hasExplicitMapping = Boolean(args.mapping && Object.keys(args.mapping).length > 0);
+  const map: CsvColumnMapping = hasExplicitMapping ? { ...args.mapping } : { ...auto.mapping };
+  const redactedSet = new Set(auto.redactedColumns);
+  for (const [field, colIdx] of Object.entries(map)) {
+    if (typeof colIdx === "number") {
+      const colName = (headers[colIdx] ?? "").trim();
+      if (SENSITIVE_COL_RE.test(colName)) {
+        redactedSet.add(colName);
+        delete (map as Record<string, unknown>)[field];
+      }
+    }
+  }
 
   if (map.date === undefined) {
     return { ok: false, error: "未匹配到「日期」列，请在预览中手动指定日期列" };
@@ -353,7 +366,7 @@ export async function importLedgerCsv(args: {
     return { ok: false, error: `没有可导入的有效行（共跳过 ${skipped} 行，请检查列映射或是否重复导入）` };
   }
   const saved = await saveLedger(store);
-  return { ok: true, kind, imported, skipped, redactedColumns: auto.redactedColumns, store: saved };
+  return { ok: true, kind, imported, skipped, redactedColumns: [...redactedSet], store: saved };
 }
 
 export async function getFullLedgerWithBenchmark(skipRemoteBenchmark = false): Promise<{
@@ -406,6 +419,16 @@ export async function buildPeriodQuantBrief(fromDate?: string, toDate?: string):
     { ...store, dailyRecords: filteredDaily, trades: filteredTrades },
     benchBars,
   );
+  const tradesUpToEnd = store.trades.filter((t) => !toDate || t.date <= toDate);
+  const activeSymbolsInPeriod = new Set(filteredTrades.map((t) => t.symbol));
+  const periodTradeCountBySymbol = new Map<string, number>();
+  for (const t of filteredTrades) {
+    periodTradeCountBySymbol.set(t.symbol, (periodTradeCountBySymbol.get(t.symbol) ?? 0) + 1);
+  }
+  const periodStocks = buildStockSummaries(tradesUpToEnd).filter((s) =>
+    activeSymbolsInPeriod.has(s.symbol),
+  );
+
   const worstDays = [...analytics.equityCurve]
     .filter((p) => p.dailyReturnPct < 0)
     .sort((a, b) => a.dailyReturnPct - b.dailyReturnPct)
@@ -430,14 +453,14 @@ export async function buildPeriodQuantBrief(fromDate?: string, toDate?: string):
     profitFactor: analytics.kpi.profitFactor,
     peakPositionPct: analytics.kpi.peakPositionPct,
     marginDays: analytics.kpi.marginDays,
-    tradeCount: analytics.kpi.totalTrades,
+    tradeCount: filteredTrades.length,
     worstDays,
     bestDays,
-    stockStats: analytics.stocks.slice(0, 12).map((s) => ({
+    stockStats: periodStocks.slice(0, 12).map((s) => ({
       symbol: s.symbol,
       name: s.name,
       realizedPnlPct: s.realizedPnlPct,
-      tradeCount: s.tradeCount,
+      tradeCount: periodTradeCountBySymbol.get(s.symbol) ?? s.tradeCount,
       status: s.status,
     })),
   };

@@ -294,12 +294,15 @@ export default function CloudConnectorsPanel() {
         const cleanUrl = `${window.location.pathname}?${qs.toString()}`;
         window.history.replaceState({}, "", cleanUrl);
       } else if (errMsg) {
+        const errId = (qs.get("oauth_connector") as ConnectorId | null) || (/notion/i.test(errMsg) ? "notion" : "dida365");
         setFeedback((prev) => ({
           ...prev,
-          dida365: { ok: false, text: errMsg },
+          [errId]: { ok: false, text: errMsg },
         }));
         qs.delete("oauth_err");
-        const cleanUrl = `${window.location.pathname}?${qs.toString()}`;
+        qs.delete("oauth_connector");
+        const tail = qs.toString();
+        const cleanUrl = tail ? `${window.location.pathname}?${tail}` : window.location.pathname;
         window.history.replaceState({}, "", cleanUrl);
       }
     }
@@ -648,17 +651,42 @@ export default function CloudConnectorsPanel() {
     }
   }
 
+  function hasDraftCredentials(c: MaskedConnectorSummary): boolean {
+    if (c.platformUnsupportedReason) return false;
+    const d = drafts[c.id] ?? {};
+    if (c.id === "onenote") return true;
+    if (c.id === "yinxiang") return Boolean(d.token?.trim() || c.fields.localSkillTokenDetected === "true");
+    if (c.id === "feishu") {
+      return d.mode === "lark_cli" || Boolean(d.appId?.trim() && d.appSecret?.trim());
+    }
+    if (c.id === "youdao") return Boolean((d.apiKey || d.token || "").trim());
+    if (c.id === "ima") return Boolean(d.clientId?.trim() && (d.apiKey || d.token || "").trim());
+    return Boolean(d.token?.trim());
+  }
+
   async function runAction(id: ConnectorId, action: "save" | "test" | "sync" | "disconnect") {
     setBusyId(`${id}:${action}`);
     setFeedback((prev) => ({ ...prev, [id]: { ok: true, text: "" } }));
     try {
-      // Auto-persist filter/mode changes before syncing (or testing Feishu CLI mode)
-      if (action === "sync" || (action === "test" && id === "feishu" && drafts.feishu?.mode === "lark_cli")) {
-        await fetch("/api/connectors", {
+      // Auto-persist any draft credentials or filter changes before testing or syncing
+      if ((action === "test" || action === "sync") && drafts[id]) {
+        const saveRes = await fetch("/api/connectors", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, action: "save", fields: drafts[id] }),
         });
+        const saveData = await saveRes.json();
+        if (!saveData.ok) {
+          setFeedback((prev) => ({
+            ...prev,
+            [id]: { ok: false, text: saveData.error || "保存配置失败" },
+          }));
+          return;
+        }
+        setDrafts((prev) => ({
+          ...prev,
+          [id]: { ...(prev[id] ?? {}), token: "", appSecret: "", apiKey: "" },
+        }));
       }
 
       const res = await fetch("/api/connectors", {
@@ -695,13 +723,21 @@ export default function CloudConnectorsPanel() {
             [id]: {
               ...(prev[id] ?? {}),
               token: "",
+              appId: "",
               appSecret: "",
               apiKey: "",
               clientId: "",
+              targetId: "",
+              docTokens: "",
+              searchQuery: "",
+              namespace: "",
+              keyword: "",
               projectId: "",
               folderId: "",
               parentId: "",
               wikiId: "",
+              notebookFilter: "",
+              tagFilter: "",
             },
           }));
           setFeedback((prev) => ({
@@ -842,7 +878,14 @@ export default function CloudConnectorsPanel() {
                     </div>
                     <p className="mt-1 text-xs leading-5 text-[var(--ink-muted)]">{meta.subtitle}</p>
                   </div>
-                  {c.configured ? (
+                  {c.platformUnsupportedReason ? (
+                    <span
+                      title={c.platformUnsupportedReason}
+                      className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]"
+                    >
+                      仅限 Windows
+                    </span>
+                  ) : c.configured ? (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--emerald)]/35 bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] text-[var(--emerald)]">
                       <CheckCircle2 className="h-4 w-4" />
                       {c.authMode === "mcp_oauth"
@@ -1814,7 +1857,7 @@ export default function CloudConnectorsPanel() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    disabled={busyId !== null}
+                    disabled={busyId !== null || Boolean(c.platformUnsupportedReason)}
                     onClick={() => runAction(c.id, "save")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
                   >
@@ -1825,10 +1868,8 @@ export default function CloudConnectorsPanel() {
                     type="button"
                     disabled={
                       busyId !== null ||
-                      (!c.configured &&
-                        c.id !== "onenote" &&
-                        !(c.id === "yinxiang" && c.fields.localSkillTokenDetected === "true") &&
-                        !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
+                      Boolean(c.platformUnsupportedReason) ||
+                      (!c.configured && !hasDraftCredentials(c))
                     }
                     onClick={() => runAction(c.id, "test")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
@@ -1854,10 +1895,8 @@ export default function CloudConnectorsPanel() {
                     type="button"
                     disabled={
                       busyId !== null ||
-                      (!c.configured &&
-                        c.id !== "onenote" &&
-                        !(c.id === "yinxiang" && c.fields.localSkillTokenDetected === "true") &&
-                        !(c.id === "feishu" && drafts.feishu?.mode === "lark_cli"))
+                      Boolean(c.platformUnsupportedReason) ||
+                      (!c.configured && !hasDraftCredentials(c))
                     }
                     onClick={() => runAction(c.id, "sync")}
                     className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent)] disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-dim)] disabled:border disabled:border-[var(--border)]"

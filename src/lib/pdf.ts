@@ -26,29 +26,36 @@ export async function extractPdfText(buf: Buffer): Promise<PdfExtractResult> {
     const doc = await loadingTask.promise;
     const pages: PdfPageText[] = [];
     const parts: string[] = [];
+    let pageCount = 0;
 
-    for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p);
-      const content = await page.getTextContent();
-      const raw = content.items
-        .map((it) => ("str" in it && typeof it.str === "string" ? it.str : ""))
-        .join(" ")
-        .replace(/[ \t]{2,}/g, " ")
-        .trim();
-      if (raw) {
-        pages.push({
-          page: p,
-          text: raw,
-          chars: raw.length,
-          sha256: sha(raw),
-          head: raw.slice(0, 120),
-        });
-        parts.push(`[第 ${p} 页]\n${raw}`);
+    try {
+      pageCount = doc.numPages;
+      for (let p = 1; p <= doc.numPages; p++) {
+        const page = await doc.getPage(p);
+        try {
+          const content = await page.getTextContent();
+          const raw = content.items
+            .map((it) => ("str" in it && typeof it.str === "string" ? it.str : ""))
+            .join(" ")
+            .replace(/[ \t]{2,}/g, " ")
+            .trim();
+          if (raw) {
+            pages.push({
+              page: p,
+              text: raw,
+              chars: raw.length,
+              sha256: sha(raw),
+              head: raw.slice(0, 120),
+            });
+            parts.push(`[第 ${p} 页]\n${raw}`);
+          }
+        } finally {
+          page.cleanup();
+        }
       }
+    } finally {
+      await loadingTask.destroy().catch(() => {});
     }
-
-    const pageCount = doc.numPages;
-    await loadingTask.destroy();
 
     if (pages.length === 0) {
       return { ok: false, status: "scanned", reason: "PDF 未提取到可选文字（可能是纯图片扫描件）" };

@@ -32,5 +32,8 @@ export async function DELETE(request: NextRequest) {
   const id = (request.nextUrl.searchParams.get("id") ?? "").trim();
   if (!id) return NextResponse.json({ ok: false, error: "缺少 id" }, { status: 400 });
   const deleted = await deleteSavedManual(id);
-  return NextResponse.json({ ok: deleted });
+  if (!deleted) {
+    return NextResponse.json({ ok: false, error: "找不到该交易手册" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }

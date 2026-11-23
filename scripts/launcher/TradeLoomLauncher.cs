@@ -553,17 +553,22 @@ namespace TradeLoomLauncher
             using (var g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.Clear(Color.FromArgb(12, 15, 23));
-                using (var border = new Pen(Color.FromArgb(140, 110, 255), 2.2f))
+                g.Clear(Color.FromArgb(24, 25, 27));
+                using (var border = new Pen(Color.FromArgb(45, 95, 139), 2.0f))
                 {
                     g.DrawRectangle(border, 2, 2, 27, 27);
                 }
-                using (var pen = new Pen(Color.FromArgb(34, 211, 238), 2.6f))
+                using (var tPen = new Pen(Color.FromArgb(247, 246, 243), 2.5f))
+                {
+                    tPen.StartCap = LineCap.Round;
+                    tPen.EndCap = LineCap.Round;
+                    g.DrawLine(tPen, 8, 10, 24, 10);
+                    g.DrawLine(tPen, 16, 10, 16, 22);
+                }
+                using (var pen = new Pen(Color.FromArgb(91, 155, 213), 2.4f))
                 {
                     pen.StartCap = LineCap.Round;
                     pen.EndCap = LineCap.Round;
-                    g.DrawLine(pen, 8, 10, 24, 10);
-                    g.DrawLine(pen, 16, 10, 16, 22);
                     g.DrawLines(pen, new[] { new Point(7, 21), new Point(12, 16), new Point(17, 20), new Point(25, 13) });
                 }
                 return Icon.FromHandle(bmp.GetHicon());
@@ -604,8 +609,8 @@ namespace TradeLoomLauncher
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            BackColor = Color.FromArgb(12, 15, 23);
-            ForeColor = Color.FromArgb(228, 233, 247);
+            BackColor = Color.FromArgb(24, 25, 27);
+            ForeColor = Color.FromArgb(236, 235, 231);
             Font = new Font("Microsoft YaHei UI", 9.5f);
 
             var title = new Label
@@ -616,7 +621,7 @@ namespace TradeLoomLauncher
                 Width = 315,
                 Height = 26,
                 Font = new Font("Microsoft YaHei UI", 12f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(241, 242, 245),
+                ForeColor = Color.FromArgb(247, 246, 243),
             };
 
             _statusLabel = new Label
@@ -626,7 +631,7 @@ namespace TradeLoomLauncher
                 Top = 50,
                 Width = 415,
                 Height = 22,
-                ForeColor = Color.FromArgb(179, 136, 255),
+                ForeColor = Color.FromArgb(124, 174, 220),
             };
 
             _urlLabel = new Label
@@ -637,7 +642,7 @@ namespace TradeLoomLauncher
                 Width = 285,
                 Height = 20,
                 Font = new Font("Microsoft YaHei UI", 8.5f),
-                ForeColor = Color.FromArgb(143, 155, 184),
+                ForeColor = Color.FromArgb(154, 158, 166),
             };
 
             _copyLink = new LinkLabel
@@ -646,7 +651,7 @@ namespace TradeLoomLauncher
                 Left = 340,
                 Top = 74,
                 Width = 92,
-                LinkColor = Color.FromArgb(34, 211, 238),
+                LinkColor = Color.FromArgb(91, 155, 213),
                 ActiveLinkColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 8.5f),
             };
@@ -670,18 +675,18 @@ namespace TradeLoomLauncher
                 MarqueeAnimationSpeed = 28,
             };
 
-            _btnOpenApp = MakeButton("打开独立应用窗口", 22, 128, 198, Color.FromArgb(124, 77, 255), Color.White);
+            _btnOpenApp = MakeButton("打开独立应用窗口", 22, 128, 198, Color.FromArgb(45, 95, 139), Color.White);
             _btnOpenApp.Enabled = false;
             _btnOpenApp.Click += (s, e) => Program.OpenAppWindow(_activeUrl);
 
-            _btnOpenBrowser = MakeButton("在默认浏览器打开", 232, 128, 198, Color.FromArgb(24, 32, 52), Color.FromArgb(228, 233, 247));
+            _btnOpenBrowser = MakeButton("在默认浏览器打开", 232, 128, 198, Color.FromArgb(34, 36, 40), Color.FromArgb(236, 235, 231));
             _btnOpenBrowser.Enabled = false;
             _btnOpenBrowser.Click += (s, e) => Program.OpenDefaultBrowser(_activeUrl);
 
-            _btnOpenWorkspace = MakeButton("打开本地工作区 (Obsidian)", 22, 172, 198, Color.FromArgb(24, 32, 52), Color.FromArgb(34, 211, 238));
+            _btnOpenWorkspace = MakeButton("打开本地工作区 (Obsidian)", 22, 172, 198, Color.FromArgb(34, 36, 40), Color.FromArgb(124, 174, 220));
             _btnOpenWorkspace.Click += (s, e) => Program.OpenFolder(workspaceDir);
 
-            _btnExit = MakeButton("停止本地服务并退出", 232, 172, 198, Color.FromArgb(48, 20, 32), Color.FromArgb(251, 113, 133));
+            _btnExit = MakeButton("停止本地服务并退出", 232, 172, 198, Color.FromArgb(46, 26, 30), Color.FromArgb(235, 122, 134));
             _btnExit.Click += (s, e) => Program.ExitAll();
 
             var logLink = new LinkLabel
@@ -690,8 +695,8 @@ namespace TradeLoomLauncher
                 Left = 344,
                 Top = 21,
                 Width = 88,
-                LinkColor = Color.FromArgb(143, 155, 184),
-                ActiveLinkColor = Color.FromArgb(34, 211, 238),
+                LinkColor = Color.FromArgb(154, 158, 166),
+                ActiveLinkColor = Color.FromArgb(91, 155, 213),
                 Font = new Font("Microsoft YaHei UI", 8.5f),
             };
             logLink.Click += (s, e) => Program.OpenFile(logPath);
@@ -722,7 +727,7 @@ namespace TradeLoomLauncher
                 ForeColor = fg,
                 Cursor = Cursors.Hand,
             };
-            b.FlatAppearance.BorderColor = Color.FromArgb(72, 86, 128);
+            b.FlatAppearance.BorderColor = Color.FromArgb(62, 66, 74);
             b.FlatAppearance.BorderSize = 1;
             return b;
         }

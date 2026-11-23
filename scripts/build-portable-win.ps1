@@ -76,21 +76,25 @@ $icoPath = Join-Path $distDir "tradeloom.ico"
 $bmp = New-Object System.Drawing.Bitmap(64, 64)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$g.Clear([System.Drawing.Color]::FromArgb(12, 15, 23))
-$borderPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(140, 110, 255), 4)
+$g.Clear([System.Drawing.Color]::FromArgb(24, 25, 27))
+$borderPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(45, 95, 139), 3.5)
 $g.DrawRectangle($borderPen, 4, 4, 55, 55)
-$linePen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(34, 211, 238), 5)
+$ivoryPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(247, 246, 243), 4.8)
+$ivoryPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+$ivoryPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+$g.DrawLine($ivoryPen, 16, 20, 48, 20)
+$g.DrawLine($ivoryPen, 32, 20, 32, 44)
+$linePen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(91, 155, 213), 4.5)
 $linePen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
 $linePen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-$g.DrawLine($linePen, 16, 20, 48, 20)
-$g.DrawLine($linePen, 32, 20, 32, 44)
 $pts = [System.Drawing.Point[]]@(
-  (New-Object System.Drawing.Point(14, 42)),
-  (New-Object System.Drawing.Point(24, 32)),
-  (New-Object System.Drawing.Point(34, 40)),
-  (New-Object System.Drawing.Point(50, 26))
+  (New-Object System.Drawing.Point(15, 42)),
+  (New-Object System.Drawing.Point(25, 33)),
+  (New-Object System.Drawing.Point(35, 39)),
+  (New-Object System.Drawing.Point(49, 26))
 )
 $g.DrawLines($linePen, $pts)
+$ivoryPen.Dispose(); $borderPen.Dispose(); $linePen.Dispose()
 $g.Dispose()
 $pngStream = New-Object System.IO.MemoryStream
 $bmp.Save($pngStream, [System.Drawing.Imaging.ImageFormat]::Png)

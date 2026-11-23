@@ -1,1 +1,1 @@
-d5170f81b406ee8fd14436d62ef6246af921eaaaa5a9bcfc3d5f2f0e4f88e01e  TradeLoom-v0.7.0-win-x64.zip
+fa5cdb982fdba55f0148beca830dd48123e396ce494418c8dbbabce5b084649f  TradeLoom-v1.0.0-win-x64.zip

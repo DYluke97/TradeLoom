@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, unlink } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
-import { decodeText } from "./convert";
+import { decodeText, docxToMd, htmlToMd } from "./convert";
 import { extractPdfText } from "./pdf";
 import { buildPeriodQuantBrief, type PeriodQuantBrief } from "./ledger";
 import { callChatCompletion, loadProviderConfig } from "./provider";
@@ -11,7 +11,7 @@ import type { VaultDoc } from "./vault-builder";
 import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
 
 export const MAX_OUTBOUND_CHARS = 80_000;
-export const MAX_SELECTED_DOCS = 50;
+export const MAX_SELECTED_DOCS = 300;
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
@@ -162,33 +162,176 @@ export function stripCloudMetadataHeader(raw: string): string {
 
 export async function materializeDocs(docs: VaultDoc[]): Promise<MaterializedDoc[]> {
   const paths = getWorkspacePaths();
-  const out: MaterializedDoc[] = [];
+  // Sort chronologically ascending BEFORE any cap so early years are never silently discarded
+  const ordered = [...docs].sort((a, b) => {
+    const da = a.event_date ?? "9999-99-99";
+    const db = b.event_date ?? "9999-99-99";
+    if (da !== db) return da.localeCompare(db);
+    return a.title.localeCompare(b.title);
+  });
 
-  for (const doc of docs.slice(0, MAX_SELECTED_DOCS)) {
-    const full = await insideRoot(paths.sources, doc.source_rel);
-    if (!full) {
-      out.push({
-        doc_id: doc.doc_id,
-        title: doc.title,
-        kind: doc.kind,
-        carrier: doc.carrier,
-        event_date: doc.event_date,
-        card: doc.card,
-        source_rel: doc.source_rel,
-        sha256: doc.sha256,
-        chars: 0,
-        body: "",
-        status: "damaged",
-        reason: "源文件不存在或不可读取",
-      });
-      continue;
-    }
+  const activeSlice = ordered.slice(0, MAX_SELECTED_DOCS);
+  const overflowSlice = ordered.slice(MAX_SELECTED_DOCS);
+  const out: MaterializedDoc[] = new Array(activeSlice.length);
 
-    const buf = await readFile(full);
-    if (doc.carrier === "pdf") {
-      const pdf = await extractPdfText(buf);
-      if (!pdf.ok) {
-        out.push({
+  const CONCURRENCY = 24;
+  let nextIdx = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, activeSlice.length) }, async () => {
+      while (nextIdx < activeSlice.length) {
+        const idx = nextIdx++;
+        const doc = activeSlice[idx];
+        const full = await insideRoot(paths.sources, doc.source_rel);
+        if (!full) {
+          out[idx] = {
+            doc_id: doc.doc_id,
+            title: doc.title,
+            kind: doc.kind,
+            carrier: doc.carrier,
+            event_date: doc.event_date,
+            card: doc.card,
+            source_rel: doc.source_rel,
+            sha256: doc.sha256,
+            chars: 0,
+            body: "",
+            status: "damaged",
+            reason: "源文件不存在或不可读取",
+          };
+          continue;
+        }
+
+        const buf = await readFile(full);
+        if (doc.carrier === "pdf") {
+          const pdf = await extractPdfText(buf);
+          if (!pdf.ok) {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: 0,
+              body: "",
+              status: pdf.status,
+              reason: pdf.reason,
+            };
+          } else {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: pdf.body.length,
+              body: pdf.body,
+              status: "ready",
+              reason: null,
+            };
+          }
+          continue;
+        }
+
+        if (doc.carrier === "docx") {
+          const conv = await docxToMd(buf);
+          if (!conv.ok) {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: 0,
+              body: "",
+              status: "damaged",
+              reason: conv.error,
+            };
+          } else {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: conv.md.length,
+              body: conv.md,
+              status: "ready",
+              reason: null,
+            };
+          }
+          continue;
+        }
+
+        if (doc.carrier === "html") {
+          const conv = htmlToMd(decodeText(buf).text);
+          if (!conv.ok) {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: 0,
+              body: "",
+              status: "empty",
+              reason: conv.error,
+            };
+          } else {
+            out[idx] = {
+              doc_id: doc.doc_id,
+              title: doc.title,
+              kind: doc.kind,
+              carrier: doc.carrier,
+              event_date: doc.event_date,
+              card: doc.card,
+              source_rel: doc.source_rel,
+              sha256: doc.sha256,
+              chars: conv.md.length,
+              body: conv.md,
+              status: "ready",
+              reason: null,
+            };
+          }
+          continue;
+        }
+
+        const rawText = decodeText(buf)
+          .text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+          .trim();
+        const text = stripCloudMetadataHeader(rawText);
+        if (!text) {
+          out[idx] = {
+            doc_id: doc.doc_id,
+            title: doc.title,
+            kind: doc.kind,
+            carrier: doc.carrier,
+            event_date: doc.event_date,
+            card: doc.card,
+            source_rel: doc.source_rel,
+            sha256: doc.sha256,
+            chars: 0,
+            body: "",
+            status: "empty",
+            reason: "正文为空",
+          };
+          continue;
+        }
+
+        out[idx] = {
           doc_id: doc.doc_id,
           title: doc.title,
           kind: doc.kind,
@@ -197,52 +340,16 @@ export async function materializeDocs(docs: VaultDoc[]): Promise<MaterializedDoc
           card: doc.card,
           source_rel: doc.source_rel,
           sha256: doc.sha256,
-          chars: 0,
-          body: "",
-          status: pdf.status,
-          reason: pdf.reason,
-        });
-      } else {
-        out.push({
-          doc_id: doc.doc_id,
-          title: doc.title,
-          kind: doc.kind,
-          carrier: doc.carrier,
-          event_date: doc.event_date,
-          card: doc.card,
-          source_rel: doc.source_rel,
-          sha256: doc.sha256,
-          chars: pdf.body.length,
-          body: pdf.body,
+          chars: text.length,
+          body: text,
           status: "ready",
           reason: null,
-        });
+        };
       }
-      continue;
-    }
+    }),
+  );
 
-    const rawText = decodeText(buf)
-      .text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
-      .trim();
-    const text = stripCloudMetadataHeader(rawText);
-    if (!text) {
-      out.push({
-        doc_id: doc.doc_id,
-        title: doc.title,
-        kind: doc.kind,
-        carrier: doc.carrier,
-        event_date: doc.event_date,
-        card: doc.card,
-        source_rel: doc.source_rel,
-        sha256: doc.sha256,
-        chars: 0,
-        body: "",
-        status: "empty",
-        reason: "正文为空",
-      });
-      continue;
-    }
-
+  for (const doc of overflowSlice) {
     out.push({
       doc_id: doc.doc_id,
       title: doc.title,
@@ -252,10 +359,10 @@ export async function materializeDocs(docs: VaultDoc[]): Promise<MaterializedDoc
       card: doc.card,
       source_rel: doc.source_rel,
       sha256: doc.sha256,
-      chars: text.length,
-      body: text,
-      status: "ready",
-      reason: null,
+      chars: 0,
+      body: "",
+      status: "unsupported",
+      reason: `超过单次 ${MAX_SELECTED_DOCS} 篇勾选上限，请按年份或季度分批提炼后执行二次综合`,
     });
   }
 
@@ -1014,14 +1121,26 @@ export async function listSavedManuals(): Promise<SynthesisReport[]> {
 
 export async function deleteSavedManual(id: string): Promise<boolean> {
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) return false;
-  const paths = getWorkspacePaths();
+  const paths = await ensureWorkspace();
+  const trashDir = path.join(paths.vaultRoot, ".trash", "manuals");
+  const stamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
   let deleted = false;
   for (const ext of [".json", ".md"]) {
+    const srcPath = path.join(paths.manuals, `${id}${ext}`);
+    if (!(await fileExists(srcPath))) continue;
+    await mkdir(trashDir, { recursive: true });
+    const destPath = path.join(trashDir, `${stamp}_${id}${ext}`);
     try {
-      await unlink(path.join(paths.manuals, `${id}${ext}`));
+      await rename(srcPath, destPath);
       deleted = true;
-    } catch {
-      /* ignore */
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "EXDEV") {
+        await copyFile(srcPath, destPath);
+        await rm(srcPath, { force: true });
+        deleted = true;
+      } else {
+        throw err;
+      }
     }
   }
   if (deleted) {

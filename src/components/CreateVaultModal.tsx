@@ -85,7 +85,7 @@ export default function CreateVaultModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [templateId, setTemplateId] = useState<VaultTemplateId>("short-term");
-  const [color, setColor] = useState("#7c4dff");
+  const [color, setColor] = useState("#2d5f8b");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [externalSourceDir, setExternalSourceDir] = useState("");
   const [cloneFromId, setCloneFromId] = useState("");
@@ -99,7 +99,7 @@ export default function CreateVaultModal({
       setName("");
       setDescription("");
       setTemplateId("short-term");
-      setColor("#7c4dff");
+      setColor("#2d5f8b");
       setShowAdvanced(false);
       setExternalSourceDir("");
       setCloneFromId("");
@@ -174,7 +174,7 @@ export default function CreateVaultModal({
           <div className="flex items-center gap-2.5">
             <span
               className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-sm"
-              style={{ background: `linear-gradient(135deg, ${color}, #22d3ee)` }}
+              style={{ backgroundColor: color }}
             >
               {step === 1 ? <Plus className="h-[17px] w-[17px]" /> : <Check className="h-[17px] w-[17px]" />}
             </span>
@@ -223,7 +223,7 @@ export default function CreateVaultModal({
                       type="button"
                       onClick={() => setColor(hex)}
                       className={`h-5 w-5 rounded-full transition ${
-                        color === hex ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0f1422]" : "opacity-75 hover:opacity-100"
+                        color === hex ? "scale-110 ring-2 ring-[var(--ink-strong)] ring-offset-2 ring-offset-[var(--surface)]" : "opacity-75 hover:opacity-100"
                       }`}
                       style={{ backgroundColor: hex }}
                       title={hex}

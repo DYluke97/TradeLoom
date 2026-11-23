@@ -108,12 +108,65 @@ describe("built-in Obsidian vault builder (v3)", () => {
     expect(index.unlinked[topicRel]?.some((m) => m.source === card2 && m.match === "龙头战法")).toBe(true);
     expect(index.counts.unlinked).toBeGreaterThan(0);
 
-    // Bi-directional links + manual back-sync
+    // Bi-directional links + manual back-sync + Topic <-> Year/Month cross-dimensional links
     const manualFile = "40-交易手册/manual-demo.md";
     const card1 = "20-卡片/2025-03-01_收盘复盘_情绪冰点.md";
     expect(index.links[card2].out).toContain(card1);
     expect(index.links[card1].in).toContain(card2);
     expect(index.links[manualFile].out).toContain(card2);
     expect(index.links[card2].in).toContain(manualFile);
+    expect(index.links["10-时间轴/2024年.md"].out).toContain("30-主题/可转债防守.md");
+    expect(index.links["10-时间轴/2024-11.md"].out).toContain("30-主题/可转债防守.md");
+    expect(index.links["30-主题/可转债防守.md"].out).toContain("10-时间轴/2024年.md");
+    expect(index.links["30-主题/可转债防守.md"].in).toContain("10-时间轴/2024-11.md");
+  });
+
+  it("handles 120+ multi-year multi-granularity reviews concurrently without losing dates or kinds", async () => {
+    const base = await mkdtemp(path.join(os.tmpdir(), "tradeloom-vault-scale-"));
+    tempDirs.push(base);
+    const sources = path.join(base, "sources");
+    const vault = path.join(base, "vault");
+    await mkdir(sources, { recursive: true });
+
+    const kinds = ["每日复盘", "周度总结", "月度总结", "季度总结", "年度总结"];
+    const writes: Promise<void>[] = [];
+    for (let i = 0; i < 120; i++) {
+      const year = 2022 + (i % 5);
+      const month = String(1 + (Math.floor(i / 5) % 12)).padStart(2, "0");
+      const day = String(1 + (i % 28)).padStart(2, "0");
+      const kind = kinds[i % kinds.length];
+      const fname = `${year}-${month}-${day}_${kind}_样本_${String(i).padStart(3, "0")}.md`;
+      const body = `# ${year}-${month}-${day} ${kind} ${i}\n\n情绪冰点后出现弱转强，龙头梯队明确，严控仓位与止损。\n`;
+      writes.push(writeFile(path.join(sources, fname), body, "utf8"));
+    }
+    await Promise.all(writes);
+
+    const index = await buildVault(sources, vault);
+    expect(index.counts.total).toBe(120);
+    expect(index.counts.dated).toBe(120);
+    expect(index.counts.undated).toBe(0);
+    expect(index.counts.years).toBe(5);
+    expect(index.kinds).toEqual(expect.arrayContaining(kinds));
+    expect(index.counts.links).toBeGreaterThan(500);
+  });
+
+  it("deduplicates card filenames when identically named reviews exist in different folders", async () => {
+    const base = await mkdtemp(path.join(os.tmpdir(), "tradeloom-vault-dedup-"));
+    tempDirs.push(base);
+    const sources = path.join(base, "sources");
+    const vault = path.join(base, "vault");
+    await mkdir(path.join(sources, "2023"), { recursive: true });
+    await mkdir(path.join(sources, "2024"), { recursive: true });
+
+    await writeFile(path.join(sources, "2023", "年度总结.md"), "# 2023 年度总结\n\n2023-12-30 全年复盘。", "utf8");
+    await writeFile(path.join(sources, "2024", "年度总结.md"), "# 2024 年度总结\n\n2024-12-30 全年复盘。", "utf8");
+
+    const index = await buildVault(sources, vault);
+    expect(index.counts.total).toBe(2);
+    const cardPaths = new Set(index.documents.map((d) => d.card));
+    expect(cardPaths.size).toBe(2);
+    for (const c of cardPaths) {
+      await expect(stat(path.join(vault, c))).resolves.toBeTruthy();
+    }
   });
 });

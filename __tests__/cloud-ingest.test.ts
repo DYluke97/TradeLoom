@@ -214,4 +214,34 @@ describe("cloud-ingest & platform resolvers", () => {
     expect(isXueqiuWafChallenge(shortShell)).toBe(true);
     expect(isXueqiuWafChallenge(realPostHtml)).toBe(false);
   });
+
+  it("extracts Sina Blog real title, publish date, and body while ignoring placeholder h1", () => {
+    const sinaHtml = `
+      <html>
+        <head><title>11.20收盘：极致的指数与个股背离_复盘专栏_新浪博客</title></head>
+        <body>
+          <h1 id="blogname" class="blogtitle"><span id="blognamespan">加载中...</span></h1>
+          <h2 id="t_599d75180102zxfb" class="titName SG_txta">11.20收盘：极致的“指数与个股背离”</h2>
+          <span class="time SG_txtc">(2026-11-20 15:17:24)</span>
+          <div id="sina_keyword_ad_area2" class="articalContent">
+            <p>今日大盘缩量震荡，科技股冲高回落，短线注意控制仓位避免追高。</p>
+          </div>
+        </body>
+      </html>
+    `;
+    const res = extractArticleFromHtml(sinaHtml, "https://blog.sina.com.cn/s/blog_599d75180102zxfb.html");
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.platform).toBe("新浪博客");
+      expect(res.title).toBe("11.20收盘：极致的“指数与个股背离”");
+      expect(res.eventDate).toBe("2026-11-20");
+      expect(res.md).toContain("科技股冲高回落");
+    }
+  });
+
+  it("blocks IPv4-mapped IPv6 hex literals, expanded loopback, and CGNAT/cloud metadata ranges", () => {
+    expect(validatePublicFetchUrl("http://[::ffff:127.0.0.1]/secret").ok).toBe(false);
+    expect(validatePublicFetchUrl("http://[0:0:0:0:0:0:0:1]:8080/").ok).toBe(false);
+    expect(validatePublicFetchUrl("http://100.100.100.200/latest/meta-data/").ok).toBe(false);
+  });
 });

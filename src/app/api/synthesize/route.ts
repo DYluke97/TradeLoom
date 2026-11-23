@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildPeriodQuantBrief } from "@/lib/ledger";
 import { buildPrecheck, materializeDocs, materializeManuals, runStageSynthesis } from "@/lib/synthesis";
 import { loadOrBuildVault } from "@/lib/vault";
+import { getActiveVaultId, runWithVault } from "@/lib/workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,90 +33,97 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "请先至少勾选 1 篇复盘笔记或 1 份阶段手册" }, { status: 400 });
   }
 
-  const { index } = await loadOrBuildVault();
-  const byId = new Map(index.documents.map((d) => [d.doc_id, d]));
-  const selectedDocs = docIds.map((id) => byId.get(id)).filter((d): d is NonNullable<typeof d> => Boolean(d));
+  // Pin active vault ID at request entry so mid-synthesis vault switches never write manuals into the wrong vault
+  const pinnedVaultId = getActiveVaultId();
 
-  if (selectedDocs.length === 0 && manualIds.length === 0) {
-    return NextResponse.json({ ok: false, error: "所选文档在当前知识库中不存在" }, { status: 404 });
-  }
+  return runWithVault(pinnedVaultId, async () => {
+    const { index } = await loadOrBuildVault();
+    const byId = new Map(index.documents.map((d) => [d.doc_id, d]));
+    const selectedDocs = docIds.map((id) => byId.get(id)).filter((d): d is NonNullable<typeof d> => Boolean(d));
 
-  if (body.mode !== "run") {
-    const [matDocs, matManuals] = await Promise.all([
-      selectedDocs.length > 0 ? materializeDocs(selectedDocs) : Promise.resolve([]),
-      manualIds.length > 0 ? materializeManuals(manualIds) : Promise.resolve([]),
-    ]);
-    if (matDocs.length === 0 && matManuals.length === 0) {
-      return NextResponse.json({ ok: false, error: "所选阶段手册或文档不存在" }, { status: 404 });
+    if (selectedDocs.length === 0 && manualIds.length === 0) {
+      return NextResponse.json({ ok: false, error: "所选文档在当前知识库中不存在" }, { status: 404 });
     }
-    const { snapshot } = buildPrecheck([...matDocs, ...matManuals]);
-    const quantBrief = await buildPeriodQuantBrief(
-      snapshot.date_range.from ?? undefined,
-      snapshot.date_range.to ?? undefined,
-    ).catch(() => null);
-    return NextResponse.json({ ok: true, mode: "precheck", snapshot, quantBrief });
-  }
 
-  if (body.stream) {
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(controller) {
-        const send = (payload: Record<string, unknown>) => {
-          try {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-          } catch {
-            /* stream already closed */
-          }
-        };
-        try {
-          const result = await runStageSynthesis({
-            docs: selectedDocs,
-            manualIds,
-            skillId: body.skillId || "short-term",
-            stageTitle: body.stageTitle,
-            includeQuantAudit: body.includeQuantAudit !== false,
-            signal: request.signal,
-            onStage: (ev) => send({ type: "progress", ...ev }),
+    if (body.mode !== "run") {
+      const [matDocs, matManuals] = await Promise.all([
+        selectedDocs.length > 0 ? materializeDocs(selectedDocs) : Promise.resolve([]),
+        manualIds.length > 0 ? materializeManuals(manualIds) : Promise.resolve([]),
+      ]);
+      if (matDocs.length === 0 && matManuals.length === 0) {
+        return NextResponse.json({ ok: false, error: "所选阶段手册或文档不存在" }, { status: 404 });
+      }
+      const { snapshot } = buildPrecheck([...matDocs, ...matManuals]);
+      const quantBrief = await buildPeriodQuantBrief(
+        snapshot.date_range.from ?? undefined,
+        snapshot.date_range.to ?? undefined,
+      ).catch(() => null);
+      return NextResponse.json({ ok: true, mode: "precheck", snapshot, quantBrief });
+    }
+
+    if (body.stream) {
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream({
+        async start(controller) {
+          await runWithVault(pinnedVaultId, async () => {
+            const send = (payload: Record<string, unknown>) => {
+              try {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+              } catch {
+                /* stream already closed */
+              }
+            };
+            try {
+              const result = await runStageSynthesis({
+                docs: selectedDocs,
+                manualIds,
+                skillId: body.skillId || "short-term",
+                stageTitle: body.stageTitle,
+                includeQuantAudit: body.includeQuantAudit !== false,
+                signal: request.signal,
+                onStage: (ev) => send({ type: "progress", ...ev }),
+              });
+              if (!result.ok) {
+                send({ type: "error", error: result.error });
+              } else {
+                send({ type: "done", ok: true, report: result.report });
+              }
+            } catch (err) {
+              send({ type: "error", error: err instanceof Error ? err.message : "流式提炼中断" });
+            } finally {
+              try {
+                controller.close();
+              } catch {
+                /* ignore */
+              }
+            }
           });
-          if (!result.ok) {
-            send({ type: "error", error: result.error });
-          } else {
-            send({ type: "done", ok: true, report: result.report });
-          }
-        } catch (err) {
-          send({ type: "error", error: err instanceof Error ? err.message : "流式提炼中断" });
-        } finally {
-          try {
-            controller.close();
-          } catch {
-            /* ignore */
-          }
-        }
-      },
+        },
+      });
+
+      return new Response(readable, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    const result = await runStageSynthesis({
+      docs: selectedDocs,
+      manualIds,
+      skillId: body.skillId || "short-term",
+      stageTitle: body.stageTitle,
+      includeQuantAudit: body.includeQuantAudit !== false,
+      signal: request.signal,
     });
 
-    return new Response(readable, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
-  }
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    }
 
-  const result = await runStageSynthesis({
-    docs: selectedDocs,
-    manualIds,
-    skillId: body.skillId || "short-term",
-    stageTitle: body.stageTitle,
-    includeQuantAudit: body.includeQuantAudit !== false,
-    signal: request.signal,
+    return NextResponse.json({ ok: true, mode: "run", report: result.report });
   });
-
-  if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
-  }
-
-  return NextResponse.json({ ok: true, mode: "run", report: result.report });
 }

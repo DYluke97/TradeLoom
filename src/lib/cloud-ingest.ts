@@ -52,6 +52,7 @@ export function detectPlatformFromUrl(rawUrl: string): string {
     if (host.includes("dida365.com") || host.includes("ticktick.com")) return "滴答清单";
     if (host.includes("mp.weixin.qq.com")) return "微信公众号";
     if (host.includes("zhihu.com")) return "知乎";
+    if (host.includes("blog.sina.com.cn")) return "新浪博客";
     if (host.includes("github.com") || host.includes("raw.githubusercontent.com")) return "GitHub";
     return host.replace(/^www\./, "");
   } catch {
@@ -61,13 +62,21 @@ export function detectPlatformFromUrl(rawUrl: string): string {
 
 export function isPrivateIpOrHost(hostname: string): boolean {
   const cleanHost = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (cleanHost.startsWith("::ffff:")) return isPrivateIpOrHost(cleanHost.slice(7));
-  if (cleanHost === "::" || /^0\./.test(cleanHost)) return true;
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (cleanHost.startsWith("::ffff:")) {
+    const tail = cleanHost.slice(7);
+    // WHATWG URL serializes IPv4-mapped IPv6 in hex (e.g. `::ffff:7f00:1` for 127.0.0.1)
+    if (/^(?:0+|7f[0-9a-f]{0,2}|0?a[0-9a-f]{0,2}|c0a8|a9fe|64(?:4[0-9a-f]|[5-7][0-9a-f])|ac1[0-9a-f]):/i.test(tail)) {
+      return true;
+    }
+    return isPrivateIpOrHost(tail);
+  }
+  if (cleanHost === "::" || cleanHost === "::1" || /^(?:0+:){7}0*1$/i.test(cleanHost) || /^0\./.test(cleanHost)) {
+    return true;
+  }
+  const h = cleanHost;
   if (
     h === "localhost" ||
     h === "0.0.0.0" ||
-    h === "::1" ||
     h.endsWith(".local") ||
     h.endsWith(".internal") ||
     h.endsWith(".localhost")
@@ -76,6 +85,12 @@ export function isPrivateIpOrHost(hostname: string): boolean {
   }
   if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h)) {
     return true;
+  }
+  // Carrier-grade NAT 100.64.0.0/10 (includes Aliyun ECS metadata 100.100.100.200)
+  const m100 = /^100\.(\d+)\./.exec(h);
+  if (m100) {
+    const second = Number(m100[1]);
+    if (second >= 64 && second <= 127) return true;
   }
   const m172 = /^172\.(\d+)\./.exec(h);
   if (m172) {
@@ -311,7 +326,14 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
   }
 
   const rawH1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, "") || "";
-  const cleanH1 = decodeHtmlEntities(rawH1).replace(/\s+/g, " ").trim();
+  const cleanH1Raw = decodeHtmlEntities(rawH1).replace(/\s+/g, " ").trim();
+  const cleanH1 = /^(?:加载中\.{0,3}|loading\.{0,3}|首页|博客)$/i.test(cleanH1Raw) ? "" : cleanH1Raw;
+
+  const sinaTitleRaw =
+    platform === "新浪博客"
+      ? /<h2[^>]*class=["'][^"']*titName[^"']*["'][^>]*>([\s\S]*?)<\/h2>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, "") || ""
+      : "";
+  const cleanSinaTitle = decodeHtmlEntities(sinaTitleRaw).replace(/\s+/g, " ").trim();
 
   const ogOrDocTitle =
     /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i.exec(html)?.[1] ||
@@ -320,20 +342,20 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
     "";
 
   const cleanDocTitle = decodeHtmlEntities(ogOrDocTitle)
-    .replace(/\s*[-–_|·]\s*(雪球|语雀|飞书云文档|Notion|知乎|微信公众平台).*$/i, "")
+    .replace(/\s*[-–_|·]\s*(雪球|语雀|飞书云文档|Notion|知乎|微信公众平台|新浪博客).*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  // Prefer concise <h1> when available (avoids bloated SEO <title> tags)
+  // Prefer platform-specific title / concise <h1> when available (avoids bloated SEO <title> or placeholder "加载中...")
   const title =
-    cleanH1 && cleanH1.length >= 2 && cleanH1.length <= 80
-      ? cleanH1
-      : cleanDocTitle.slice(0, 80);
+    (cleanSinaTitle && cleanSinaTitle.length >= 2 ? cleanSinaTitle : "") ||
+    (cleanH1 && cleanH1.length >= 2 && cleanH1.length <= 80 ? cleanH1 : cleanDocTitle.slice(0, 80));
 
   let dateHint =
     /<meta[^>]+(?:property|name)=["'](?:article:published_time|publishdate|pubdate|date)["'][^>]+content=["']([^"']+)["']/i.exec(html)?.[1] ||
     /var\s+publish_time\s*=\s*["'](\d{4}-\d{2}-\d{2})/i.exec(html)?.[1] ||
     /<time[^>]+datetime=["']([^"']+)["']/i.exec(html)?.[1] ||
+    /<span[^>]*class=["'][^"']*time\s+SG_txtc[^"']*["'][^>]*>\s*\(?(\d{4}-\d{2}-\d{2})/i.exec(html)?.[1] ||
     "";
 
   // WeChat publish timestamp: `var ct = "1795073863";` or `ori_create_time: '1795073863'`
@@ -374,6 +396,8 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Extract
   // Platform-specific main body extraction
   const mainChunk =
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*id=["']js_content["'][^>]*>/i) ||
+    extractBalancedElementByAttr(preCleaned, /<div\b[^>]*id=["']sina_keyword_ad_area2["'][^>]*>/i) ||
+    extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*articalContent[^"']*["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*article__bd__detail[^"']*["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*Post-RichText[^"']*["'][^>]*>/i) ||
     extractBalancedElementByAttr(preCleaned, /<div\b[^>]*class=["'][^"']*ne-viewer-body[^"']*["'][^>]*>/i) ||
@@ -739,14 +763,39 @@ export async function importFromUrl(
           headers.Referer = "https://xueqiu.com/";
           if (xqCookie) headers.Cookie = xqCookie;
         }
-        const res = await fetch(valid.href, {
-          method: "GET",
-          redirect: "follow",
-          signal: controller.signal,
-          headers,
-        });
-        if (!res.ok) {
-          return { kind: "http_error" as const, status: res.status };
+        let currentHref = valid.href;
+        let res: Response | null = null;
+        for (let hop = 0; hop <= 5; hop++) {
+          res = await fetch(currentHref, {
+            method: "GET",
+            redirect: "manual",
+            signal: controller.signal,
+            headers,
+          });
+          if (res.status >= 300 && res.status < 400) {
+            const loc = res.headers.get("location");
+            if (!loc || hop === 5) break;
+            let nextUrl: string;
+            try {
+              nextUrl = new URL(loc, currentHref).href;
+            } catch {
+              return { kind: "network_error" as const, isTimeout: false, message: "重定向链接格式非法" };
+            }
+            const hopValid = validatePublicFetchUrl(nextUrl);
+            if (!hopValid.ok) {
+              return { kind: "network_error" as const, isTimeout: false, message: hopValid.error };
+            }
+            const hopDns = await assertSafePublicDns(hopValid.hostname);
+            if (!hopDns.ok) {
+              return { kind: "network_error" as const, isTimeout: false, message: hopDns.error };
+            }
+            currentHref = hopValid.href;
+            continue;
+          }
+          break;
+        }
+        if (!res || !res.ok) {
+          return { kind: "http_error" as const, status: res?.status ?? 502 };
         }
         const arrayBuf = await res.arrayBuffer();
         if (arrayBuf.byteLength > MAX_URL_BYTES) {

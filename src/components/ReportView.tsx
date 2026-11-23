@@ -331,7 +331,7 @@ export default function ReportView({ report }: { report: SynthesisReport }) {
                 key={rule.id}
                 className={`flex flex-col justify-between rounded-xl border p-4 ${
                   isDeprecated
-                    ? "border-rose-500/35 bg-rose-950/10"
+                    ? "border-[var(--rose)]/35 bg-[var(--rose-soft)]/50"
                     : "border-[var(--border)] bg-[var(--bg-deep)]"
                 }`}
               >

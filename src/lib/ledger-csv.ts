@@ -20,9 +20,11 @@ export type CsvColumnMapping = {
   benchmarkPct?: number;
 };
 
+export type CsvEncoding = "utf-8" | "gb18030" | "utf-16le" | "utf-16be";
+
 export type CsvPreviewResult = {
   ok: true;
-  encoding: "utf-8" | "gb18030";
+  encoding: CsvEncoding;
   delimiter: string;
   detectedKind: CsvImportKind;
   headers: string[];
@@ -32,7 +34,7 @@ export type CsvPreviewResult = {
   redactedColumns: string[];
 };
 
-const SENSITIVE_COL_RE = /资金账?号|股东代码|证券账?号|合同编号|委托编号|流水号|客户姓名|身份证|银行卡/;
+export const SENSITIVE_COL_RE = /资金账?号|股东代码|证券账?号|合同编号|委托编号|流水号|客户姓名|身份证|银行卡/;
 
 export function normalizeDateStr(raw: string): string | null {
   const s = String(raw ?? "").trim();
@@ -78,9 +80,15 @@ export function parseTradeSide(raw: string, qty?: number): "BUY" | "SELL" | null
   return null;
 }
 
-function decodeCsvBuffer(buf: Buffer): { text: string; encoding: "utf-8" | "gb18030" } {
+function decodeCsvBuffer(buf: Buffer): { text: string; encoding: CsvEncoding } {
   if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
     return { text: buf.subarray(3).toString("utf8"), encoding: "utf-8" };
+  }
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    return { text: new TextDecoder("utf-16le", { fatal: false }).decode(buf.subarray(2)), encoding: "utf-16le" };
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    return { text: new TextDecoder("utf-16be", { fatal: false }).decode(buf.subarray(2)), encoding: "utf-16be" };
   }
   const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buf);
   if (!utf8.includes("\uFFFD")) {
@@ -128,18 +136,18 @@ function detectDelimiter(lines: string[]): string {
 }
 
 export function parseRawCsvTable(buf: Buffer): {
-  encoding: "utf-8" | "gb18030";
+  encoding: CsvEncoding;
   delimiter: string;
   headers: string[];
   rows: string[][];
 } {
   const { text, encoding } = decodeCsvBuffer(buf);
   const rawLines = text
+    .replace(/^\uFEFF/, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .filter((l) => l.trim().length > 0);
   if (rawLines.length < 2) {
     return { encoding, delimiter: ",", headers: [], rows: [] };
   }

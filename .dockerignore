@@ -8,3 +8,6 @@ workspace
 *.tsbuildinfo
 npm-debug.log*
 pnpm-debug.log*
+dist
+release
+HANDOFF.md

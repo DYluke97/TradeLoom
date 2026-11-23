@@ -113,14 +113,21 @@ export async function DELETE(request: NextRequest) {
   }
   if (!card) return NextResponse.json({ ok: false, error: "缺少 card 参数" }, { status: 400 });
 
-  const outcome = await deleteVaultDocument(card);
-  if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.error }, { status: outcome.status });
-  const hasSamples = await hasLoadedSamples(outcome.index);
-  return NextResponse.json({
-    ok: true,
-    title: outcome.title,
-    trashedTo: outcome.trashedTo,
-    index: outcome.index,
-    hasSamples,
-  });
+  try {
+    const outcome = await deleteVaultDocument(card);
+    if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.error }, { status: outcome.status });
+    const hasSamples = await hasLoadedSamples(outcome.index);
+    return NextResponse.json({
+      ok: true,
+      title: outcome.title,
+      trashedTo: outcome.trashedTo,
+      index: outcome.index,
+      hasSamples,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : "删除复盘卡片失败" },
+      { status: 500 },
+    );
+  }
 }

@@ -656,7 +656,7 @@ export async function fetchImaItems(
 
           const dlRes = await fetch(sourceUrl, {
             headers: {
-              "User-Agent": "TradeLoom/0.7.0",
+              "User-Agent": "TradeLoom/1.0.0",
               ...(media.url_info.headers ?? {}),
             },
             signal: AbortSignal.timeout(15000),

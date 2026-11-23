@@ -15,8 +15,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "该平台暂不支持官方 MCP 一键 OAuth 登录" }, { status: 400 });
     }
 
-    const host = request.headers.get("host") || "127.0.0.1:3200";
-    const proto = request.headers.get("x-forwarded-proto") || "http";
+    const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || `127.0.0.1:${process.env.PORT || 3200}`;
+    const host = rawHost.split(",")[0]!.trim();
+    const rawProto = request.headers.get("x-forwarded-proto") || "http";
+    const proto = rawProto.split(",")[0]!.trim() === "https" ? "https" : "http";
     const origin = `${proto}://${host}`;
 
     const result = await startConnectorMcpOAuth({

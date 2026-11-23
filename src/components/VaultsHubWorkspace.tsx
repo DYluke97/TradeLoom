@@ -35,7 +35,7 @@ export default function VaultsHubWorkspace() {
   const [editing, setEditing] = useState<VaultSummary | null>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
-  const [editColor, setEditColor] = useState("#7c4dff");
+  const [editColor, setEditColor] = useState("#2d5f8b");
   const [editSaving, setEditSaving] = useState(false);
 
   const loadOverview = useCallback(async () => {
@@ -50,6 +50,8 @@ export default function VaultsHubWorkspace() {
 
   useEffect(() => {
     loadOverview();
+    window.addEventListener("tradeloom:vault-changed", loadOverview);
+    return () => window.removeEventListener("tradeloom:vault-changed", loadOverview);
   }, [loadOverview]);
 
   async function handleEnterVault(vault: VaultSummary) {
@@ -467,7 +469,7 @@ export default function VaultsHubWorkspace() {
                     type="button"
                     onClick={() => setEditColor(hex)}
                     className={`h-6 w-6 rounded-full transition ${
-                      editColor === hex ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0f1422]" : "opacity-75 hover:opacity-100"
+                      editColor === hex ? "scale-110 ring-2 ring-[var(--ink-strong)] ring-offset-2 ring-offset-[var(--surface)]" : "opacity-75 hover:opacity-100"
                     }`}
                     style={{ backgroundColor: hex }}
                   />

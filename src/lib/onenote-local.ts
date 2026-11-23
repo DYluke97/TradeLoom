@@ -60,7 +60,7 @@ export function encodePowerShellScript(script: string): string {
 
 export function formatOneNoteLocalError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err ?? "未知错误");
-  if (/NON_WINDOWS_PLATFORM/i.test(msg)) {
+  if (/NON_WINDOWS_PLATFORM|ENOENT.*powershell/i.test(msg)) {
     return "本机 OneNote 直连仅支持 Windows 系统；macOS / Linux 用户可在 OneNote 中将页面导出为 .docx 或 .pdf 后，拖入 TradeLoom 知识库本地导入。";
   }
   if (/80040154|REGDB_E_CLASSNOTREG|Class not registered|Retrieving the COM class factory|Cannot create ActiveX|未能创建.*OneNote|无法创建.*OneNote/i.test(msg)) {

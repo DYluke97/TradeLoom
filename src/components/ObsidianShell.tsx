@@ -205,6 +205,8 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
           dispatchVaultChanged(data.activeVaultId);
           if (navigateTo) {
             router.push(navigateTo);
+          } else if (pathname === "/vault" || pathname === "/ledger") {
+            router.replace(pathname);
           } else {
             router.refresh();
           }
@@ -213,7 +215,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
         setSwitchingVaultId(null);
       }
     },
-    [router, switchingVaultId],
+    [pathname, router, switchingVaultId],
   );
 
   const switcherItems = useMemo<SwitcherItem[]>(() => {
@@ -282,7 +284,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
   }
 
   const activeVault = overview?.activeVault ?? null;
-  const activeColor = activeVault?.color || "#7c4dff";
+  const activeColor = activeVault?.color || "#2d5f8b";
   const isVaultPage = pathname === "/vault";
   const isGlobalPage =
     pathname.startsWith("/vaults") || pathname.startsWith("/sync") || pathname.startsWith("/settings");

@@ -41,9 +41,18 @@ describe("convert", () => {
     }
   });
 
-  it("rejects empty buffers and extracts title from first heading", async () => {
+  it("rejects empty buffers and extracts title from first heading or YAML frontmatter", async () => {
     const empty = await convertFile("a.md", Buffer.alloc(0));
     expect(empty.ok).toBe(false);
     expect(guessTitle("\n# 我的复盘标题\n正文", "fallback")).toBe("我的复盘标题");
+    expect(
+      guessTitle(
+        '---\ntitle: "3.11收盘：行情到了需要救市的时刻"\nauthor: "复盘专栏"\nevent_date: "2022-03-11"\n---\n\n正文开始。',
+        "fallback",
+      ),
+    ).toBe("3.11收盘：行情到了需要救市的时刻");
+    expect(
+      guessTitle("---\ndate: 2025-03-01\ntags: [短线]\n---\n\n# 情绪冰点复盘\n正文", "fallback"),
+    ).toBe("情绪冰点复盘");
   });
 });

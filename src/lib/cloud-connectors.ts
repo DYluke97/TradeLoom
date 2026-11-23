@@ -223,6 +223,7 @@ export type MaskedConnectorSummary = {
   maskedSecret: string;
   authMode?: ConnectorAuthMode;
   supportsMcpOAuth?: boolean;
+  platformUnsupportedReason?: string;
   discoveredProjects?: DidaProjectSummary[];
   discoveredFolders?: YoudaoFolderSummary[];
   discoveredRepos?: YuqueRepoSummary[];
@@ -387,10 +388,16 @@ export async function getMaskedConnectors(): Promise<MaskedConnectorSummary[]> {
       id: "onenote",
       name: "Microsoft OneNote (本机桌面版)",
       badge: "本机 COM 直连 · 免注册免费",
-      configured: Boolean(store.onenote?.enabled || (store.onenote?.discoveredFolders?.length ?? 0) > 0),
-      maskedSecret: "本机直连 · 无需密钥",
+      configured:
+        process.platform === "win32" &&
+        Boolean(store.onenote?.enabled || (store.onenote?.discoveredFolders?.length ?? 0) > 0),
+      maskedSecret: process.platform === "win32" ? "本机直连 · 无需密钥" : "仅支持 Windows 系统",
       authMode: "api_token",
       supportsMcpOAuth: false,
+      platformUnsupportedReason:
+        process.platform !== "win32"
+          ? "本机 OneNote COM 直连仅支持 Windows 系统；macOS / Linux 用户请导出为 .docx 或 .pdf 后拖入知识库。"
+          : undefined,
       discoveredFolders: store.onenote?.discoveredFolders ?? [],
       fields: {
         notebookFilter: store.onenote?.notebookFilter ?? "",
@@ -565,6 +572,12 @@ export async function saveConnectorConfig(
       baseUrl,
     };
   } else if (id === "onenote") {
+    if (process.platform !== "win32") {
+      return {
+        ok: false,
+        error: "本机 OneNote COM 直连仅支持 Windows 系统；macOS / Linux 用户请将页面导出为 .docx 或 .pdf 后拖入知识库。",
+      };
+    }
     store.onenote = {
       ...(store.onenote ?? {}),
       enabled: true,
@@ -1830,17 +1843,23 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
         let pages: Array<Record<string, unknown>> = [];
 
         if (cfg.targetId) {
-          const cleanId = cfg.targetId.replace(/-/g, "");
+          const strippedTarget = cfg.targetId.replace(/-/g, "").trim();
+          const uuidMatch = strippedTarget.match(/([0-9a-fA-F]{32})/);
+          const cleanId = uuidMatch ? uuidMatch[1].toLowerCase() : strippedTarget;
           const dbRes = await fetch(`https://api.notion.com/v1/databases/${cleanId}/query`, {
             method: "POST",
             headers,
             body: JSON.stringify({ page_size: Math.min(limit, 50) }),
+            signal: AbortSignal.timeout(15000),
           });
           if (dbRes.ok) {
             const dbData = (await dbRes.json()) as { results?: Array<Record<string, unknown>> };
             pages = dbData.results ?? [];
           } else {
-            const pageRes = await fetch(`https://api.notion.com/v1/pages/${cleanId}`, { headers });
+            const pageRes = await fetch(`https://api.notion.com/v1/pages/${cleanId}`, {
+              headers,
+              signal: AbortSignal.timeout(15000),
+            });
             if (pageRes.ok) {
               pages = [(await pageRes.json()) as Record<string, unknown>];
             } else {
@@ -1858,6 +1877,7 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
               filter: { property: "object", value: "page" },
               page_size: Math.min(limit, 50),
             }),
+            signal: AbortSignal.timeout(15000),
           });
           if (!searchRes.ok) return { ok: false, error: `Notion 搜索页面失败 (HTTP ${searchRes.status})` };
           const data = (await searchRes.json()) as { results?: Array<Record<string, unknown>> };
@@ -1869,7 +1889,7 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
           if (!pageId) continue;
           const blocksRes = await fetch(
             `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-            { headers },
+            { headers, signal: AbortSignal.timeout(15000) },
           );
           if (!blocksRes.ok) continue;
           const blocksData = (await blocksRes.json()) as { results?: NotionBlock[] };
@@ -1960,16 +1980,19 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
       }
 
       const domain = cfg.domain || "open.feishu.cn";
+      const webHost = domain === "open.larksuite.com" ? "larksuite.com" : "feishu.cn";
       const tokenRes = await fetch(`https://${domain}/open-apis/auth/v3/tenant_access_token/internal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ app_id: cfg.appId, app_secret: cfg.appSecret }),
+        signal: AbortSignal.timeout(15000),
       });
       const tokenData = (await tokenRes.json()) as { code?: number; tenant_access_token?: string; msg?: string };
       if (!tokenRes.ok || tokenData.code !== 0 || !tokenData.tenant_access_token) {
         return { ok: false, error: `获取飞书 Token 失败：${tokenData.msg ?? "凭证错误"}` };
       }
       const authHeaders = { Authorization: `Bearer ${tokenData.tenant_access_token}` };
+      let permissionDeniedCount = 0;
 
       for (const entry of rawTokens.slice(0, 40)) {
         const parsed = extractFeishuToken(entry);
@@ -1980,7 +2003,7 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
         if (parsed.kind === "wiki") {
           const wikiRes = await fetch(
             `https://${domain}/open-apis/wiki/v2/spaces/get_node?token=${encodeURIComponent(parsed.token)}`,
-            { headers: authHeaders },
+            { headers: authHeaders, signal: AbortSignal.timeout(15000) },
           );
           const wikiData = (await wikiRes.json()) as {
             code?: number;
@@ -1989,19 +2012,28 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
           if (wikiData.code === 0 && wikiData.data?.node?.obj_token) {
             docId = wikiData.data.node.obj_token;
             docTitle = wikiData.data.node.title ?? "";
+          } else if (!wikiRes.ok || (wikiData.code && wikiData.code !== 0)) {
+            permissionDeniedCount++;
+            continue;
           }
         }
 
         const [metaRes, contentRes] = await Promise.all([
           fetch(`https://${domain}/open-apis/docx/v1/documents/${encodeURIComponent(docId)}`, {
             headers: authHeaders,
+            signal: AbortSignal.timeout(15000),
           }),
           fetch(`https://${domain}/open-apis/docx/v1/documents/${encodeURIComponent(docId)}/raw_content`, {
             headers: authHeaders,
+            signal: AbortSignal.timeout(15000),
           }),
         ]);
         const metaJson = (await metaRes.json()) as { data?: { document?: { title?: string } } };
         const contentJson = (await contentRes.json()) as { code?: number; data?: { content?: string } };
+        if (!contentRes.ok || (contentJson.code && contentJson.code !== 0)) {
+          permissionDeniedCount++;
+          continue;
+        }
         const rawText = contentJson.data?.content?.trim() ?? "";
         if (!rawText) continue;
 
@@ -2011,12 +2043,19 @@ export async function syncConnector(id: ConnectorId, targetVaultId?: string): Pr
             title,
             content: rawText,
             sourcePlatform: "飞书文档",
-            sourceUrl: entry.startsWith("http") ? entry : `https://feishu.cn/docx/${docId}`,
+            sourceUrl: entry.startsWith("http") ? entry : `https://${webHost}/docx/${docId}`,
             folder: "_云端_飞书",
           },
           { skipRebuild: true },
         );
         if (saved.ok) synced++;
+      }
+      if (synced === 0 && permissionDeniedCount > 0) {
+        return {
+          ok: false,
+          error:
+            "飞书自建应用暂无目标文档读取权限：请在飞书文档右上角点击「⋯ → 添加文档应用」搜索并添加您的应用，或切换为免配应用的「本机 lark-cli 直连」模式。",
+        };
       }
       }
     } else if (id === "yuque") {

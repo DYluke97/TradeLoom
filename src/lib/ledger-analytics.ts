@@ -233,8 +233,7 @@ export function computeLedgerAnalytics(
   const equityCurve: EquityPoint[] = [];
 
   let runningNav = 1.0;
-  let prevRawNav: number | null = null;
-  let baseRawNav: number | null = null;
+  let prevActualRawNav: number | null = null;
   let peakNav = 1.0;
   let peakDate: string | null = null;
   let maxDd = 0;
@@ -250,19 +249,21 @@ export function computeLedgerAnalytics(
   let marginDays = 0;
 
   for (const rec of sortedDaily) {
-    let dailyRet = rec.dailyReturnPct;
+    let dailyRet: number;
     if (rec.nav !== undefined && rec.nav > 0) {
-      if (baseRawNav === null) baseRawNav = rec.nav;
-      if (dailyRet === undefined) {
-        dailyRet = prevRawNav && prevRawNav > 0 ? ((rec.nav - prevRawNav) / prevRawNav) * 100 : 0;
+      if (rec.dailyReturnPct !== undefined) {
+        dailyRet = rec.dailyReturnPct;
+      } else if (prevActualRawNav !== null && prevActualRawNav > 0) {
+        dailyRet = ((rec.nav - prevActualRawNav) / prevActualRawNav) * 100;
+      } else {
+        dailyRet = 0;
       }
-      runningNav = rec.nav / baseRawNav;
-      prevRawNav = rec.nav;
+      prevActualRawNav = rec.nav;
     } else {
-      dailyRet = dailyRet ?? 0;
-      runningNav = runningNav * (1 + dailyRet / 100);
-      prevRawNav = runningNav;
+      dailyRet = rec.dailyReturnPct ?? 0;
+      prevActualRawNav = null;
     }
+    runningNav = runningNav * (1 + dailyRet / 100);
 
     if (runningNav >= peakNav) {
       peakNav = runningNav;

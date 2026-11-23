@@ -196,11 +196,20 @@ export default function LedgerCsvModal({
           <div className="grid gap-3 md:grid-cols-2">
             <div
               onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+              }}
+              onDrop={(e) => {
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  e.preventDefault();
+                  handleFileSelect(e.dataTransfer.files[0] ?? null);
+                }
+              }}
               className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-deep)]/65 p-5 text-center transition hover:border-[var(--cyan)]/60"
             >
               <Upload className="h-6 w-6 text-[var(--cyan)]" />
               <div className="mt-2 font-medium text-[var(--ink)]">
-                {file ? `已选文件：${file.name}` : "点击选择券商导出的 .csv / .tsv / .txt 文件"}
+                {file ? `已选文件：${file.name}` : "点击选择或直接拖入券商导出的 .csv / .tsv / .txt 文件"}
               </div>
               <div className="mt-1 text-[11px] text-[var(--ink-dim)]">支持逗号 / 制表符 / 分号分隔，GB18030 自动转码</div>
               <input

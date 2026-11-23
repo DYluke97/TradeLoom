@@ -112,7 +112,7 @@ export default function CloudImportModal({
   // Paste state
   const [platform, setPlatform] = useState("飞书文档");
   const [title, setTitle] = useState("");
-  const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [eventDate, setEventDate] = useState("");
   const [tags, setTags] = useState("");
   const [content, setContent] = useState("");
   const [capturedHtml, setCapturedHtml] = useState("");
@@ -126,6 +126,14 @@ export default function CloudImportModal({
   // Bookmarklet state
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
   const [clipToken, setClipToken] = useState("");
+  const [origin, setOrigin] = useState("http://127.0.0.1:3200");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+    setEventDate((prev) =>
+      prev || new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai" }).format(new Date()),
+    );
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -137,7 +145,6 @@ export default function CloudImportModal({
       .catch(() => {});
   }, [open]);
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:3200";
   const bookmarkletHref = useMemo(() => buildBookmarklet(origin, clipToken), [origin, clipToken]);
 
   const parsedUrlCount = useMemo(() => {
@@ -656,19 +663,19 @@ export default function CloudImportModal({
 
               <div className="rounded-xl border border-[var(--accent)]/35 bg-[var(--bg-deep)]/90 p-4">
                 <div className="text-xs font-semibold text-[var(--accent)]">
-                  方式 B：官方 API 批量直连同步（Notion / 飞书文档 / 语雀 / 滴答清单）
+                  方式 B：9 大云端平台直连同步 & 离线导出文件导入
                 </div>
                 <p className="mt-2 text-xs leading-6 text-[var(--ink-muted)]">
-                  如果你的多年复盘系统化存在 <strong className="text-[var(--ink)]">Notion、飞书文档、语雀或滴答清单</strong>，可以在「云端平台连接器」中配置你自己的个人 Token（纯本地保存），一键批量拉取历史笔记并自动编织双链。
+                  支持 <strong className="text-[var(--ink)]">滴答清单、Notion、飞书文档、有道云笔记、腾讯文档、腾讯 ima、OneNote、语雀、印象笔记国内版</strong> 一键同步；若你已从云笔记导出了 <code className="text-[var(--ink)]">.md / .html / .docx / .pdf</code> 文件，也可直接把文件拖入知识库页面或点击左上角「本地」批量入库。
                 </p>
                 <div className="mt-3">
                   <Link
-                    href="/settings?tab=connectors"
+                    href="/sync"
                     onClick={onClose}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
                   >
                     <Cloud className="h-[15px] w-[15px]" />
-                    前往配置 Notion / 飞书 / 语雀 / 滴答清单连接器 →
+                    打开云端同步中心（9 大平台） →
                   </Link>
                 </div>
               </div>

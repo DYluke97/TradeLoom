@@ -5,11 +5,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const host = request.headers.get("host") || "127.0.0.1:3200";
-  const proto = request.headers.get("x-forwarded-proto") || "http";
+  const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || `127.0.0.1:${process.env.PORT || 3200}`;
+  const host = rawHost.split(",")[0]!.trim();
+  const rawProto = request.headers.get("x-forwarded-proto") || "http";
+  const proto = rawProto.split(",")[0]!.trim() === "https" ? "https" : "http";
   const baseOrigin = `${proto}://${host}`;
-  const redirectTarget = new URL("/settings", baseOrigin);
-  redirectTarget.searchParams.set("tab", "connectors");
+  const redirectTarget = new URL("/sync", baseOrigin);
 
   const { searchParams } = new URL(request.url);
   const error = searchParams.get("error");
@@ -33,8 +34,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectTarget);
   }
 
-  const finalTarget = new URL("/settings", res.returnOrigin || baseOrigin);
-  finalTarget.searchParams.set("tab", "connectors");
+  const finalTarget = new URL("/sync", res.returnOrigin || baseOrigin);
   finalTarget.searchParams.set("oauth_ok", res.connectorId);
   if (typeof res.discoveredCount === "number") {
     finalTarget.searchParams.set("oauth_count", String(res.discoveredCount));

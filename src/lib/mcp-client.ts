@@ -340,13 +340,17 @@ export function parseStreamableHttpBody(raw: string, contentType: string, expect
     flush();
 
     if (expectedId !== undefined) {
-      const exact = messages.find((m) => m.id === expectedId);
+      const exact = messages.find((m) => String(m.id) === String(expectedId));
       if (exact) return exact;
     }
     return messages[messages.length - 1] ?? {};
   }
 
-  return JSON.parse(trimmed) as JsonRpcMessage;
+  try {
+    return JSON.parse(trimmed) as JsonRpcMessage;
+  } catch {
+    throw new Error(`MCP 服务返回了非 JSON 响应：${trimmed.slice(0, 140)}`);
+  }
 }
 
 export type McpHttpClientOptions = {
@@ -426,7 +430,7 @@ export class McpHttpClient {
       await this.postJsonRpc("initialize", {
         protocolVersion: "2025-03-26",
         capabilities: {},
-        clientInfo: { name: "TradeLoom", version: "0.7.0" },
+        clientInfo: { name: "TradeLoom", version: "1.0.0" },
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
@@ -621,7 +625,9 @@ export class McpSseClient {
       const endpointTimer = setTimeout(() => {
         if (!resolved) {
           resolved = true;
+          this.closed = true;
           clearTimeout(connectTimeout);
+          controller.abort();
           rejectEndpoint(new Error("等待 MCP SSE endpoint 事件超时（12s）"));
         }
       }, 12000);
@@ -652,10 +658,12 @@ export class McpSseClient {
         if (!trimmed || trimmed === "[DONE]") return;
         try {
           const msg = JSON.parse(trimmed) as JsonRpcMessage;
-          if (typeof msg.id === "number" && this.pending.has(msg.id)) {
-            const waiter = this.pending.get(msg.id)!;
+          const numericId =
+            typeof msg.id === "number" ? msg.id : typeof msg.id === "string" ? Number(msg.id) : NaN;
+          if (Number.isFinite(numericId) && this.pending.has(numericId)) {
+            const waiter = this.pending.get(numericId)!;
             clearTimeout(waiter.timer);
-            this.pending.delete(msg.id);
+            this.pending.delete(numericId);
             waiter.resolve(msg);
           }
         } catch {
@@ -798,7 +806,7 @@ export class McpSseClient {
     await this.postJsonRpc("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "TradeLoom", version: "0.7.0" },
+      clientInfo: { name: "TradeLoom", version: "1.0.0" },
     });
     this.initialized = true;
     try {

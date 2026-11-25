@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File .\start-agent.ps1
 
 服务启动后，外部 Agent（Claude Desktop / Cursor / Antigravity / OpenClaw / Claude Code / Codex）可直接接入 TradeLoom：
 
-- **Streamable HTTP MCP 端点**：`http://127.0.0.1:<port>/api/mcp`（开放 9 个核心工具）
+- **Streamable HTTP MCP 端点**：`http://127.0.0.1:<port>/api/mcp`（开放 13 个核心工具，支持多复盘库防误写护栏、本机文件/文件夹直传、按需建库、网页抓取与交割单脱敏入库）
 - **Stdio MCP 桥接脚本**：`.\runtime\node.exe .\app\scripts\tradeloom-mcp-server.mjs`
 - **标准 Agent Skill 文档**：`.\app\docs\tradeloom-agent-skill\SKILL.md`
 - 也可在页面「设置 → 外部 Agent 接入（MCP / Skill）」一键复制含本机真实路径的配置 JSON。

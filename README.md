@@ -11,7 +11,7 @@
 支持 **16+ 款本机 CLI Agent 免 Key 直连**、**免 API 网页订阅协作**、**国内主流云厂商 API** 及 **Local MCP Server 双向接入**；  
 通过 **50~300 万字大上下文装箱**、**逐字证据防幻觉核验** 与 **定性 × 定量交叉证伪**，沉淀可回溯、可证伪、防“嘴盘”的个人交易手册体系。
 
-[![Release](https://img.shields.io/badge/Release-v1.2.0-2f6ee5.svg)](./package.json)
+[![Release](https://img.shields.io/badge/Release-v1.2.1-2f6ee5.svg)](./package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-0f766e.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.13-3c783c.svg)](./package.json)
 [![CLI Agents](https://img.shields.io/badge/Local_CLI_Agents-16%2B_Supported-2f6ee5.svg)](#4-零-api-门槛三通路-ai-引擎与-local-mcp-双向接入)
@@ -19,7 +19,7 @@
 [![Connectors](https://img.shields.io/badge/Cloud_Connectors-9_Platforms-2d5f8b.svg)](#2-全渠道复盘汇聚与两级云端同步中心)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25_Local--First-475569.svg)](#七安全与隐私红线)
 
-[v1.2.0 更新亮点](#-v120-核心更新亮点) · [为什么做 TradeLoom](#一为什么做-tradeloom) · [核心功能体系](#二核心功能体系) · [工作台路由](#三多库并行与八大工作台) · [快速开始](#四快速开始按人群任选-4-种方式) · [安全与隐私](#七安全与隐私红线)
+[v1.2.1 更新亮点](#-v121-核心更新亮点) · [为什么做 TradeLoom](#一为什么做-tradeloom) · [核心功能体系](#二核心功能体系) · [工作台路由](#三多库并行与八大工作台) · [快速开始](#四快速开始按人群任选-4-种方式) · [安全与隐私](#七安全与隐私红线)
 
 <br />
 
@@ -29,7 +29,7 @@
 
 ---
 
-## 🆕 `v1.2.0` 核心更新亮点
+## 🆕 `v1.2.1` 核心更新亮点
 
 - **曜石投研终端质感 × 方正极细精密排版**：默认启用曜石暗色投研终端（右上角一键切换温润纸本亮色），确立 **复盘钴蓝 / 概念青绿 / 实盘琥珀 / 手册翡翠 / 风控珊瑚红** 独立语义色板；全站收紧为 `2px–4px` 方正锐利倒角，搭配轻量化细笔画字体层级与等宽量化数字对齐。
 - **100% 全画幅沉浸星图 × 右侧玻璃预览抽屉**：进入 `/vault?view=graph` 自动收折左右固定栏与多余小星图，释放全视口四环星轨画布；新增悬浮玻璃 HUD、节点即时搜索定位、曲线引力连线与绽放入场动效；**单击节点滑出 380px 玻璃预览抽屉**（同屏挂载当日实盘锚点与相连节点漫游胶囊，不离开星图），双击或点按钮再进入完整文档阅读。
@@ -47,7 +47,7 @@
 
 大多数交易者写了几百篇盘后复盘，最终却沦为“只写不看”的流水账；而直接把历史笔记丢给通用大模型总结，往往踩中四大硬伤：
 
-| 传统复盘痛点 | TradeLoom `v1.2.0` 的工程解法 |
+| 传统复盘痛点 | TradeLoom `v1.2.1` 的工程解法 |
 | :--- | :--- |
 | **文字与盈亏割裂**：复盘写得头头是道，却分不清是牛市 Beta 顺风还是真实 Alpha，也看不清个股是否反复高买低卖 | **实盘账本 × A 股真实行情**：导入券商交割单与日度净值，在前复权日 K 线上精准锚定每一笔 `B/S` 买卖点，叠加沪深300 / 科创50 / 中证1000 等基准曲线自动核算超额收益与最大回撤 |
 | **大模型幻觉与套话**：凭空捏造没做过的标的、胜率与收益，输出毫无实战价值的教科书式空话 | **服务端逐字证据核验（Zero-Hallucination）**：服务端预先将复盘原文切分为带 `evidence_id` 的证据片段；模型仅允许引用合法 ID，落盘前由服务端逐字回填真实原文并剔除一切无据幻觉 |
@@ -169,12 +169,12 @@ flowchart LR
 
 无需安装 Node.js、Git 或任何开发环境（已内置独立 `runtime/node.exe`、原生无黑框 `TradeLoom.exe` 启动器与 Local MCP 脚本）：
 
-1. 在 [Releases 页面](https://github.com/DYluke97/TradeLoom/releases) 下载最新 `TradeLoom-v1.2.0-win-x64.zip`；
+1. 在 [Releases 页面](https://github.com/DYluke97/TradeLoom/releases) 下载最新 `TradeLoom-v1.2.1-win-x64.zip`；
 2. 完整解压至任意普通文件夹（如桌面或 `D:\TradeLoom`）；
 3. 双击 **`TradeLoom.exe`**，2~5 秒后自动拉起本地引擎与独立应用窗口（最小化可常驻系统托盘）；
 4. 全部个人数据保存在同级 `workspace/` 文件夹内，升级或迁移只需保留该目录。
 
-> 💡 源码用户可执行 `pnpm run pack:win`（或 `npm run pack:win`）一键编译原生启动器并通过隐私门禁校验，生成 `dist/TradeLoom-v1.2.0-win-x64.zip`。
+> 💡 源码用户可执行 `pnpm run pack:win`（或 `npm run pack:win`）一键编译原生启动器并通过隐私门禁校验，生成 `dist/TradeLoom-v1.2.1-win-x64.zip`。
 
 ### 方式 2：交给 AI Agent 启动并接入 MCP（Claude Code / Codex / Antigravity / Cursor / OpenClaw）
 

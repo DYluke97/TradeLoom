@@ -29,7 +29,7 @@ import {
 export const MCP_PROTOCOL_VERSION = "2025-03-26";
 export const MCP_SERVER_INFO = {
   name: "tradeloom-mcp",
-  version: "1.2.0",
+  version: "1.2.1",
 };
 
 const MAX_LOCAL_IMPORT_FILES = 200;

@@ -137,7 +137,7 @@ export default function AgentIntegrationPanel() {
             </div>
             <p className="text-xs leading-6 text-[var(--ink-muted)]">
               把 TradeLoom 接入你日常使用的 <strong>Claude Desktop、Cursor、Antigravity、OpenClaw、Claude Code、Codex、OpenCode、Windsurf</strong> 等外部 Agent。
-              以后直接在你的 Agent 对话框里就能搜索复盘星图、核对实盘盈亏、导入新复盘，并用外部 Agent 自身大模型完成提炼后交由 TradeLoom 做逐字 <code className="font-mono text-[11px]">evidence_id</code> 防幻觉校验落库。
+              直接用自然语言让 Agent 把本机文件/文件夹（MD/PDF/DOCX/HTML）、网页链接或券商交割单传进 TradeLoom（多复盘库时自动触发防误写选库确认，支持按需新建库），也可搜索星图、核对实盘盈亏，并由外部 Agent 推理后经 TradeLoom 逐字 <code className="font-mono text-[11px]">evidence_id</code> 防幻觉校验落库。
             </p>
           </div>
           <button

@@ -301,6 +301,8 @@ describe("local CLI agent engine, zero-API synthesis collaboration & MCP server"
       expect(bundle.mcpHttpUrl).toBe("http://127.0.0.1:3200/api/mcp");
       expect(bundle.stdioConfigJson).toContain("tradeloom-mcp-server.mjs");
       expect(bundle.skillMarkdown).toContain("tradeloom_prepare_synthesis");
+      expect(bundle.skillMarkdown).toContain("tradeloom_import_local_files");
+      expect(bundle.tools.length).toBe(13);
 
       // Also confirm parseSynthesisResponse handles ANSI + fenced JSON cleanly
       const ansiRes = parseSynthesisResponse(`\x1b[36m${noisyAgentReply}\x1b[0m`, [
@@ -316,6 +318,203 @@ describe("local CLI agent engine, zero-API synthesis collaboration & MCP server"
         },
       ]);
       expect(ansiRes.ok).toBe(true);
+    } finally {
+      if (prevWs === undefined) delete process.env.TRADELOOM_WORKSPACE_DIR;
+      else process.env.TRADELOOM_WORKSPACE_DIR = prevWs;
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("enforces multi-vault selection guardrail and supports local files, create_vault, ledger CSV & URL validation via MCP", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "tradeloom-mcp-multi-"));
+    const wsDir = path.join(tmp, "ws");
+    const importDir = path.join(tmp, "incoming-notes");
+    const prevWs = process.env.TRADELOOM_WORKSPACE_DIR;
+    process.env.TRADELOOM_WORKSPACE_DIR = wsDir;
+
+    try {
+      // Prepare sample local files outside workspace (MD + HTML + CSV ledger)
+      const { mkdir } = await import("node:fs/promises");
+      await mkdir(importDir, { recursive: true });
+      const mdPath = path.join(importDir, "2025-06-01_美股财报跟踪.md");
+      const htmlPath = path.join(importDir, "2025-06-02_行业景气笔记.html");
+      const csvPath = path.join(importDir, "broker-trades.csv");
+      await writeFile(mdPath, "# 2025-06-01 美股财报跟踪\n\nROE 维持高位，毛利率与自由现金流双升，估值锚合理。", "utf8");
+      await writeFile(htmlPath, "<html><body><h1>行业景气度观察</h1><p>订单与产能利用率持续提升，护城河稳固。</p></body></html>", "utf8");
+      await writeFile(
+        csvPath,
+        "成交日期,证券代码,证券名称,买卖标志,成交价格,成交数量,资金账号\n2025-06-01,600519,贵州茅台,买入,1500.00,100,8888123456\n",
+        "utf8",
+      );
+
+      // 1. Create a second vault via MCP
+      const createRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 10,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_create_vault",
+          arguments: {
+            name: "中长线价值基本面",
+            description: "用于存放财报研究、行业景气度与估值复盘",
+            templateId: "fundamental",
+            activate: false,
+          },
+        },
+      });
+      const createdPayload = JSON.parse((createRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(createdPayload.ok).toBe(true);
+      expect(createdPayload.vault.name).toBe("中长线价值基本面");
+      const secondVaultId: string = createdPayload.vault.id;
+
+      // 2. tradeloom_list_vaults reports >= 2 personal vaults & requiresExplicitVaultIdOnWrite=true
+      const listVaultsRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 11,
+        method: "tools/call",
+        params: { name: "tradeloom_list_vaults", arguments: {} },
+      });
+      const vaultsPayload = JSON.parse((listVaultsRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(vaultsPayload.personalVaultCount).toBe(2);
+      expect(vaultsPayload.requiresExplicitVaultIdOnWrite).toBe(true);
+
+      // 3. Blind write WITHOUT vaultId is REJECTED with structured vault choices (for local files, review, ledger & url)
+      const blindFilesRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 12,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_local_files",
+          arguments: { paths: [importDir] },
+        },
+      });
+      expect((blindFilesRes?.result as { isError?: boolean })?.isError).toBe(true);
+      const blindFilesPayload = JSON.parse((blindFilesRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(blindFilesPayload.requiresVaultSelection).toBe(true);
+      expect(blindFilesPayload.code).toBe("MULTIPLE_VAULTS_REQUIRE_SELECTION");
+      expect(blindFilesPayload.vaults).toHaveLength(2);
+
+      const blindReviewRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 13,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_review",
+          arguments: { title: "测试盲写拦截", content: "未指定目标库不应写入。" },
+        },
+      });
+      expect((blindReviewRes?.result as { isError?: boolean })?.isError).toBe(true);
+
+      const blindLedgerRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 14,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_ledger",
+          arguments: { filePath: csvPath },
+        },
+      });
+      expect((blindLedgerRes?.result as { isError?: boolean })?.isError).toBe(true);
+
+      // 4. dryRun preview works even before vault confirmation, returning scanned files + available vaults
+      const dryRunRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 15,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_local_files",
+          arguments: { paths: [importDir], dryRun: true },
+        },
+      });
+      const dryRunPayload = JSON.parse((dryRunRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(dryRunPayload.ok).toBe(true);
+      expect(dryRunPayload.dryRun).toBe(true);
+      expect(dryRunPayload.matchedFilesCount).toBe(2); // MD + HTML
+      expect(dryRunPayload.skippedCount).toBe(1); // CSV with helpful hint to use tradeloom_import_ledger
+      expect(dryRunPayload.skipped[0].reason).toContain("tradeloom_import_ledger");
+      expect(dryRunPayload.requiresVaultSelection).toBe(true);
+
+      // 5. Importing local folder WITH explicit vault name (or id) succeeds & isolates into target vault
+      const importOkRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 16,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_local_files",
+          arguments: { paths: [importDir], vaultId: "中长线价值基本面" },
+        },
+      });
+      expect((importOkRes?.result as { isError?: boolean })?.isError).not.toBe(true);
+      const importOkPayload = JSON.parse((importOkRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(importOkPayload.ok).toBe(true);
+      expect(importOkPayload.vaultId).toBe(secondVaultId);
+      expect(importOkPayload.importedCount).toBe(2);
+      expect(importOkPayload.totalDocs).toBe(2);
+
+      // Verify tradeloom_list_vaults now exposes extracted topTopics on the second vault for semantic matching
+      const listAfterRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 165,
+        method: "tools/call",
+        params: { name: "tradeloom_list_vaults", arguments: {} },
+      });
+      const listAfter = JSON.parse((listAfterRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      const secondAfter = listAfter.vaults.find((v: { id: string }) => v.id === secondVaultId);
+      expect(Array.isArray(secondAfter.topTopics)).toBe(true);
+      expect(secondAfter.topTopics.length).toBeGreaterThan(0);
+
+      // Verify default vault remained completely untouched (0 docs)
+      const defaultSearchRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 17,
+        method: "tools/call",
+        params: { name: "tradeloom_search_reviews", arguments: { vaultId: "default" } },
+      });
+      const defaultSearch = JSON.parse((defaultSearchRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(defaultSearch.totalInVault).toBe(0);
+
+      // 6. Importing broker CSV into target vault succeeds and redacts 资金账号
+      const ledgerOkRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 18,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_ledger",
+          arguments: { filePath: csvPath, vaultId: secondVaultId },
+        },
+      });
+      expect((ledgerOkRes?.result as { isError?: boolean })?.isError).not.toBe(true);
+      const ledgerOk = JSON.parse((ledgerOkRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(ledgerOk.ok).toBe(true);
+      expect(ledgerOk.kind).toBe("trades");
+      expect(ledgerOk.imported).toBe(1);
+      expect(ledgerOk.redactedColumns).toContain("资金账号");
+
+      // 7. Unknown vaultId errors explicitly instead of silently falling back to default
+      const unknownVaultRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 19,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_review",
+          arguments: { vaultId: "non-existent-vault", content: "test" },
+        },
+      });
+      expect((unknownVaultRes?.result as { isError?: boolean })?.isError).toBe(true);
+      const unknownVaultPayload = JSON.parse((unknownVaultRes?.result as { content: Array<{ text: string }> }).content[0].text);
+      expect(unknownVaultPayload.code).toBe("VAULT_NOT_FOUND");
+
+      // 8. Private/loopback URL is rejected by SSRF guard via tradeloom_import_url
+      const ssrfRes = await handleMcpJsonRpc({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "tools/call",
+        params: {
+          name: "tradeloom_import_url",
+          arguments: { url: "http://127.0.0.1:3200/settings", vaultId: secondVaultId },
+        },
+      });
+      expect((ssrfRes?.result as { isError?: boolean })?.isError).toBe(true);
     } finally {
       if (prevWs === undefined) delete process.env.TRADELOOM_WORKSPACE_DIR;
       else process.env.TRADELOOM_WORKSPACE_DIR = prevWs;

@@ -37,7 +37,7 @@
 - **免 API 网页 / 订阅协作闭环 + 国内主流云厂商全覆盖**：
   - 零 API 用户可在 `/synthesize` 一键复制完整证据提示词包或下载 `.txt` 附件发给 ChatGPT / Claude / DeepSeek / Kimi / 豆包网页版，贴回回复自动完成 `evidence_id` 逐字防幻觉核验落盘；
   - API 通道内置 **17 项分组预设**，新增 **ZCode（智谱 GLM Coding 套餐国内/国际站）、火山引擎方舟 Ark、阿里云百炼、腾讯云混元 & LKEAP、华为云 ModelArts MaaS、百度千帆、月之暗面 Kimi、Google AI Studio、OpenRouter** 及本机免 Key 的 **Ollama / LM Studio**。
-- **外部 Agent 双向接入（Local MCP Server + 标准 `SKILL.md`）**：原生提供 Streamable HTTP（`http://127.0.0.1:3200/api/mcp`）与零依赖 Stdio 桥接脚本（`scripts/tradeloom-mcp-server.mjs`），开放 **9 个 MCP 工具** 并在设置页提供本机真实路径配置一键复制与在线连通自检。
+- **外部 Agent 双向接入（Local MCP Server + 标准 `SKILL.md`）**：原生提供 Streamable HTTP（`http://127.0.0.1:3200/api/mcp`）与零依赖 Stdio 桥接脚本（`scripts/tradeloom-mcp-server.mjs`），开放 **13 个 MCP 工具**（支持本机文件/文件夹无损直传、多复盘库防误写选库确认、自然语言新建库、网页抓取与交割单脱敏入库），设置页提供一键复制本机配置与连通自检。
 - **单次提炼容量 6.25× 大幅扩容**：单次装箱上限从 8 万字提升至 **默认 50 万字（四档可选：20 万 / 50 万 / 120 万 / 300 万字全量）**，单次勾选上限扩至 **1,500 篇**，充分释放 200K–1M+ 长上下文大模型能力。
 - **零概念负担冷启动与渐进解锁导航**：全新品牌织脉开场动画 → 极简命名激活主库 → 大画幅多渠道累计入库 + 全局唯一「开始织脉」按钮 → 两级云端同步中心（9 平台矩阵 → 单平台专页）→ 渐进式解锁顶栏（随时可点「跳过引导，展开全部菜单」自由探索）。
 
@@ -73,7 +73,7 @@ flowchart LR
   end
 
   subgraph Output["④ 可证伪方法论沉淀 & Agent 生态"]
-    D["L1 阶段手册 → L2 年度总纲<br/>规则生命周期 · 防嘴盘病灶榜<br/>Local MCP Server（9 工具）+ SKILL.md"]
+    D["L1 阶段手册 → L2 年度总纲<br/>规则生命周期 · 防嘴盘病灶榜<br/>Local MCP Server（13 工具）+ SKILL.md"]
   end
 
   A1 --> B1
@@ -136,7 +136,8 @@ flowchart LR
    - 涵盖 **ZCode（智谱 GLM Coding 套餐国内/国际站）、智谱 BigModel、DeepSeek、火山引擎方舟（豆包 Ark）、阿里云百炼、腾讯云混元、腾讯云 LKEAP、华为云 ModelArts MaaS、百度智能云千帆、月之暗面 Kimi、硅基流动免费池、OpenAI、Google AI Studio、OpenRouter**，以及本机免 Key 的 **Ollama / LM Studio**。
 4. **外部 Agent 反向驱动 TradeLoom（Local MCP Server + 标准 `SKILL.md`）**：
    - 原生开放 Streamable HTTP（`http://127.0.0.1:3200/api/mcp`）与零依赖 Stdio 桥接脚本（[scripts/tradeloom-mcp-server.mjs](./scripts/tradeloom-mcp-server.mjs)，`pnpm mcp`）以及跨平台 [docs/tradeloom-agent-skill/SKILL.md](./docs/tradeloom-agent-skill/SKILL.md)。
-   - 暴露 **9 个 MCP 工具**：`tradeloom_list_vaults`、`tradeloom_search_reviews`、`tradeloom_read_review`、`tradeloom_import_review`、`tradeloom_get_ledger_summary`、`tradeloom_list_skills`、`tradeloom_prepare_synthesis`、`tradeloom_save_manual`、`tradeloom_list_manuals`。
+   - 暴露 **13 个 MCP 工具**：`tradeloom_list_vaults`、`tradeloom_create_vault`、`tradeloom_search_reviews`、`tradeloom_read_review`、`tradeloom_import_local_files`（直传本机 `.md/.txt/.pdf/.docx/.html` 文件或目录，支持 `dryRun` 预览）、`tradeloom_import_review`、`tradeloom_import_url`、`tradeloom_import_ledger`、`tradeloom_get_ledger_summary`、`tradeloom_list_skills`、`tradeloom_prepare_synthesis`、`tradeloom_save_manual`、`tradeloom_list_manuals`。
+   - **多复盘库防误写护栏**：当本机存在 ≥ 2 个个人复盘库且写入未指定 `vaultId` 时，服务端自动拒绝盲写并返回各库名称、简介与高频主题 `topTopics`，倒逼 Agent 结合内容推荐目标库并先向用户确认（支持精确库名匹配或调用 `tradeloom_create_vault` 现建新库）。
    - 设置页「外部 Agent 接入（MCP / Skill）」支持一键复制按本机真实路径生成的 MCP JSON、`claude / codex / agy / gemini mcp add` 一行命令与在线连通检测。
 
 ### 5. 定性 × 定量交叉审计、大上下文装箱与 Skill 工坊
@@ -238,7 +239,7 @@ TradeLoom/
 │   ├── tradeloom-mcp-server.mjs     # 零依赖 Stdio Local MCP 桥接服务（pnpm mcp）
 │   ├── build-portable-win.ps1       # Windows 便携版打包 + 原生启动器编译 + 隐私门禁脚本
 │   └── portable-templates/          # 便携版启动器与 Agent 协议模板
-├── __tests__/                       # Vitest 自动化测试套件（13 文件 / 75 用例）
+├── __tests__/                       # Vitest 自动化测试套件（13 文件 / 76 用例）
 └── workspace/                       # 【已严格 .gitignore】100% 本地私有数据（单目录备份即迁移）
 ```
 
@@ -257,7 +258,7 @@ TradeLoom/
 
 ```bash
 pnpm typecheck    # TypeScript 严格静态类型检查（tsc --noEmit）
-pnpm test         # 运行全部 Vitest 单元测试套件（75 用例）
+pnpm test         # 运行全部 Vitest 单元测试套件（76 用例）
 pnpm build        # Next.js 15 生产环境完整编译校验
 pnpm mcp          # 启动零依赖 Stdio Local MCP Server
 pnpm pack:win     # 编译原生启动器并通过隐私门禁打包 Windows 便携版 ZIP

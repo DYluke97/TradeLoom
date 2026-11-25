@@ -8,11 +8,11 @@ export const metadata: Metadata = {
     "将零散复盘笔记汇聚为 Obsidian 双向链接知识库，按时间线阶段框选样本，配合内置短线/基本面 Skill 与自配大模型 API，沉淀方法演变时间轴与个人交易手册。",
 };
 
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("tradeloom-theme");document.documentElement.dataset.theme=(t==="dark"||t==="light")?t:"light";}catch(e){document.documentElement.dataset.theme="light";}})();`;
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("tradeloom-theme");document.documentElement.dataset.theme=(t==="dark"||t==="light")?t:"dark";}catch(e){document.documentElement.dataset.theme="dark";}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" data-theme="light" suppressHydrationWarning>
+    <html lang="zh-CN" data-theme="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

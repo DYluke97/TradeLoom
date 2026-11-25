@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
+  ArrowRight,
   BarChart3,
   CandlestickChart,
+  CheckCircle2,
   FileSpreadsheet,
   ListChecks,
   Loader2,
@@ -15,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useGuidedTour } from "@/lib/onboarding-tour";
 import type { LedgerAnalytics } from "@/lib/ledger-analytics";
 import type { DailyNavRecord, LedgerSettings, TradeExecution } from "@/lib/ledger";
 import type { BenchmarkSpec } from "@/lib/market";
@@ -45,6 +48,28 @@ export default function LedgerWorkspace() {
   const searchParams = useSearchParams();
   const paramSymbol = searchParams.get("symbol") || "";
   const paramTab = searchParams.get("tab") || "";
+  const tourActive = useGuidedTour(searchParams.get("tour") === "1");
+  const [goingNext, setGoingNext] = useState(false);
+
+  async function goNextTourStep(markSkipped = false) {
+    setGoingNext(true);
+    try {
+      if (markSkipped) {
+        const ov = await fetch("/api/vaults", { cache: "no-store" }).then((r) => r.json());
+        if (ov?.ok && ov.activeVaultId) {
+          await fetch("/api/vaults", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "update", id: ov.activeVaultId, skipLedgerStep: true }),
+          });
+        }
+      }
+      const p = await fetch("/api/provider", { cache: "no-store" }).then((r) => r.json());
+      router.push(p?.ok && p.status?.configured ? "/synthesize?tour=1" : "/settings?tour=1");
+    } finally {
+      setGoingNext(false);
+    }
+  }
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -135,6 +160,53 @@ export default function LedgerWorkspace() {
 
   return (
     <div className="space-y-5">
+      {tourActive && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-xs ${
+            analytics?.hasData
+              ? "border-[var(--emerald)]/40 bg-[var(--emerald-soft)]/50"
+              : "border-[var(--accent)]/35 bg-[var(--accent-soft)]/45"
+          }`}
+        >
+          <div className="flex items-center gap-2 text-[var(--ink-strong)]">
+            {analytics?.hasData ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--emerald)]" />
+            ) : (
+              <Sparkles className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+            )}
+            <span>
+              {analytics?.hasData
+                ? "实盘账本已导入完成！点击右侧选择 AI 引擎（本机 Agent / 网页协作 / API）凝练交易手册。"
+                : "向导模式：点击下方「导入交割单 / 净值 CSV」或「手动记一笔」即可完成实盘锚定；若暂时不导也可跳过。"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {!analytics?.hasData && (
+              <button
+                type="button"
+                disabled={goingNext}
+                onClick={() => goNextTourStep(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]"
+              >
+                跳过实盘，选 AI / Agent 凝练 →
+              </button>
+            )}
+            {analytics?.hasData && (
+              <button
+                type="button"
+                disabled={goingNext}
+                onClick={() => goNextTourStep(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-1.5 font-semibold text-white transition hover:bg-[var(--accent)]"
+              >
+                {goingNext ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                下一步：选 AI / Agent 凝练手册
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Institutional Header */}
       <section className="scifi-card rounded-xl p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -215,7 +287,7 @@ export default function LedgerWorkspace() {
               导入交割单 / 净值 CSV
             </button>
 
-            {analytics?.hasDemoData ? (
+            {!tourActive && (analytics?.hasDemoData ? (
               <button
                 type="button"
                 disabled={busy}
@@ -240,7 +312,7 @@ export default function LedgerWorkspace() {
                 {busy ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Sparkles className="h-[15px] w-[15px]" />}
                 加载 A 股演示账本
               </button>
-            )}
+            ))}
           </div>
         </div>
 
@@ -371,12 +443,14 @@ export default function LedgerWorkspace() {
           </button>
         </div>
 
-        <Link
-          href="/synthesize"
-          className="mb-1.5 inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1 text-[11px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/25"
-        >
-          去「阶段提炼」开启文字 × 实盘定量证伪 →
-        </Link>
+        {!tourActive && (
+          <Link
+            href="/synthesize"
+            className="mb-1.5 inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1 text-[11px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/25"
+          >
+            去「阶段提炼」开启文字 × 实盘定量证伪 →
+          </Link>
+        )}
       </div>
 
       {/* View Body */}

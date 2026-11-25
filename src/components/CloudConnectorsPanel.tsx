@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
-  Bookmark,
+  ArrowLeft,
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   Cloud,
@@ -18,6 +20,7 @@ import {
   RefreshCw,
   Save,
   ShieldCheck,
+  Sparkles,
   Terminal,
   X,
 } from "lucide-react";
@@ -176,24 +179,6 @@ const CONNECTOR_META: Record<
   },
 };
 
-const CLIP_PLATFORMS = [
-  {
-    name: "雪球 (Xueqiu)",
-    badge: "公开帖 URL 抓取 / 剪藏",
-    desc: "公开复盘长文可直接用「网页链接抓取」；私密笔记或触发登录校验的页面，推荐用浏览器一键剪藏小书签或 Ctrl+C 富文本粘贴入库。",
-  },
-  {
-    name: "印象笔记 · 免费版 / 国际版",
-    badge: "HTML 批量导入 / 剪藏",
-    desc: "国内版会员可直接用上方「印象笔记 · 国内版」连接器直连同步；免费版或国际版 Evernote 用户推荐在客户端批量导出 .html 直接拖入上传，或使用一键剪藏零门槛入库。",
-  },
-  {
-    name: "微信公众号 / 任意投研长文",
-    badge: "网页抓取 / 浏览器一键剪藏",
-    desc: "看到深度行业研报或个人公号复盘，可直接粘贴链接抓取正文，或用书签栏剪藏一键转 Markdown 存入本地 Obsidian 知识库。",
-  },
-];
-
 function parseSelectionList(raw: string): string[] {
   return raw
     .split(/[\n,;，；]+/)
@@ -202,7 +187,15 @@ function parseSelectionList(raw: string): string[] {
 }
 
 export default function CloudConnectorsPanel() {
+  const searchParams = useSearchParams();
+  const fromOnboardingParam = searchParams.get("from") === "onboarding";
+  const initialPlatformParam = searchParams.get("platform") as ConnectorId | null;
+
   const [connectors, setConnectors] = useState<MaskedConnectorSummary[]>([]);
+  const [selectedId, setSelectedId] = useState<ConnectorId | null>(initialPlatformParam);
+  const [isOnboardingMode, setIsOnboardingMode] = useState(fromOnboardingParam);
+  const [syncedSessionCounts, setSyncedSessionCounts] = useState<Record<string, number>>({});
+  const [syncCompletedId, setSyncCompletedId] = useState<ConnectorId | null>(null);
   const [vaultList, setVaultList] = useState<VaultSummary[]>([]);
   const [targetVaultId, setTargetVaultId] = useState<string>("default");
   const [drafts, setDrafts] = useState<Record<ConnectorId, Record<string, string>>>({
@@ -277,6 +270,16 @@ export default function CloudConnectorsPanel() {
   }, []);
 
   useEffect(() => {
+    try {
+      if (fromOnboardingParam || sessionStorage.getItem("tradeloom-onboarding-step") === "2") {
+        setIsOnboardingMode(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [fromOnboardingParam]);
+
+  useEffect(() => {
     loadConnectors();
     if (typeof window !== "undefined") {
       const qs = new URLSearchParams(window.location.search);
@@ -284,6 +287,7 @@ export default function CloudConnectorsPanel() {
       const errMsg = qs.get("oauth_err");
       const count = qs.get("oauth_count");
       if (okId) {
+        setSelectedId(okId);
         const extra = okId === "dida365" && count ? `，已自动发现 ${count} 个清单（含收集箱），可直接勾选后拉取同步！` : "，现在可直接点击「拉取同步并重建双链」！";
         setFeedback((prev) => ({
           ...prev,
@@ -295,6 +299,7 @@ export default function CloudConnectorsPanel() {
         window.history.replaceState({}, "", cleanUrl);
       } else if (errMsg) {
         const errId = (qs.get("oauth_connector") as ConnectorId | null) || (/notion/i.test(errMsg) ? "notion" : "dida365");
+        setSelectedId(errId);
         setFeedback((prev) => ({
           ...prev,
           [errId]: { ok: false, text: errMsg },
@@ -746,6 +751,12 @@ export default function CloudConnectorsPanel() {
           }));
         } else {
           if (action === "sync") {
+            const added = typeof data.synced === "number" ? data.synced : 0;
+            setSyncedSessionCounts((prev) => ({
+              ...prev,
+              [id]: (prev[id] ?? 0) + added,
+            }));
+            setSyncCompletedId(id);
             dispatchVaultChanged(targetVaultId);
           }
           setFeedback((prev) => ({
@@ -764,69 +775,186 @@ export default function CloudConnectorsPanel() {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Banner */}
-      <div className="scifi-card flex flex-wrap items-center justify-between gap-4 rounded-xl p-5">
-        <div>
-          <div className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-[var(--cyan)]">
-            <ShieldCheck className="h-[15px] w-[15px]" />
-            LOCAL-FIRST CLOUD CONNECTORS · MCP OAUTH & BYOK
-          </div>
-          <h2 className="mt-1.5 text-base font-semibold text-[var(--ink-strong)]">
-            主流云端笔记直连同步 & 官方 MCP 一键登录
-          </h2>
-          <p className="mt-1 text-xs leading-6 text-[var(--ink-muted)]">
-            <strong className="text-[var(--ink-strong)]">滴答清单 / TickTick</strong> 与 <strong className="text-[var(--ink-strong)]">Notion</strong> 已支持{" "}
-            <strong className="text-[var(--ink-strong)]">官方远程 MCP + 一键 OAuth 登录</strong>；
-            <strong className="text-[var(--ink-strong)]">有道云笔记</strong> 已支持{" "}
-            <strong className="text-[var(--ink-strong)]">官方远程 MCP (SSE)</strong>（仅需 1 个 API Key，无需装 OpenClaw）；
-            <strong className="text-[var(--ink-strong)]">飞书</strong> 支持「扫码一键建应用 + 本机 lark-cli」双模式直连；
-            <strong className="text-[var(--ink-strong)]">腾讯文档</strong> 直连官方远程 MCP（免费 2,000 次/天）；
-            <strong className="text-[var(--ink-strong)]">腾讯 ima</strong> 直连官方 OpenAPI（笔记本 + 知识库双通道免费同步）；
-            <strong className="text-[var(--ink-strong)]">OneNote</strong> 支持 Windows 桌面版原生 COM 免注册零配置直连；
-            <strong className="text-[var(--ink)]">语雀</strong> 支持官方 API v2；
-            <strong className="text-[var(--ink)]">雪球 / 印象笔记 / 公众号</strong> 提供粘贴 / URL 抓取 / 浏览器一键剪藏。
-          </p>
-        </div>
-        <Link
-          href="/vault?import=cloud"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--cyan)]/45 bg-[var(--cyan-soft)] px-3.5 py-2 text-xs font-medium text-[var(--cyan)] transition hover:border-[var(--cyan)] hover:bg-[var(--cyan)]/20"
-        >
-          <Cloud className="h-[15px] w-[15px]" />
-          打开「粘贴 / URL 抓取 / 剪藏」弹窗
-        </Link>
-      </div>
+  const activeVaultObj = vaultList.find((v) => v.id === targetVaultId) ?? vaultList[0] ?? null;
+  const totalSessionSynced = Object.values(syncedSessionCounts).reduce((a, b) => a + b, 0);
+  const selectedConnector = selectedId ? connectors.find((c) => c.id === selectedId) ?? null : null;
 
-      {/* Target Vault Selector (Global Auth, Per-Vault Sync Destination) */}
-      {vaultList.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cyan)]/35 bg-[var(--cyan-soft)]/35 px-4 py-3">
+  return (
+    <div className="space-y-5">
+      {/* ==================== TOP CONTEXT HEADER (DIFFERENTIATED: ONBOARDING vs BUILT-IN) ==================== */}
+      {isOnboardingMode ? (
+        <div className="scifi-card flex flex-wrap items-center justify-between gap-3 rounded-xl border-[var(--accent)]/35 bg-[var(--accent-soft)]/40 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2.5 text-xs">
-            <span className="font-semibold text-[var(--ink-strong)]">同步目标知识库：</span>
-            <select
-              value={targetVaultId}
-              onChange={(e) => setTargetVaultId(e.target.value)}
-              className="rounded-lg border border-[var(--cyan)]/50 bg-[var(--bg-deep)] px-3 py-1.5 text-xs font-medium text-[var(--ink-strong)] focus:border-[var(--cyan)] focus:outline-none"
-            >
-              {vaultList.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}（{v.stats.docsCount} 篇复盘）{v.isDemo ? " [示范库]" : ""}
-                </option>
-              ))}
-            </select>
-            <span className="text-[11px] text-[var(--ink-muted)]">
-              9 大平台账号全局共享（只需授权一次）；点击下方「拉取同步」将精准落入上方选中的知识库并重建双链。
+            <Sparkles className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+            <span className="font-semibold text-[var(--ink-strong)]">
+              导入向导 · 云端平台同步
             </span>
+            <span className="rounded-full border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-0.5 text-[11px] text-[var(--ink-muted)]">
+              目标库：{activeVaultObj?.name ?? "我的复盘库"}（已有 {activeVaultObj?.stats.docsCount ?? 0} 篇）
+            </span>
+            {totalSessionSynced > 0 && (
+              <span className="rounded-full bg-[var(--emerald-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--emerald)]">
+                本次云同步已入库 +{totalSessionSynced} 篇
+              </span>
+            )}
           </div>
-          <Link href="/vaults" className="text-[11px] font-medium text-[var(--cyan)] hover:underline">
-            管理全部知识库 →
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回初始导入页继续织脉
           </Link>
+        </div>
+      ) : (
+        <div className="scifi-card flex flex-wrap items-center justify-between gap-3 rounded-xl p-4 sm:px-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[var(--cyan)]" />
+              <h2 className="text-base font-semibold text-[var(--ink-strong)]">云端同步中心（9 大平台）</h2>
+            </div>
+            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+              选择对应平台进入独立配置与同步页，凭据仅保存在本地。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {vaultList.length > 0 && (
+              <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] px-2.5 py-1 text-xs">
+                <span className="text-[var(--ink-muted)]">目标库：</span>
+                <select
+                  value={targetVaultId}
+                  onChange={(e) => setTargetVaultId(e.target.value)}
+                  className="bg-transparent font-medium text-[var(--ink-strong)] focus:outline-none"
+                >
+                  {vaultList.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}（{v.stats.docsCount} 篇）
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <Link
+              href="/vault?import=cloud"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/45 bg-[var(--cyan-soft)] px-3 py-1.5 text-xs font-medium text-[var(--cyan)] transition hover:bg-[var(--cyan)]/20"
+            >
+              <Cloud className="h-3.5 w-3.5" />
+              粘贴 / URL / 剪藏
+            </Link>
+          </div>
         </div>
       )}
 
-      {/* 9 Official Connectors */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {connectors.map((c) => {
+      {/* ==================== LEVEL 1: PLATFORM SELECTION GRID ==================== */}
+      {!selectedConnector && (
+        <div className="tl-fade-up space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-[var(--ink-strong)]">
+              请选择你要拉取的笔记平台
+            </h3>
+            <span className="text-[11px] text-[var(--ink-dim)]">
+              点击平台进入专属同步页 · 同步完可返回继续选择其他平台
+            </span>
+          </div>
+
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {connectors.map((c) => {
+              const meta = CONNECTOR_META[c.id];
+              const syncedHere = syncedSessionCounts[c.id] ?? 0;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setSyncCompletedId(null);
+                    setSelectedId(c.id);
+                  }}
+                  className="scifi-card group flex flex-col justify-between rounded-xl p-4 text-left transition hover:border-[var(--accent)]/60"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--ink-strong)] group-hover:text-[var(--accent)]">
+                          {c.name}
+                        </div>
+                        <span
+                          className={`mt-1 inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] ${
+                            c.authMode === "mcp_oauth" || c.authMode === "mcp_api_key"
+                              ? "border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)]"
+                              : "border-[var(--border)] bg-[var(--bg-deep)] text-[var(--ink-dim)]"
+                          }`}
+                        >
+                          {c.badge}
+                        </span>
+                      </div>
+
+                      {c.platformUnsupportedReason ? (
+                        <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">
+                          仅限 Windows
+                        </span>
+                      ) : syncedHere > 0 ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--emerald)]">
+                          <CheckCircle2 className="h-3 w-3" />
+                          已拉取 +{syncedHere}
+                        </span>
+                      ) : c.configured ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] text-[var(--emerald)]">
+                          <CheckCircle2 className="h-3 w-3" />
+                          已就绪
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--bg-deep)] px-2 py-0.5 text-[10px] text-[var(--ink-dim)]">
+                          {c.id === "onenote" ? "免密钥" : "未配置"}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-2.5 line-clamp-2 text-[11px] leading-5 text-[var(--ink-muted)]">
+                      {meta.subtitle}
+                    </p>
+                  </div>
+
+                  <div className="mt-3.5 flex items-center justify-between border-t border-[var(--border)] pt-2.5 text-[11px]">
+                    <span className="truncate text-[var(--ink-dim)]">
+                      {c.lastSync ? `上次：${c.lastSync.synced} 篇` : "点击配置并同步"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-medium text-[var(--accent)]">
+                      进入平台
+                      <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== LEVEL 2: SINGLE PLATFORM SYNC VIEW ==================== */}
+      {selectedConnector && (
+        <div className="tl-fade-up mx-auto max-w-3xl space-y-4">
+          {/* Breadcrumb Back Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSyncCompletedId(null);
+                setSelectedId(null);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              返回选择其他平台
+            </button>
+
+            <span className="font-mono text-[11px] text-[var(--ink-dim)]">
+              9 大平台 / {selectedConnector.name}
+            </span>
+          </div>
+
+          <div className="grid gap-4">
+            {[selectedConnector].map((c) => {
           const meta = CONNECTOR_META[c.id];
           const fb = feedback[c.id];
           const isOAuth = busyId === `${c.id}:oauth`;
@@ -1178,10 +1306,10 @@ export default function CloudConnectorsPanel() {
                       <ExternalLink className="h-4 w-4 opacity-80" />
                     </a>
                     <Link
-                      href="/vault?import=cloud"
+                      href={isOnboardingMode ? "/" : "/vault?import=cloud"}
                       className="inline-flex items-center gap-1 rounded-lg border border-[var(--emerald)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--emerald)] transition hover:bg-[var(--emerald)]/15"
                     >
-                      免会员：剪藏 / 导出 MD 导入 →
+                      {isOnboardingMode ? "免会员：回导入页拖入 MD / 粘贴 →" : "免会员：剪藏 / 导出 MD 导入 →"}
                     </Link>
                     {c.configured && (
                       <button
@@ -1511,10 +1639,10 @@ export default function CloudConnectorsPanel() {
                         <ExternalLink className="h-4 w-4 opacity-80" />
                       </a>
                       <Link
-                        href="/vault?import=cloud"
+                        href={isOnboardingMode ? "/" : "/vault?import=cloud"}
                         className="inline-flex items-center gap-1 rounded-lg border border-[var(--accent)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
                       >
-                        非 Windows / 离线导出导入 →
+                        {isOnboardingMode ? "非 Windows：回导入页拖入文件 →" : "非 Windows / 离线导出导入 →"}
                       </Link>
                     </div>
 
@@ -1597,10 +1725,10 @@ export default function CloudConnectorsPanel() {
                           <ExternalLink className="h-4 w-4 opacity-80" />
                         </a>
                         <Link
-                          href="/vault?import=cloud"
+                          href={isOnboardingMode ? "/" : "/vault?import=cloud"}
                           className="inline-flex items-center gap-1 rounded-lg border border-[var(--emerald)]/45 bg-[var(--bg-deep)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--emerald)] transition hover:bg-[var(--emerald-soft)]"
                         >
-                          免会员：导出 HTML 拖入 / 剪藏 →
+                          {isOnboardingMode ? "免会员：回导入页拖入 HTML →" : "免会员：导出 HTML 拖入 / 剪藏 →"}
                         </Link>
                         {c.configured && (
                           <button
@@ -1844,13 +1972,15 @@ export default function CloudConnectorsPanel() {
                 {c.lastSync && (
                   <div className="flex items-center justify-between text-[11px] text-[var(--ink-dim)]">
                     <span className="truncate">上次同步：{c.lastSync.message}</span>
-                    <Link
-                      href="/vault?view=graph"
-                      className="ml-2 inline-flex shrink-0 items-center gap-1 text-[var(--cyan)] hover:underline"
-                    >
-                      查看星图
-                      <ExternalLink className="h-4 w-4" />
-                    </Link>
+                    {!isOnboardingMode && (
+                      <Link
+                        href="/vault?view=graph"
+                        className="ml-2 inline-flex shrink-0 items-center gap-1 text-[var(--cyan)] hover:underline"
+                      >
+                        查看星图
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
                   </div>
                 )}
 
@@ -1899,54 +2029,62 @@ export default function CloudConnectorsPanel() {
                       (!c.configured && !hasDraftCredentials(c))
                     }
                     onClick={() => runAction(c.id, "sync")}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent)] disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-dim)] disabled:border disabled:border-[var(--border)]"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent)] disabled:border disabled:border-[var(--border)] disabled:bg-[var(--surface-2)] disabled:text-[var(--ink-dim)]"
                   >
                     {isSyncing ? (
                       <Loader2 className="h-[15px] w-[15px] animate-spin" />
                     ) : (
                       <RefreshCw className="h-[15px] w-[15px]" />
                     )}
-                    {isSyncing ? "同步中..." : "拉取同步并重建双链"}
+                    {isSyncing ? "同步中..." : "拉取同步并入库"}
                   </button>
                 </div>
+
+                {/* Post-Sync Clear Next Step Actions */}
+                {fb?.ok && syncCompletedId === c.id && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--emerald)]/35 bg-[var(--emerald-soft)]/50 px-3.5 py-2.5 text-xs">
+                    <span className="font-medium text-[var(--emerald)]">
+                      同步完成！你可以继续去其他平台拉取，或直接进入下一步。
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSyncCompletedId(null);
+                          setSelectedId(null);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        返回选择其他平台
+                      </button>
+                      {isOnboardingMode ? (
+                        <Link
+                          href="/"
+                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 font-semibold text-white transition hover:bg-[var(--accent)]"
+                        >
+                          回到初始导入页去织脉
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/vault?view=graph"
+                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-strong)] px-3 py-1.5 font-semibold text-white transition hover:bg-[var(--accent)]"
+                        >
+                          查看双链星图
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
-      </div>
-
-      {/* 3 Login-Walled Mainstream Platforms: Xueqiu / Youdao / Evernote */}
-      <div className="scifi-card rounded-xl p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-strong)]">
-            <Bookmark className="h-[17px] w-[17px] text-[var(--emerald)]" />
-            雪球 / 印象笔记 / 微信公众号（推荐：富文本粘贴 · URL 抓取 · 浏览器一键剪藏）
           </div>
-          <Link
-            href="/vault?import=cloud"
-            className="text-xs font-medium text-[var(--cyan)] hover:underline"
-          >
-            立即使用粘贴 / 剪藏工具 →
-          </Link>
         </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {CLIP_PLATFORMS.map((item) => (
-            <div
-              key={item.name}
-              className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)]/85 p-3.5"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[var(--ink)]">{item.name}</span>
-                <span className="rounded bg-[var(--emerald-soft)] px-1.5 py-0.5 text-[10px] text-[var(--emerald)]">
-                  {item.badge}
-                </span>
-              </div>
-              <p className="mt-2 text-[11px] leading-5 text-[var(--ink-muted)]">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

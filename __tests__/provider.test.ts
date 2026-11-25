@@ -27,6 +27,14 @@ describe("provider URL validation & OpenAI base URL normalization", () => {
       ["https://dashscope.aliyuncs.com/compatible-mode/v1", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"],
       ["https://ark.cn-beijing.volces.com/api/v3", "https://ark.cn-beijing.volces.com/api/v3/chat/completions"],
       ["https://open.bigmodel.cn/api/paas/v4", "https://open.bigmodel.cn/api/paas/v4/chat/completions"],
+      ["https://open.bigmodel.cn/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions"],
+      ["https://api.z.ai/api/coding/paas/v4", "https://api.z.ai/api/coding/paas/v4/chat/completions"],
+      ["https://api.hunyuan.cloud.tencent.com/v1", "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"],
+      ["https://api.lkeap.cloud.tencent.com/v1", "https://api.lkeap.cloud.tencent.com/v1/chat/completions"],
+      ["https://api.modelarts-maas.com/v1", "https://api.modelarts-maas.com/v1/chat/completions"],
+      ["https://api.modelarts-maas.com/openai/v1", "https://api.modelarts-maas.com/openai/v1/chat/completions"],
+      ["https://qianfan.baidubce.com/v2", "https://qianfan.baidubce.com/v2/chat/completions"],
+      ["https://api.moonshot.cn/v1", "https://api.moonshot.cn/v1/chat/completions"],
       ["https://generativelanguage.googleapis.com/v1beta/openai", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"],
     ];
     for (const [input, expected] of cases) {

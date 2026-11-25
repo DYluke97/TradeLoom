@@ -39,6 +39,9 @@ Get-ChildItem (Join-Path $repoRoot ".next") | Where-Object { $_.Name -notin @("c
 }
 Copy-Item (Join-Path $repoRoot "skills") "$appDir\skills" -Recurse -Force
 Copy-Item (Join-Path $repoRoot "samples") "$appDir\samples" -Recurse -Force
+New-Item -ItemType Directory -Force -Path "$appDir\scripts", "$appDir\docs\tradeloom-agent-skill" | Out-Null
+Copy-Item (Join-Path $repoRoot "scripts\tradeloom-mcp-server.mjs") "$appDir\scripts\tradeloom-mcp-server.mjs" -Force
+Copy-Item (Join-Path $repoRoot "docs\tradeloom-agent-skill\SKILL.md") "$appDir\docs\tradeloom-agent-skill\SKILL.md" -Force
 Copy-Item (Join-Path $repoRoot "scripts\portable-templates\next.config.mjs") "$appDir\next.config.mjs" -Force
 Copy-Item (Join-Path $repoRoot "scripts\portable-templates\app-server.js") "$appDir\server.js" -Force
 

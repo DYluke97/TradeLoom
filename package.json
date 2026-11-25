@@ -1,6 +1,6 @@
 {
   "name": "tradeloom",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Weave scattered trading reviews into an Obsidian bi-directional vault, methodology evolution timeline, and personal trading playbook.",
   "license": "MIT",
   "private": false,
@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "mcp": "node ./scripts/tradeloom-mcp-server.mjs",
     "pack:win": "powershell -ExecutionPolicy Bypass -File ./scripts/build-portable-win.ps1"
   },
   "dependencies": {

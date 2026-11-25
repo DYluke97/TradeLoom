@@ -1,122 +1,169 @@
 @import "tailwindcss";
 
-:root,
-[data-theme="light"] {
-  color-scheme: light;
-  /* Editorial Minimal Light — Warm Alabaster Paper & Calm Mineral Slate */
-  --bg: #f7f6f3;
-  --bg-deep: #efeee9;
-  --surface: #ffffff;
-  --surface-2: #f4f3ef;
-  --surface-3: #e8e6df;
-  --border: rgba(24, 24, 27, 0.085);
-  --border-strong: rgba(24, 24, 27, 0.16);
+/* Swiss / Orca Architectural Geometry & Fine-Stroke Typography System */
+@theme {
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
+  --radius-3xl: 5px;
 
-  /* Comfortable Long-Reading Ink Hierarchy (Softened Icons, Crisp Text) */
-  --ink-strong: #1f2328;
-  --ink: #32373e;
-  --ink-muted: #5c636e;
-  --ink-dim: #8a909b;
-
-  /* Calm Institutional Mineral Slate-Blue (Zero Loud Royal Blue / Zero Neon) */
-  --accent: #2d5f8b;
-  --accent-strong: #264f73;
-  --accent-soft: rgba(45, 95, 139, 0.085);
-
-  /* Low-Saturation Editorial Semantic Tokens */
-  --cyan: #2d5f8b;
-  --cyan-soft: rgba(45, 95, 139, 0.085);
-  --emerald: #217a56;
-  --emerald-soft: rgba(33, 122, 86, 0.085);
-  --amber: #b86b14;
-  --amber-soft: rgba(184, 107, 20, 0.095);
-  --rose: #b83b4a;
-  --rose-soft: rgba(184, 59, 74, 0.085);
-
-  /* Surfaces, Overlays & Subtle Physical Elevation */
-  --overlay: rgba(24, 24, 27, 0.34);
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.035), 0 4px 12px -4px rgba(15, 23, 42, 0.045);
-  --shadow-modal: 0 20px 50px -12px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.06);
-
-  /* Charts */
-  --chart-bg: #fafaf8;
-  --chart-grid: rgba(24, 24, 27, 0.075);
-  --chart-axis: #6b7280;
-
-  /* Crisp Knowledge Graph Palette (High Clarity on Light Paper) */
-  --graph-bg: #fafaf7;
-  --graph-dot: rgba(15, 23, 42, 0.085);
-  --graph-edge: rgba(71, 85, 105, 0.3);
-  --graph-edge-structural: rgba(71, 85, 105, 0.46);
-  --graph-edge-active: #2563eb;
-  --graph-ring: rgba(71, 85, 105, 0.24);
-  --graph-label: #334155;
-  --graph-label-strong: #0f172a;
-  --graph-node-overview: #2d5f8b;
-  --graph-node-card: #475569;
-  --graph-node-topic: #0d9488;
-  --graph-node-timeline: #d97706;
-  --graph-node-manual: #16a34a;
-  --code-accent: #9a5b13;
+  /* Fine weight scale — prevents Windows YaHei from snapping to chunky 700 bold */
+  --font-weight-light: 300;
+  --font-weight-normal: 300;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 500;
+  --font-weight-extrabold: 500;
 }
 
+:root,
 [data-theme="dark"] {
   color-scheme: dark;
-  /* Calm Low-Glare Charcoal Dark — Matte Graphite */
-  --bg: #151619;
-  --bg-deep: #101114;
-  --surface: #1c1d22;
-  --surface-2: #24262d;
-  --surface-3: #2e313b;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  /* Obsidian Institutional Terminal — 3-Tier Depth & Crisp Hairlines */
+  --bg: #0b0d12;
+  --bg-deep: #07090d;
+  --surface: #11141c;
+  --surface-2: #171b25;
+  --surface-3: #202634;
+  --border: rgba(226, 232, 240, 0.095);
+  --border-strong: rgba(226, 232, 240, 0.19);
 
-  /* Soft Off-White Ink — Zero Glare */
-  --ink-strong: #eceef2;
-  --ink: #d4d7df;
-  --ink-muted: #969ba8;
-  --ink-dim: #737887;
+  /* Crisp Fine-Stroke Typography Hierarchy (Higher clarity for light weights) */
+  --ink-strong: #f4f6fa;
+  --ink: #dce3ee;
+  --ink-muted: #96a2b6;
+  --ink-dim: #687388;
 
-  /* Soft Slate-Blue Accent */
-  --accent: #7aa6d6;
-  --accent-strong: #3a648f;
-  --accent-soft: rgba(122, 166, 214, 0.14);
+  /* 4-Channel Separated Semantic Palette (Reviews / Concepts / Ledger / Manuals) */
+  --accent: #5b9bff;
+  --accent-strong: #2f6ee5;
+  --accent-soft: rgba(91, 155, 255, 0.13);
 
-  /* Calm Dark-Mode Semantics */
-  --cyan: #7aa6d6;
-  --cyan-soft: rgba(122, 166, 214, 0.14);
-  --emerald: #52b489;
-  --emerald-soft: rgba(82, 180, 137, 0.13);
-  --amber: #d99b43;
-  --amber-soft: rgba(217, 155, 67, 0.13);
-  --rose: #df6d7c;
-  --rose-soft: rgba(223, 109, 124, 0.13);
+  --cyan: #2dd4bf;
+  --cyan-soft: rgba(45, 212, 191, 0.12);
+  --emerald: #34d399;
+  --emerald-soft: rgba(52, 211, 153, 0.12);
+  --amber: #f5a623;
+  --amber-soft: rgba(245, 166, 35, 0.13);
+  --rose: #f46373;
+  --rose-soft: rgba(244, 99, 115, 0.13);
 
-  /* Surfaces, Overlays & Elevation */
-  --overlay: rgba(0, 0, 0, 0.62);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 20px -12px rgba(0, 0, 0, 0.45);
-  --shadow-modal: 0 24px 60px -12px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Tight Architectural Shadows & Frosted Glass */
+  --overlay: rgba(4, 6, 10, 0.72);
+  --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.38);
+  --shadow-modal: 0 20px 48px -16px rgba(0, 0, 0, 0.82), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(12, 15, 22, 0.84);
+  --glass-border: rgba(226, 232, 240, 0.13);
+  --viewport-glow: radial-gradient(820px 340px at 50% -14%, rgba(91, 155, 255, 0.06), transparent 68%);
 
   /* Charts */
-  --chart-bg: #14151a;
-  --chart-grid: rgba(255, 255, 255, 0.07);
-  --chart-axis: #8b91a0;
+  --chart-bg: #0e1118;
+  --chart-grid: rgba(226, 232, 240, 0.065);
+  --chart-axis: #7d889c;
 
-  /* Crisp Knowledge Graph Palette (Dark Mode) */
-  --graph-bg: #131418;
-  --graph-dot: rgba(255, 255, 255, 0.07);
-  --graph-edge: rgba(148, 163, 184, 0.26);
-  --graph-edge-structural: rgba(148, 163, 184, 0.44);
-  --graph-edge-active: #7aa6d6;
-  --graph-ring: rgba(148, 163, 184, 0.22);
+  /* Luminous Constellation Knowledge Graph Palette */
+  --graph-bg: #080a0f;
+  --graph-dot: rgba(148, 163, 184, 0.11);
+  --graph-edge: rgba(148, 163, 184, 0.22);
+  --graph-edge-structural: rgba(148, 163, 184, 0.42);
+  --graph-edge-active: #5b9bff;
+  --graph-ring: rgba(148, 163, 184, 0.18);
   --graph-label: #cbd5e1;
-  --graph-label-strong: #f1f5f9;
-  --graph-node-overview: #7aa6d6;
+  --graph-label-strong: #f8fafc;
+  --graph-node-overview: #5b9bff;
   --graph-node-card: #94a3b8;
   --graph-node-topic: #2dd4bf;
-  --graph-node-timeline: #f59e0b;
-  --graph-node-manual: #4ade80;
-  --code-accent: #d99b43;
+  --graph-node-timeline: #f5a623;
+  --graph-node-manual: #34d399;
+  --code-accent: #f5a623;
+
+  /* Signature Surface & Loom Hero Canvas Tokens */
+  --hero-bg: #0d1017;
+  --hero-grid: rgba(148, 163, 184, 0.075);
+  --hero-glow: rgba(91, 155, 255, 0.17);
+  --hero-border: rgba(226, 232, 240, 0.12);
+  --hero-curve: #5b9bff;
+  --hero-curve-soft: rgba(91, 155, 255, 0.18);
+  --hero-review-pin: #5b9bff;
+  --hero-trade-pin: #f5a623;
+  --surface-elevated: rgba(18, 22, 31, 0.84);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  /* Editorial Paper Research Desk — High Clarity & Distinct Depth */
+  --bg: #f1efe9;
+  --bg-deep: #e7e4dc;
+  --surface: #ffffff;
+  --surface-2: #f6f4ef;
+  --surface-3: #e9e6de;
+  --border: rgba(15, 23, 42, 0.09);
+  --border-strong: rgba(15, 23, 42, 0.17);
+
+  /* Crisp Institutional Ink Hierarchy */
+  --ink-strong: #12161d;
+  --ink: #262d38;
+  --ink-muted: #596374;
+  --ink-dim: #7f899b;
+
+  /* 4-Channel Separated Editorial Palette */
+  --accent: #235789;
+  --accent-strong: #1b456d;
+  --accent-soft: rgba(35, 87, 137, 0.09);
+
+  --cyan: #0f766e;
+  --cyan-soft: rgba(15, 118, 110, 0.09);
+  --emerald: #15803d;
+  --emerald-soft: rgba(21, 128, 61, 0.09);
+  --amber: #b4690e;
+  --amber-soft: rgba(180, 105, 14, 0.1);
+  --rose: #be3144;
+  --rose-soft: rgba(190, 49, 68, 0.09);
+
+  /* Crisp Elevation & Translucent Light Chrome */
+  --overlay: rgba(15, 23, 42, 0.36);
+  --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-modal: 0 18px 44px -14px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --viewport-glow: radial-gradient(820px 320px at 50% -14%, rgba(35, 87, 137, 0.045), transparent 68%);
+
+  /* Charts */
+  --chart-bg: #faf9f6;
+  --chart-grid: rgba(15, 23, 42, 0.075);
+  --chart-axis: #64748b;
+
+  /* Crisp Knowledge Graph Palette (Light Paper) */
+  --graph-bg: #f8f7f3;
+  --graph-dot: rgba(15, 23, 42, 0.095);
+  --graph-edge: rgba(71, 85, 105, 0.28);
+  --graph-edge-structural: rgba(71, 85, 105, 0.46);
+  --graph-edge-active: #235789;
+  --graph-ring: rgba(71, 85, 105, 0.22);
+  --graph-label: #334155;
+  --graph-label-strong: #0f172a;
+  --graph-node-overview: #235789;
+  --graph-node-card: #475569;
+  --graph-node-topic: #0f766e;
+  --graph-node-timeline: #c27803;
+  --graph-node-manual: #15803d;
+  --code-accent: #9a5b13;
+
+  /* Signature Surface & Loom Hero Canvas Tokens */
+  --hero-bg: #faf9f5;
+  --hero-grid: rgba(15, 23, 42, 0.075);
+  --hero-glow: rgba(35, 87, 137, 0.11);
+  --hero-border: rgba(15, 23, 42, 0.12);
+  --hero-curve: #235789;
+  --hero-curve-soft: rgba(35, 87, 137, 0.14);
+  --hero-review-pin: #235789;
+  --hero-trade-pin: #b4690e;
+  --surface-elevated: rgba(255, 255, 255, 0.9);
 }
 
 @layer base {
@@ -130,9 +177,25 @@
     padding: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-family: "Segoe UI Variable Text", "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.012em;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  strong,
+  b {
+    font-weight: 500;
   }
 
   a {
@@ -142,14 +205,26 @@
 
   code,
   pre {
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-weight: 300;
   }
 }
 
-/* Quiet minimal scrollbars */
+/* Sharpen puffy pill badges/chips into crisp 2px architectural tags while keeping tiny status dots & swatches circular */
+.rounded-full[class*="px-"] {
+  border-radius: 2px !important;
+}
+
+/* Quantitative Tabular Numerals for KPIs, Prices & Dates */
+.font-mono,
+.tl-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quiet minimal sharp scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -158,31 +233,195 @@
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 999px;
+  border-radius: 1px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--ink-dim);
 }
 
-/* Clean Architectural Dot-Grid Canvas for Graph View */
+/* Precision Constellation Dot-Grid Canvas */
 .obsidian-graph-bg {
   background-color: var(--graph-bg);
-  background-image: radial-gradient(var(--graph-dot) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: 0 0;
+  background-image:
+    radial-gradient(640px 420px at 50% 48%, var(--hero-glow), transparent 72%),
+    radial-gradient(var(--graph-dot) 1px, transparent 1px);
+  background-size: 100% 100%, 24px 24px;
+  background-position: 0 0, 0 0;
 }
 
-/* Calm Matte Viewport Background */
+/* Institutional Viewport Background with Subtle Focal Depth */
 .scifi-viewport-bg {
   background-color: var(--bg);
+  background-image: var(--viewport-glow);
+  background-repeat: no-repeat;
 }
 
-/* Clean Editorial Surface Card */
+/* Elevated Surface Card with Specular Top Hairline */
 .scifi-card {
   background-color: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--card-inset), var(--shadow-card);
+}
+
+.tl-card-interactive {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-inset), var(--shadow-card);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tl-card-interactive:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+/* Translucent Frosted Shell Chrome */
+.tl-shell-chrome {
+  background-color: var(--glass-bg);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Floating Glass HUD for Full-Bleed Constellation & Drawers */
+.tl-glass-hud {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--card-inset), var(--shadow-modal);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.tl-hero-canvas {
+  background-color: var(--hero-bg);
+  background-image: radial-gradient(var(--hero-grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+  border: 1px solid var(--hero-border);
+  box-shadow: var(--card-inset), var(--shadow-card);
+}
+
+.tl-surface-elevated {
+  background-color: var(--surface-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-inset), var(--shadow-card);
+  backdrop-filter: blur(10px);
+}
+
+/* === Brand Entrance, Constellation Bloom & App Choreography Motion === */
+@keyframes tl-draw-stroke {
+  from {
+    stroke-dashoffset: var(--dash-len, 220);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tl-node-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tl-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tl-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tl-graph-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.955);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tl-pulse-ring {
+  0%, 100% {
+    opacity: 0.28;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.62;
+    transform: scale(1.06);
+  }
+}
+
+.tl-draw-stroke {
+  stroke-dasharray: var(--dash-len, 220);
+  stroke-dashoffset: var(--dash-len, 220);
+  animation: tl-draw-stroke 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tl-node-pop {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tl-node-pop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tl-fade-up {
+  opacity: 0;
+  animation: tl-fade-up 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tl-drawer-in {
+  animation: tl-drawer-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tl-graph-bloom {
+  transform-origin: center;
+  animation: tl-graph-bloom 0.58s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.tl-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tl-pulse-ring 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-draw-stroke,
+  .tl-node-pop,
+  .tl-fade-up,
+  .tl-drawer-in,
+  .tl-graph-bloom,
+  .tl-pulse-ring {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
 }
 
 @keyframes energy-flow {

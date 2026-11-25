@@ -10,8 +10,14 @@ import { rebuildVault } from "./vault";
 import type { VaultDoc } from "./vault-builder";
 import { ensureWorkspace, fileExists, getWorkspacePaths, insideRoot, writeAtomic } from "./workspace";
 
-export const MAX_OUTBOUND_CHARS = 80_000;
-export const MAX_SELECTED_DOCS = 300;
+export const MAX_OUTBOUND_CHARS = 500_000;
+export const MAX_OUTBOUND_CHARS_CEILING = 3_000_000;
+export const MAX_SELECTED_DOCS = 1_500;
+
+export function clampOutboundLimit(raw?: number | null): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return MAX_OUTBOUND_CHARS;
+  return Math.min(MAX_OUTBOUND_CHARS_CEILING, Math.max(20_000, Math.floor(raw)));
+}
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
@@ -647,10 +653,11 @@ export function buildSynthesisPrompt(args: {
     userLines.push(d.body);
     userLines.push("");
   }
+  const snippetCap = args.evidence.length > 150 ? 80 : 130;
   userLines.push("===== 证据目录（evidence_ids 只能填以下 ID）=====");
   for (const e of args.evidence) {
     userLines.push(
-      `${e.evidence_id} | 日期=${e.event_date ?? "未知"}${e.page ? ` 第${e.page}页` : ""} | 《${e.title}》：${e.quote.slice(0, 140)}`,
+      `${e.evidence_id} | 日期=${e.event_date ?? "未知"}${e.page ? ` 第${e.page}页` : ""} | 《${e.title}》：${e.quote.slice(0, snippetCap)}`,
     );
   }
 
@@ -667,6 +674,89 @@ function normalizeLifecycle(raw: unknown): RuleLifecycle {
   return "validated";
 }
 
+const ANSI_STRIP_RE = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
+
+function extractSynthesisJsonObject(rawText: string): Record<string, unknown> | null {
+  const cleaned = rawText.replace(ANSI_STRIP_RE, "").trim();
+  if (!cleaned) return null;
+
+  const tryParseObj = (candidate: string): Record<string, unknown> | null => {
+    try {
+      const val = JSON.parse(candidate);
+      if (val && typeof val === "object" && !Array.isArray(val)) {
+        return val as Record<string, unknown>;
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+
+  const looksLikeSynthesis = (o: Record<string, unknown>) =>
+    "manual" in o || "method_manual" in o || "timeline" in o || "overview" in o;
+
+  // 1. Direct JSON object
+  const direct = tryParseObj(cleaned);
+  if (direct && looksLikeSynthesis(direct)) return direct;
+
+  // 2. Markdown ```json ... ``` fenced blocks
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let fenceMatch: RegExpExecArray | null;
+  let bestFallback: Record<string, unknown> | null = direct;
+  while ((fenceMatch = fenceRe.exec(cleaned)) !== null) {
+    const obj = tryParseObj(fenceMatch[1].trim());
+    if (obj) {
+      if (looksLikeSynthesis(obj)) return obj;
+      if (!bestFallback) bestFallback = obj;
+    }
+  }
+
+  // 3. Scan balanced top-level `{ ... }` candidates inside mixed agent/web output
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let start = -1;
+  const candidates: Record<string, unknown>[] = [];
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        const obj = tryParseObj(cleaned.slice(start, i + 1));
+        if (obj) {
+          if (looksLikeSynthesis(obj)) return obj;
+          candidates.push(obj);
+        }
+        start = -1;
+      } else if (depth < 0) {
+        depth = 0;
+        start = -1;
+      }
+    }
+  }
+
+  if (candidates.length > 0) return candidates[candidates.length - 1];
+  if (bestFallback) return bestFallback;
+
+  // 4. Legacy greedy fallback
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    return tryParseObj(match[0]);
+  }
+  return null;
+}
+
 export function parseSynthesisResponse(
   rawText: string,
   evidenceCatalog: EvidenceSlice[],
@@ -679,8 +769,9 @@ export function parseSynthesisResponse(
   warnings: string[];
   error?: string;
 } {
-  const match = rawText.match(/\{[\s\S]*\}/);
-  if (!match) {
+  const parsed = extractSynthesisJsonObject(rawText);
+  if (!parsed) {
+    const hasBrace = /\{[\s\S]*\}/.test(rawText);
     return {
       ok: false,
       overview: { summary: "", conditions: [], counterexamples: [] },
@@ -688,22 +779,7 @@ export function parseSynthesisResponse(
       manual: [],
       discipline_audit: [],
       warnings: [],
-      error: "模型输出中未找到合法 JSON 对象",
-    };
-  }
-
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(match[0]) as Record<string, unknown>;
-  } catch {
-    return {
-      ok: false,
-      overview: { summary: "", conditions: [], counterexamples: [] },
-      timeline: [],
-      manual: [],
-      discipline_audit: [],
-      warnings: [],
-      error: "模型返回的 JSON 解析失败",
+      error: hasBrace ? "模型返回的 JSON 解析失败，请确认粘贴了完整的 JSON 对象" : "模型输出中未找到合法 JSON 对象",
     };
   }
 
@@ -829,20 +905,25 @@ export function parseSynthesisResponse(
   return { ok: true, overview, timeline, manual, discipline_audit, warnings };
 }
 
-export async function runStageSynthesis(args: {
+type PreparedSynthesisBundle = {
+  snapshot: PrecheckSnapshot;
+  packedDocs: MaterializedDoc[];
+  evidence: EvidenceSlice[];
+  sourceMode: "docs" | "manuals" | "mixed";
+  quantBrief: PeriodQuantBrief | null;
+  skill: SkillSpec;
+  prompt: { system: string; user: string };
+};
+
+async function prepareSynthesisMaterials(args: {
   docs?: VaultDoc[];
   manualIds?: string[];
   skillId: string;
   stageTitle?: string;
   includeQuantAudit?: boolean;
-  signal?: AbortSignal;
+  maxChars?: number;
   onStage?: (ev: SynthesisStreamEvent) => void;
-}): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
-  const { config } = await loadProviderConfig();
-  if (!config) {
-    return { ok: false, status: 400, error: "尚未配置大模型 API，请先前往「设置」页面配置你的 API Key 与模型。" };
-  }
-
+}): Promise<{ ok: true; bundle: PreparedSynthesisBundle } | { ok: false; status: number; error: string }> {
   const rawDocs = args.docs ?? [];
   const rawManualIds = args.manualIds ?? [];
   args.onStage?.({
@@ -854,7 +935,8 @@ export async function runStageSynthesis(args: {
     rawManualIds.length > 0 ? materializeManuals(rawManualIds) : Promise.resolve([]),
   ]);
   const materialized = [...matDocs, ...matManuals];
-  const { snapshot, packedDocs, evidence } = buildPrecheck(materialized);
+  const limit = clampOutboundLimit(args.maxChars);
+  const { snapshot, packedDocs, evidence } = buildPrecheck(materialized, limit);
   if (packedDocs.length === 0) {
     return { ok: false, status: 400, error: "所选文档或阶段手册中没有可提取正文的条目，无法执行提炼。" };
   }
@@ -871,7 +953,7 @@ export async function runStageSynthesis(args: {
         );
 
   const skill = await getSkillById(args.skillId);
-  const { system, user } = buildSynthesisPrompt({
+  const prompt = buildSynthesisPrompt({
     docs: packedDocs,
     evidence,
     skill,
@@ -879,42 +961,26 @@ export async function runStageSynthesis(args: {
     quantBrief,
   });
 
-  args.onStage?.({
-    phase: "streaming",
-    message: `已装箱 ${packedDocs.length} 份材料（${snapshot.total_chars.toLocaleString()} 字 / ${evidence.length} 条证据），正在请求 ${config.model} 推演...`,
-    contentChars: 0,
-    reasoningChars: 0,
-  });
+  return {
+    ok: true,
+    bundle: { snapshot, packedDocs, evidence, sourceMode, quantBrief, skill, prompt },
+  };
+}
 
-  const llm = await callChatCompletion({
-    config,
-    system,
-    user,
-    jsonMode: true,
-    timeoutMs: 180_000,
-    signal: args.signal,
-    onProgress: args.onStage
-      ? ({ contentChars, reasoningChars }) =>
-          args.onStage?.({
-            phase: "streaming",
-            message:
-              reasoningChars > 0 && contentChars === 0
-                ? `模型深度思考中（已推演 ${reasoningChars.toLocaleString()} 字）...`
-                : `正在流式生成结构化交易手册（已输出 ${contentChars.toLocaleString()} 字）...`,
-            contentChars,
-            reasoningChars,
-          })
-      : undefined,
-  });
-  if (!llm.ok) {
-    return { ok: false, status: args.signal?.aborted ? 499 : 502, error: llm.error };
-  }
-
+async function verifyAndSaveSynthesisReport(args: {
+  rawContent: string;
+  modelLabel: string;
+  usage: { promptTokens: number | null; completionTokens: number | null };
+  bundle: PreparedSynthesisBundle;
+  stageTitle?: string;
+  onStage?: (ev: SynthesisStreamEvent) => void;
+}): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
+  const { snapshot, packedDocs, evidence, sourceMode, quantBrief, skill } = args.bundle;
   args.onStage?.({
     phase: "verifying",
     message: "正在逐字核验 evidence_id 证据回链并执行防幻觉清洗...",
   });
-  const parsed = parseSynthesisResponse(llm.content, evidence);
+  const parsed = parseSynthesisResponse(args.rawContent, evidence);
   if (!parsed.ok) {
     return { ok: false, status: 422, error: parsed.error ?? "模型输出校验失败" };
   }
@@ -941,7 +1007,7 @@ export async function runStageSynthesis(args: {
       (sourceMode === "manuals" ? `${rangeLabel} · 跨阶段总纲（Map-Reduce）` : `${rangeLabel} · ${skill.name}`),
     skill_id: skill.id,
     skill_name: skill.name,
-    model: llm.model,
+    model: args.modelLabel,
     source_mode: sourceMode,
     fingerprint: snapshot.fingerprint,
     date_range: snapshot.date_range,
@@ -964,7 +1030,7 @@ export async function runStageSynthesis(args: {
       multi_date_rules: parsed.manual.filter((m) => m.known_dates.length >= 2).length,
     },
     warnings: parsed.warnings,
-    usage: llm.usage,
+    usage: args.usage,
   };
 
   args.onStage?.({
@@ -977,6 +1043,160 @@ export async function runStageSynthesis(args: {
   await rebuildVault();
 
   return { ok: true, report };
+}
+
+/**
+ * Exports a self-contained zero-API prompt pack so users with ChatGPT / Claude / Gemini / Kimi / DeepSeek
+ * web subscriptions or external Agents can run synthesis without any API key, then paste the JSON back.
+ */
+export async function exportSynthesisPromptPack(args: {
+  docs?: VaultDoc[];
+  manualIds?: string[];
+  skillId: string;
+  stageTitle?: string;
+  includeQuantAudit?: boolean;
+  maxChars?: number;
+}): Promise<
+  | {
+      ok: true;
+      snapshot: PrecheckSnapshot;
+      quantBrief: PeriodQuantBrief | null;
+      skillId: string;
+      skillName: string;
+      system: string;
+      user: string;
+      promptText: string;
+      charCount: number;
+      evidenceCount: number;
+    }
+  | { ok: false; status: number; error: string }
+> {
+  const prep = await prepareSynthesisMaterials(args);
+  if (!prep.ok) return prep;
+  const { snapshot, evidence, quantBrief, skill, prompt } = prep.bundle;
+  const promptText = [
+    "【TradeLoom 免 API 交易方法论提炼任务包】",
+    "请严格按下方系统规则阅读复盘原文与证据目录，并仅输出一个合法的 JSON 对象（可放在 ```json 代码块中）。",
+    "完成后我将把你的 JSON 贴回 TradeLoom 进行逐字 evidence_id 核验并生成正式交易手册。",
+    "",
+    "================ 系统规则与输出契约 ================",
+    prompt.system,
+    "",
+    "================ 复盘原文与证据目录 ================",
+    prompt.user,
+    "",
+    "================ 最终输出提醒 ================",
+    "请现在直接输出严格合法的 JSON 对象，确保每条 timeline / manual / discipline_audit 的 evidence_ids 都严格来自上方证据目录，禁止编造。",
+  ].join("\n");
+
+  return {
+    ok: true,
+    snapshot,
+    quantBrief,
+    skillId: skill.id,
+    skillName: skill.name,
+    system: prompt.system,
+    user: prompt.user,
+    promptText,
+    charCount: promptText.length,
+    evidenceCount: evidence.length,
+  };
+}
+
+/**
+ * Verifies an externally generated JSON response (from a web subscription AI or external MCP Agent)
+ * against the deterministic local evidence catalog and saves it as a first-class TradeLoom manual.
+ */
+export async function importExternalSynthesisResult(args: {
+  docs?: VaultDoc[];
+  manualIds?: string[];
+  skillId: string;
+  stageTitle?: string;
+  includeQuantAudit?: boolean;
+  maxChars?: number;
+  rawResponse: string;
+  modelLabel?: string;
+}): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
+  if (!args.rawResponse.trim()) {
+    return { ok: false, status: 400, error: "请粘贴 AI / Agent 返回的 JSON 提炼结果" };
+  }
+  const prep = await prepareSynthesisMaterials(args);
+  if (!prep.ok) return prep;
+
+  return verifyAndSaveSynthesisReport({
+    rawContent: args.rawResponse,
+    modelLabel: args.modelLabel?.trim() || "external-ai-collab",
+    usage: { promptTokens: null, completionTokens: null },
+    bundle: prep.bundle,
+    stageTitle: args.stageTitle,
+  });
+}
+
+export async function runStageSynthesis(args: {
+  docs?: VaultDoc[];
+  manualIds?: string[];
+  skillId: string;
+  stageTitle?: string;
+  includeQuantAudit?: boolean;
+  maxChars?: number;
+  signal?: AbortSignal;
+  onStage?: (ev: SynthesisStreamEvent) => void;
+}): Promise<{ ok: true; report: SynthesisReport } | { ok: false; status: number; error: string }> {
+  const { config } = await loadProviderConfig();
+  if (!config) {
+    return {
+      ok: false,
+      status: 400,
+      error: "尚未配置 AI 引擎：可在「设置」直连本机 CLI Agent / 填 API Key，或直接切换「免 API 网页协作」模式。",
+    };
+  }
+
+  const prep = await prepareSynthesisMaterials(args);
+  if (!prep.ok) return prep;
+  const { snapshot, packedDocs, evidence, prompt } = prep.bundle;
+
+  const engineDisplay = config.mode === "cli" ? config.label || `本机 Agent (${config.cliAgentId})` : config.model;
+  args.onStage?.({
+    phase: "streaming",
+    message: `已装箱 ${packedDocs.length} 份材料（${snapshot.total_chars.toLocaleString()} 字 / ${evidence.length} 条证据），正在请求 ${engineDisplay} 推演...`,
+    contentChars: 0,
+    reasoningChars: 0,
+  });
+
+  const llm = await callChatCompletion({
+    config,
+    system: prompt.system,
+    user: prompt.user,
+    jsonMode: true,
+    timeoutMs: config.mode === "cli" ? 240_000 : 180_000,
+    signal: args.signal,
+    onProgress: args.onStage
+      ? ({ contentChars, reasoningChars }) =>
+          args.onStage?.({
+            phase: "streaming",
+            message:
+              reasoningChars > 0 && contentChars === 0
+                ? `模型深度思考中（已推演 ${reasoningChars.toLocaleString()} 字）...`
+                : config.mode === "cli"
+                  ? `本机 ${engineDisplay} 正在生成结构化交易手册（已输出 ${contentChars.toLocaleString()} 字）...`
+                  : `正在流式生成结构化交易手册（已输出 ${contentChars.toLocaleString()} 字）...`,
+            contentChars,
+            reasoningChars,
+          })
+      : undefined,
+  });
+  if (!llm.ok) {
+    return { ok: false, status: args.signal?.aborted ? 499 : 502, error: llm.error };
+  }
+
+  return verifyAndSaveSynthesisReport({
+    rawContent: llm.content,
+    modelLabel: llm.model,
+    usage: llm.usage,
+    bundle: prep.bundle,
+    stageTitle: args.stageTitle,
+    onStage: args.onStage,
+  });
 }
 
 export function exportReportToObsidianMarkdown(report: SynthesisReport): string {

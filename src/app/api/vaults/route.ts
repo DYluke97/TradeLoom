@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
         description: body.description,
         color: body.color,
         defaultSkillId: body.defaultSkillId,
+        externalSourceDir: body.externalSourceDir,
         skipLedgerStep: body.skipLedgerStep,
       });
       if (!res.ok) return NextResponse.json(res, { status: 400 });

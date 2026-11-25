@@ -9,6 +9,7 @@ import {
   Minimize2,
   Network,
   RotateCcw,
+  Search,
   SlidersHorizontal,
   Sparkles,
   X,
@@ -663,18 +664,43 @@ function buildGraphTopology(
   return { nodes, edges, guide, totalFiltered };
 }
 
+function curvedEdgePath(ax: number, ay: number, bx: number, by: number, seed: number): string {
+  const mx = (ax + bx) * 0.5;
+  const my = (ay + by) * 0.5;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 12) return `M ${ax.toFixed(1)} ${ay.toFixed(1)} L ${bx.toFixed(1)} ${by.toFixed(1)}`;
+  const bend = Math.min(24, dist * 0.085) * (seed % 2 === 0 ? 1 : -1);
+  const cx = mx - (dy / dist) * bend;
+  const cy = my + (dx / dist) * bend;
+  return `M ${ax.toFixed(1)} ${ay.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
+}
+
 export default function ObsidianGraph({
   index,
   activeRel,
   mode = "local",
   onSelectNode,
   onToggleExpand,
+  selectedRel,
+  onInspectNode,
+  immersive = false,
+  leftHeaderSlot,
+  rightPanelOpen = false,
+  bottomClearance = false,
 }: {
   index: VaultIndex | null;
   activeRel: string;
   mode?: "local" | "global";
   onSelectNode: (rel: string) => void;
   onToggleExpand?: () => void;
+  selectedRel?: string | null;
+  onInspectNode?: (rel: string | null) => void;
+  immersive?: boolean;
+  leftHeaderSlot?: React.ReactNode;
+  rightPanelOpen?: boolean;
+  bottomClearance?: boolean;
 }) {
   const width = mode === "global" ? 1180 : 300;
   const height = mode === "global" ? 900 : 245;
@@ -682,14 +708,16 @@ export default function ObsidianGraph({
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("orbital");
   const [densityMode, setDensityMode] = useState<GraphDensityMode>("skeleton");
   const [hoveredRel, setHoveredRel] = useState<string | null>(null);
-  const [lockedRel, setLockedRel] = useState<string | null>(null);
+  const [lockedRel, setLockedRel] = useState<string | null>(selectedRel ?? null);
   const [draggingRel, setDraggingRel] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<VaultNodeType | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [totalFiltered, setTotalFiltered] = useState(0);
   const userToggledLabelsRef = useRef(false);
   const userToggledDensityRef = useRef(false);
+  const lastClickRef = useRef<{ rel: string; at: number } | null>(null);
 
   // Tactile Damped Physics Controls
   const [archPull, setArchPull] = useState(mode === "global" ? 0.045 : 0.06);
@@ -735,11 +763,33 @@ export default function ObsidianGraph({
   // Esc key clears locked inspection state
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLockedRel(null);
+      if (e.key === "Escape") {
+        setLockedRel(null);
+        onInspectNode?.(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [onInspectNode]);
+
+  // Keep locked node synced when caller externally selects/clears a node (e.g. neighbor hopping from preview drawer)
+  useEffect(() => {
+    if (selectedRel === undefined) return;
+    setLockedRel(selectedRel);
+    if (!selectedRel) return;
+    const node = nodesRef.current.find((n) => n.rel === selectedRel);
+    if (!node) return;
+    setTransform((prev) => {
+      const targetK = Math.max(prev.k, 1.04);
+      const targetCenterX = rightPanelOpen ? width * 0.39 : width * 0.5;
+      const targetCenterY = height * 0.48;
+      return {
+        k: targetK,
+        x: targetCenterX - node.x * targetK,
+        y: targetCenterY - node.y * targetK,
+      };
+    });
+  }, [selectedRel, width, height, rightPanelOpen]);
 
   const startLoop = useCallback(() => {
     if (rafRef.current !== null) return;
@@ -1028,11 +1078,21 @@ export default function ObsidianGraph({
       setDraggingRel(null);
       startLoop();
 
-      // Two-step click behavior:
-      // 1st click -> lock & illuminate this node's connected structure (do NOT jump yet)
-      // 2nd click on ANY highlighted node in that illuminated cluster -> navigate to its detail page!
       if (!moved) {
-        if (lockedRel && lockedCluster?.has(rel)) {
+        if (onInspectNode) {
+          const now = Date.now();
+          const prevClick = lastClickRef.current;
+          if (prevClick && prevClick.rel === rel && now - prevClick.at < 360) {
+            lastClickRef.current = null;
+            onInspectNode(null);
+            setLockedRel(null);
+            onSelectNode(rel);
+          } else {
+            lastClickRef.current = { rel, at: now };
+            setLockedRel(rel);
+            onInspectNode(rel);
+          }
+        } else if (lockedRel && lockedCluster?.has(rel)) {
           setLockedRel(null);
           onSelectNode(rel);
         } else {
@@ -1043,6 +1103,7 @@ export default function ObsidianGraph({
       // Single click on empty background unlocks highlighted cluster
       if (!panRef.current.moved) {
         setLockedRel(null);
+        onInspectNode?.(null);
       }
       panRef.current = null;
     }
@@ -1070,6 +1131,8 @@ export default function ObsidianGraph({
 
   const resetArchitecture = () => {
     setLockedRel(null);
+    onInspectNode?.(null);
+    setSearchQuery("");
     setTransform(defaultTransform);
     for (const n of nodesRef.current) {
       n.fx = null;
@@ -1085,9 +1148,37 @@ export default function ObsidianGraph({
   const lockedNode = lockedRel ? nodeMap.get(lockedRel) ?? null : null;
   const lockedLinkStats = lockedRel ? index?.links[lockedRel] ?? { out: [], in: [] } : null;
 
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const matchedNodes = trimmedSearch
+    ? nodes.filter(
+        (n) =>
+          n.title.toLowerCase().includes(trimmedSearch) ||
+          n.rel.toLowerCase().includes(trimmedSearch),
+      )
+    : [];
+  const matchedSet = trimmedSearch ? new Set(matchedNodes.map((n) => n.rel)) : null;
+
+  const focusNodeInView = (rel: string) => {
+    const target = nodeMap.get(rel);
+    if (!target) return;
+    setLockedRel(rel);
+    onInspectNode?.(rel);
+    const targetK = Math.max(transformRef.current.k, 1.12);
+    const cx = rightPanelOpen || Boolean(onInspectNode) ? width * 0.39 : width * 0.5;
+    const cy = height * 0.48;
+    setTransform({
+      k: targetK,
+      x: cx - target.x * targetK,
+      y: cy - target.y * targetK,
+    });
+  };
+
+  const isImmersiveGlobal = immersive && mode === "global";
+
   return (
     <div className="flex h-full flex-col">
-      {/* Sci-Fi HUD Header Bar */}
+      {/* Compact Header Bar (Local Graph or non-immersive Global Graph only) */}
+      {!isImmersiveGlobal && (
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/90 px-3 py-2 backdrop-blur-md">
         <div className="flex items-center gap-2 text-xs font-medium text-[var(--ink)]">
           <span className="flex h-5 w-5 items-center justify-center rounded border border-[var(--cyan)]/40 bg-[var(--cyan-soft)] text-[var(--cyan)]">
@@ -1241,9 +1332,162 @@ export default function ObsidianGraph({
           )}
         </div>
       </div>
+      )}
 
-      {/* Interactive Sci-Fi Holographic Canvas */}
+      {/* Interactive Constellation Canvas */}
       <div className="obsidian-graph-bg relative flex-1 overflow-hidden">
+        {/* Immersive Floating Glass HUD: Top-Left (Directory Toggle + Pulse + Instant Node Search) */}
+        {isImmersiveGlobal && (
+          <div className="absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
+            {leftHeaderSlot}
+            <div className="tl-glass-hud flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-[var(--cyan)]">
+                <Network className="h-3.5 w-3.5" />
+                {mode === "global" && totalFiltered > nodes.length ? `${nodes.length}/${totalFiltered}` : nodes.length} 节点 · {edges.length} 双链
+              </span>
+              <span className="h-3.5 w-px bg-[var(--border-strong)]" />
+              <div className="relative flex items-center">
+                <Search className="pointer-events-none h-3.5 w-3.5 text-[var(--ink-dim)]" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && matchedNodes[0]) {
+                      e.preventDefault();
+                      focusNodeInView(matchedNodes[0].rel);
+                    }
+                  }}
+                  placeholder="定位节点 / 日期 / 概念..."
+                  className="w-36 bg-transparent pl-1.5 pr-4 text-[11px] text-[var(--ink-strong)] placeholder:text-[var(--ink-dim)] focus:w-48 focus:outline-none transition-all sm:w-44"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-0 text-[var(--ink-dim)] hover:text-[var(--ink-strong)]"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              {trimmedSearch && (
+                <span className="rounded bg-[var(--amber-soft)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--amber)]">
+                  {matchedNodes.length} 命中
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Immersive Floating Glass HUD: Top-Right (Layout / Density / Zoom / Physics — shifts smoothly when drawer opens) */}
+        {isImmersiveGlobal && (
+          <div
+            className={`tl-glass-hud absolute top-3 z-20 flex items-center gap-1 rounded-xl p-1 text-[11px] transition-all duration-200 ${
+              rightPanelOpen ? "right-[404px]" : "right-3"
+            }`}
+          >
+            <div className="inline-flex rounded-lg bg-[var(--bg-deep)]/75 p-0.5">
+              <button
+                type="button"
+                onClick={() => setLayoutMode("orbital")}
+                title="四环星轨布局"
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition ${
+                  layoutMode === "orbital"
+                    ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                    : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">星轨</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutMode("layered")}
+                title="四列演进泳道"
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition ${
+                  layoutMode === "layered"
+                    ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                    : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">泳道</span>
+              </button>
+            </div>
+
+            {filterType === "all" && (
+              <div className="hidden rounded-lg bg-[var(--bg-deep)]/75 p-0.5 sm:inline-flex">
+                <button
+                  type="button"
+                  onClick={() => {
+                    userToggledDensityRef.current = true;
+                    setDensityMode("skeleton");
+                  }}
+                  className={`rounded-md px-2 py-1 transition ${
+                    densityMode === "skeleton"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                      : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  骨架
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    userToggledDensityRef.current = true;
+                    setDensityMode("full");
+                  }}
+                  className={`rounded-md px-2 py-1 transition ${
+                    densityMode === "full"
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                      : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  全量
+                </button>
+              </div>
+            )}
+
+            <span className="mx-0.5 h-3.5 w-px bg-[var(--border-strong)]" />
+
+            <button
+              type="button"
+              onClick={() => zoomBy(1.2)}
+              title="放大"
+              className="rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomBy(0.84)}
+              title="缩小"
+              className="rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={resetArchitecture}
+              title="重置视角"
+              className="rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--cyan)]"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSettings((s) => !s)}
+              title="阻尼力场与标签参数"
+              className={`rounded-lg p-1.5 transition ${
+                showSettings
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+              }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         {nodes.length === 0 ? (
           <div className="flex h-full min-h-[180px] items-center justify-center text-xs text-[var(--ink-dim)]">
             暂无可绘制的双链关系节点
@@ -1277,17 +1521,20 @@ export default function ObsidianGraph({
                 </feMerge>
               </filter>
               <radialGradient id="core-nebula" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="rgba(168,130,255,0.22)" />
-                <stop offset="55%" stopColor="rgba(34,211,238,0.06)" />
-                <stop offset="100%" stopColor="rgba(6,8,14,0)" />
+                <stop offset="0%" stopColor="rgba(91,155,255,0.2)" />
+                <stop offset="52%" stopColor="rgba(45,212,191,0.08)" />
+                <stop offset="100%" stopColor="rgba(8,10,15,0)" />
               </radialGradient>
             </defs>
 
+            <g className={mode === "global" ? "tl-graph-bloom" : undefined}>
             <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
               {/* Ambient Holographic Orbital Architecture Guides */}
               {guide?.kind === "rings" && (
                 <g className="pointer-events-none">
-                  
+                  {mode === "global" && (
+                    <circle cx={guide.cx} cy={guide.cy} r={280} fill="url(#core-nebula)" opacity={0.85} />
+                  )}
                   {/* Subtle crosshairs */}
                   {mode === "global" && (
                     <g opacity={0.14} stroke="var(--border)" strokeWidth={0.7} strokeDasharray="3 8">
@@ -1361,23 +1608,21 @@ export default function ObsidianGraph({
                 </g>
               )}
 
-              {/* Neural Energy Edges */}
+              {/* Curved Gravitational Energy Edges */}
               <g>
                 {edges.map((e, i) => {
                   const a = nodeMap.get(e.from);
                   const b = nodeMap.get(e.to);
                   if (!a || !b) return null;
                   const highlighted = Boolean(focusRel && (e.from === focusRel || e.to === focusRel));
-                  const dimmed = Boolean(focusRel && !highlighted);
-                  const baseOpacity = e.structural ? 0.24 : 0.09;
+                  const dimmed = Boolean(focusRel && !highlighted) || Boolean(matchedSet && !matchedSet.has(e.from) && !matchedSet.has(e.to));
+                  const d = curvedEdgePath(a.x, a.y, b.x, b.y, i);
 
                   return (
                     <g key={`${e.from}-${e.to}-${i}`}>
-                      <line
-                        x1={a.x}
-                        y1={a.y}
-                        x2={b.x}
-                        y2={b.y}
+                      <path
+                        d={d}
+                        fill="none"
                         stroke={
                           highlighted
                             ? "var(--graph-edge-active)"
@@ -1389,20 +1634,16 @@ export default function ObsidianGraph({
                                   ? "var(--graph-edge-structural)"
                                   : "var(--graph-edge)"
                         }
-                        strokeWidth={(highlighted ? 2.2 : e.structural ? 1.35 : 0.85) / Math.sqrt(transform.k)}
-                        opacity={dimmed ? 0.06 : highlighted ? 0.95 : e.structural ? 0.72 : 0.16}
-                        
+                        strokeWidth={(highlighted ? 2.15 : e.structural ? 1.3 : 0.85) / Math.sqrt(transform.k)}
+                        opacity={dimmed ? 0.06 : highlighted ? 0.92 : e.structural ? 0.65 : 0.16}
                       />
-                      {/* Animated neon energy pulse along highlighted links */}
                       {highlighted && (
-                        <line
-                          x1={a.x}
-                          y1={a.y}
-                          x2={b.x}
-                          y2={b.y}
-                          stroke="var(--graph-edge-active)"
-                          strokeWidth={1.6 / Math.sqrt(transform.k)}
-                          opacity={0.95}
+                        <path
+                          d={d}
+                          fill="none"
+                          stroke="var(--cyan)"
+                          strokeWidth={1.65 / Math.sqrt(transform.k)}
+                          opacity={0.9}
                           className="graph-energy-edge pointer-events-none"
                         />
                       )}
@@ -1417,7 +1658,14 @@ export default function ObsidianGraph({
                   const isLockedAnchor = lockedRel === n.rel;
                   const isInLockedSubgraph = Boolean(lockedCluster?.has(n.rel));
                   const isFocused = focusRel === n.rel;
-                  const dimmed = Boolean(connectedToFocus && !connectedToFocus.has(n.rel));
+                  const isSearchHit = Boolean(matchedSet?.has(n.rel));
+                  const isHub =
+                    n.nodeType === "overview" ||
+                    n.nodeType === "manual" ||
+                    (n.nodeType === "topic" && n.degree >= 3);
+                  const dimmed =
+                    (Boolean(connectedToFocus) && !connectedToFocus!.has(n.rel)) ||
+                    (Boolean(matchedSet) && !isSearchHit);
                   const fill = n.isCenter ? "var(--graph-node-overview)" : NODE_COLORS[n.nodeType];
                   const glow = n.isCenter ? NODE_GLOW.overview : NODE_GLOW[n.nodeType];
 
@@ -1426,7 +1674,8 @@ export default function ObsidianGraph({
                     n.isCenter ||
                     isFocused ||
                     isInLockedSubgraph ||
-                    transform.k >= 1.25 ||
+                    isSearchHit ||
+                    transform.k >= 1.28 ||
                     (mode === "local"
                       ? nodes.length <= 14
                       : nodes.length > 42
@@ -1447,22 +1696,39 @@ export default function ObsidianGraph({
                       className="cursor-pointer"
                       opacity={dimmed ? 0.14 : 1}
                     >
-                      {/* Pulsing Sci-Fi Lock Target Reticle */}
+                      {/* Search Hit Ring */}
+                      {isSearchHit && (
+                        <circle
+                          r={n.r + 10}
+                          fill="none"
+                          stroke="var(--amber)"
+                          strokeWidth={1.6}
+                          strokeDasharray="4 3"
+                          className="pointer-events-none"
+                        />
+                      )}
+
+                      {/* Subtle Luminous Halo on Hub Nodes */}
+                      {isHub && !isLockedAnchor && (
+                        <circle r={n.r + 7.5} fill={glow} opacity={0.34} className="pointer-events-none" />
+                      )}
+
+                      {/* Pulsing Lock Target Reticle */}
                       {isLockedAnchor && (
                         <g className="pointer-events-none">
                           <circle
-                            r={n.r + 12}
+                            r={n.r + 13}
                             fill="none"
-                            stroke="var(--graph-edge-active)"
-                            strokeWidth={1.3}
+                            stroke="var(--cyan)"
+                            strokeWidth={1.4}
                             strokeDasharray="5 4"
-                            
+                            className="tl-pulse-ring"
                           />
-                          <circle r={n.r + 7} fill={glow} opacity={0.38} />
+                          <circle r={n.r + 8} fill={glow} opacity={0.44} />
                         </g>
                       )}
 
-                      {/* Highlighted neighbor ring (clickable to enter detail!) */}
+                      {/* Highlighted neighbor ring */}
                       {!isLockedAnchor && isInLockedSubgraph && (
                         <circle
                           r={n.r + 5.5}
@@ -1474,33 +1740,37 @@ export default function ObsidianGraph({
                         />
                       )}
 
-                      {/* Ambient neon aura */}
+                      {/* Ambient aura on hover/focus */}
                       {(n.isCenter || isFocused || isInLockedSubgraph) && (
-                        <circle r={n.r + 5} fill={glow} opacity={0.3} className="pointer-events-none" />
+                        <circle r={n.r + 5.5} fill={glow} opacity={0.34} className="pointer-events-none" />
                       )}
 
                       {/* Core Node Sphere */}
                       <circle
-                        r={isLockedAnchor ? n.r + 3.5 : isFocused ? n.r + 2.6 : n.r + 1.8}
+                        r={isLockedAnchor ? n.r + 3.5 : isFocused ? n.r + 2.6 : isHub ? n.r + 2.1 : n.r + 1.6}
                         fill={fill}
-                        stroke={isLockedAnchor ? "var(--graph-edge-active)" : "var(--graph-bg)"}
-                        strokeWidth={isLockedAnchor ? 2.5 : 2}
-                        
+                        stroke={isLockedAnchor ? "var(--cyan)" : "var(--graph-bg)"}
+                        strokeWidth={isLockedAnchor ? 2.4 : 1.8}
                       />
-
-                      {/* Specular Inner Core Dot */}
-                      
 
                       {showLabel && (
                         <text
-                          y={n.r + (mode === "global" ? 16.5 : 13.5)}
+                          y={n.r + (mode === "global" ? 17 : 13.5)}
                           textAnchor="middle"
-                          fill={isLockedAnchor ? "var(--graph-edge-active)" : isFocused || isInLockedSubgraph || n.isCenter ? "var(--graph-label-strong)" : "var(--graph-label)"}
-                          fontSize={(mode === "global" ? 11.8 : 10.0) / Math.pow(transform.k, 0.35)}
-                          fontWeight={isLockedAnchor || isFocused || n.isCenter ? 600 : 500}
+                          fill={
+                            isLockedAnchor
+                              ? "var(--cyan)"
+                              : isSearchHit
+                                ? "var(--amber)"
+                                : isFocused || isInLockedSubgraph || n.isCenter
+                                  ? "var(--graph-label-strong)"
+                                  : "var(--graph-label)"
+                          }
+                          fontSize={(mode === "global" ? 11.4 : 9.8) / Math.pow(transform.k, 0.35)}
+                          fontWeight={isLockedAnchor || isFocused || n.isCenter || isSearchHit ? 500 : 300}
                           paintOrder="stroke"
                           stroke="var(--graph-bg)"
-                          strokeWidth={4.2}
+                          strokeWidth={3.6}
                           strokeLinejoin="round"
                           className="pointer-events-none"
                         >
@@ -1512,11 +1782,12 @@ export default function ObsidianGraph({
                 })}
               </g>
             </g>
+            </g>
           </svg>
         )}
 
-        {/* Holographic Locked-Node HUD Inspector (2-step click feedback!) */}
-        {lockedNode && (
+        {/* Legacy Mini Locked-Node HUD (Only when caller does NOT provide a Slide-Over Preview Drawer) */}
+        {lockedNode && !onInspectNode && (
           <div className="absolute left-3 top-3 max-w-[300px] rounded-lg border border-[var(--cyan)]/45 bg-[var(--bg-deep)] p-3 text-xs backdrop-blur-md">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -1566,7 +1837,15 @@ export default function ObsidianGraph({
 
         {/* Damped Push-Pull Physics Tuning Popover */}
         {mode === "global" && showSettings && (
-          <div className="absolute right-3 top-3 w-60 space-y-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-deep)] p-3.5 text-xs backdrop-blur-md">
+          <div
+            className={`tl-glass-hud absolute z-30 w-60 space-y-3 rounded-xl p-3.5 text-xs ${
+              isImmersiveGlobal
+                ? rightPanelOpen
+                  ? "right-[404px] top-14"
+                  : "right-3 top-14"
+                : "right-3 top-3"
+            }`}
+          >
             <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
               <span className="inline-flex items-center gap-1.5">
                 <Sparkles className="h-[15px] w-[15px] text-[var(--cyan)]" />
@@ -1647,24 +1926,63 @@ export default function ObsidianGraph({
           </div>
         )}
 
-        {/* Bottom HUD Legend & 2-Step Gesture Guide */}
-        <div className="pointer-events-none absolute bottom-2 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2.5 rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
-            {(["overview", "card", "topic", "timeline", "manual"] as const).map((t) => (
-              <span key={t} className="inline-flex items-center gap-1">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: NODE_COLORS[t], boxShadow: `0 0 6px ${NODE_GLOW[t]}` }}
-                />
-                {NODE_LABELS[t]}
-              </span>
-            ))}
+        {/* Bottom HUD: Interactive Filter-Legend Pill */}
+        {isImmersiveGlobal ? (
+          <div
+            className={`absolute left-3 z-10 flex flex-wrap items-center gap-2 transition-all ${
+              bottomClearance ? "bottom-20 sm:bottom-4" : "bottom-3.5"
+            }`}
+          >
+            <div className="tl-glass-hud flex flex-wrap items-center gap-1 rounded-xl px-2 py-1.5 text-[11px]">
+              {(["all", "card", "topic", "timeline", "manual"] as const).map((t) => {
+                const active = filterType === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setFilterType(t)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 transition ${
+                      active
+                        ? "bg-[var(--surface-2)] font-semibold text-[var(--ink-strong)] ring-1 ring-[var(--border-strong)]"
+                        : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    {t !== "all" && (
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: NODE_COLORS[t], boxShadow: `0 0 8px ${NODE_GLOW[t]}` }}
+                      />
+                    )}
+                    {t === "all" ? "全部" : NODE_LABELS[t]}
+                  </button>
+                );
+              })}
+            </div>
+            {!bottomClearance && (
+              <div className="tl-glass-hud pointer-events-none hidden rounded-xl px-3 py-1.5 text-[10px] text-[var(--ink-muted)] xl:block">
+                单击节点侧滑预览 · 双击进入完整阅读 · 拖拽节点推拉 · 滚轮缩放
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="pointer-events-none absolute bottom-2 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2.5 rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
+              {(["overview", "card", "topic", "timeline", "manual"] as const).map((t) => (
+                <span key={t} className="inline-flex items-center gap-1">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: NODE_COLORS[t], boxShadow: `0 0 6px ${NODE_GLOW[t]}` }}
+                  />
+                  {NODE_LABELS[t]}
+                </span>
+              ))}
+            </div>
 
-          <div className="hidden rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] sm:block">
-            单击锁定关联结构 · 再次单击高亮节点进详情 · 拖拽节点阻尼推拉 · 滚轮缩放
+            <div className="hidden rounded border border-[var(--border)] bg-[var(--chart-bg)] px-2.5 py-1 text-[10px] text-[var(--ink-muted)] sm:block">
+              单击锁定关联结构 · 再次单击高亮节点进详情 · 拖拽节点阻尼推拉 · 滚轮缩放
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

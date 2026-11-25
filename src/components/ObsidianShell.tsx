@@ -22,12 +22,12 @@ import {
   Plus,
   Search,
   Settings,
-  Sparkles,
   Sun,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CreateVaultModal, { dispatchVaultChanged } from "@/components/CreateVaultModal";
+import { endGuidedTour, useGuidedTour, useTourDismissed } from "@/lib/onboarding-tour";
 import type { MaskedProviderStatus } from "@/lib/provider";
 import type { VaultFileItem, VaultIndex } from "@/lib/vault-builder";
 import type { VaultsOverview } from "@/lib/vault-types";
@@ -38,12 +38,6 @@ const VAULT_TABS = [
   { href: "/ledger", label: "本库账本", shortLabel: "账本", icon: CandlestickChart },
   { href: "/synthesize", label: "提炼方法论", shortLabel: "提炼", icon: Layers },
   { href: "/manuals", label: "交易手册", shortLabel: "手册", icon: BookOpen },
-];
-
-const GLOBAL_NAV = [
-  { href: "/vaults", label: "全部知识库大厅", shortLabel: "全部库", icon: FolderKanban },
-  { href: "/sync", label: "云端同步中心（9 大平台）", shortLabel: "云同步", icon: Cloud },
-  { href: "/settings", label: "模型与提炼规则设置", shortLabel: "设置", icon: Settings },
 ];
 
 type SwitcherItem = {
@@ -84,7 +78,7 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
   const [vaultMenuOpen, setVaultMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [switchingVaultId, setSwitchingVaultId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     try {
@@ -289,123 +283,73 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
   const isGlobalPage =
     pathname.startsWith("/vaults") || pathname.startsWith("/sync") || pathname.startsWith("/settings");
 
+  const [urlHasTour, setUrlHasTour] = useState(false);
+  useEffect(() => {
+    try {
+      setUrlHasTour(new URLSearchParams(window.location.search).get("tour") === "1");
+    } catch {
+      setUrlHasTour(false);
+    }
+  }, [pathname]);
+
+  const tourDismissed = useTourDismissed();
+  const guidedTourActive = useGuidedTour(urlHasTour);
+  const tourActive = !tourDismissed && (guidedTourActive || Boolean(overview?.onboarding?.isFreshInstall));
+
+  const tourStepIndex = pathname.startsWith("/synthesize") || pathname.startsWith("/settings")
+    ? 4
+    : pathname.startsWith("/ledger")
+      ? 3
+      : pathname.startsWith("/vault")
+        ? 2
+        : 1;
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
-      {/* Main Desktop Area: Dual-Zone Left Rail + Workspace */}
-      <div className="flex min-h-0 flex-1">
-        {/* 48px Left Dual-Zone Navigation Rail */}
-        <aside className="flex w-12 shrink-0 flex-col items-center justify-between border-r border-[var(--border)] bg-[var(--bg-deep)]/95 py-2.5 select-none">
-          <div className="flex flex-col items-center gap-1.5">
-            {/* Brand Prism */}
+      {/* Main Desktop Column: Single Unified Top Command Bar + Full-Width Viewport */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Unified 50px Top Bar (eliminates redundant left/top duplicate navigation) */}
+        <header className="tl-shell-chrome flex h-[50px] shrink-0 items-center justify-between gap-2 border-b px-3.5 select-none">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {/* Brand Loom Mark (Sharp Architectural Frame) */}
             <Link
               href="/"
               title="TradeLoom · 织脉"
-              className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--accent)]/25 bg-[var(--accent-soft)] text-xs font-bold tracking-tight text-[var(--accent)] transition hover:bg-[var(--accent)]/15"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[3px] border border-[var(--border-strong)] bg-[#11141c] transition hover:border-[var(--accent)]"
             >
-              TL
+              <svg viewBox="0 0 64 64" className="h-5 w-5" aria-hidden="true">
+                <path d="M18 20h28M32 20v24" fill="none" stroke="#f4f6fa" strokeWidth="3.6" strokeLinecap="square" />
+                <path d="M18 41l9-8 9 6 11-11" fill="none" stroke="#5b9bff" strokeWidth="3.2" strokeLinecap="square" strokeLinejoin="miter" />
+                <circle cx="47" cy="28" r="3" fill="#2dd4bf" />
+              </svg>
             </Link>
 
-            <span className="font-mono text-[10px] tracking-wider text-[var(--ink-dim)]">本库</span>
-
-            {/* Current Vault Zone (5 core items) */}
-            {VAULT_TABS.map(({ href, label, icon: Icon }) => {
-              const active =
-                href === "/"
-                  ? pathname === "/"
-                  : href === "/vault"
-                    ? pathname === "/vault"
-                    : pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  title={`${activeVault?.name ?? "当前库"} · ${label}`}
-                  className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
-                    active
-                      ? "bg-[var(--surface)] text-[var(--ink-strong)] shadow-xs ring-1 ring-[var(--border-strong)]"
-                      : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
-                  }`}
-                >
-                  {active && (
-                    <span
-                      className="absolute -left-[7px] top-1 bottom-1 w-[3px] rounded-r"
-                      style={{ backgroundColor: activeColor }}
-                    />
-                  )}
-                  <Icon className="h-[15px] w-[15px]" strokeWidth={1.75} style={active ? { color: activeColor } : undefined} />
-                </Link>
-              );
-            })}
-
-            <div className="my-1.5 h-px w-6 bg-gradient-to-r from-transparent via-[var(--border-strong)] to-transparent" />
-            <span className="font-mono text-[10px] tracking-wider text-[var(--ink-dim)]">全局</span>
-
-            {/* Global Infrastructure Zone */}
-            {GLOBAL_NAV.map(({ href, label, icon: Icon }) => {
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  title={label}
-                  className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
-                    active
-                      ? "bg-[var(--surface)] text-[var(--accent)] shadow-xs ring-1 ring-[var(--border-strong)]"
-                      : "text-[var(--ink-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute -left-[7px] top-1 bottom-1 w-[3px] rounded-r bg-[var(--accent)]" />
-                  )}
-                  <Icon className="h-[15px] w-[15px]" strokeWidth={1.75} />
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Bottom Quick Search Button */}
-          <div className="flex flex-col items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSwitcherOpen(true)}
-              title="快速切换知识库 / 笔记 / 命令 (Ctrl+K)"
-              className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
-            >
-              <Search className="h-[15px] w-[15px]" strokeWidth={1.75} />
-            </button>
-          </div>
-        </aside>
-
-        {/* Right Column: Top Vault Switcher & Tabs + Viewport */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* 42px Top Header */}
-          <header className="flex h-[46px] shrink-0 items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-deep)]/95 px-3 select-none">
-            <div className="flex min-w-0 items-center gap-2">
-              {/* Current Vault Switcher Pill */}
-              <div className="relative" ref={menuRef}>
-                <button
-                  type="button"
-                  onClick={() => setVaultMenuOpen((o) => !o)}
-                  className="inline-flex max-w-[235px] items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]/50"
-                  title="点击切换当前激活的知识库，或新建并行知识库"
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: activeColor }}
-                  />
-                  <span className="truncate">{activeVault?.name ?? "我的主复盘库"}</span>
-                  {activeVault?.isDemo && (
-                    <span className="shrink-0 rounded bg-[var(--cyan-soft)] px-1 py-0.2 text-[9px] text-[var(--cyan)]">
-                      示范
-                    </span>
-                  )}
-                  {activeVault?.paths.isExternal && (
-                    <span className="shrink-0 rounded bg-[var(--amber-soft)] px-1 py-0.2 text-[9px] text-[var(--amber)]">
-                      外挂
-                    </span>
-                  )}
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ink-dim)]" />
-                </button>
+            {/* Current Vault Switcher Pill (Locked clean during guided tour) */}
+            {tourActive ? (
+              <div className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--ink-strong)]">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: activeColor }} />
+                <span className="max-w-[160px] truncate">{activeVault?.name ?? "我的复盘库"}</span>
+              </div>
+            ) : (
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setVaultMenuOpen((o) => !o)}
+                className="inline-flex max-w-[235px] items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]/50"
+                title="点击切换当前激活的知识库，或新建并行知识库"
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: activeColor }}
+                />
+                <span className="truncate">{activeVault?.name ?? "我的主复盘库"}</span>
+                {activeVault?.paths.isExternal && (
+                  <span className="shrink-0 rounded bg-[var(--amber-soft)] px-1 py-0.2 text-[9px] text-[var(--amber)]">
+                    外挂
+                  </span>
+                )}
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ink-dim)]" />
+              </button>
 
                 {vaultMenuOpen && (
                   <div className="absolute left-0 top-full z-50 mt-1.5 w-80 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-modal)]">
@@ -452,11 +396,6 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <span className="truncate text-xs font-medium">{v.name}</span>
-                                  {v.isDemo && (
-                                    <span className="rounded bg-[var(--cyan-soft)] px-1 text-[9px] text-[var(--cyan)]">
-                                      示范库
-                                    </span>
-                                  )}
                                 </div>
                                 <div className="font-mono text-[10px] text-[var(--ink-dim)]">
                                   {v.stats.docsCount} 篇复盘 · {v.stats.manualsCount} 手册 · {v.stats.tradesCount} 笔交割
@@ -488,11 +427,42 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                     </div>
                   </div>
                 )}
-              </div>
+            </div>
+            )}
 
               <div className="hidden h-4 w-px bg-[var(--border-strong)] md:block" />
 
-              {/* Current Vault Tabs */}
+              {/* Progressive Guided Tour Progress OR Full Vault Tabs */}
+              {tourActive ? (
+                <div className="hidden items-center gap-1.5 text-[11px] sm:flex">
+                  {[
+                    { n: 1, label: "建库导入" },
+                    { n: 2, label: "双链星图" },
+                    { n: 3, label: "实盘校验(可选)" },
+                    { n: 4, label: "模型与凝练" },
+                  ].map((s, idx) => {
+                    const isCur = s.n === tourStepIndex;
+                    const isDone = s.n < tourStepIndex;
+                    return (
+                      <div key={s.n} className="flex items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium ${
+                            isCur
+                              ? "bg-[var(--accent-strong)] text-white"
+                              : isDone
+                                ? "bg-[var(--emerald-soft)] text-[var(--emerald)]"
+                                : "text-[var(--ink-dim)]"
+                          }`}
+                        >
+                          <span className="font-mono text-[10px]">{isDone ? "✓" : `0${s.n}`}</span>
+                          <span>{s.label}</span>
+                        </span>
+                        {idx < 3 && <span className="text-[var(--ink-dim)]">→</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <nav className="flex items-center gap-0.5 overflow-x-auto">
                 {VAULT_TABS.map(({ href, label, shortLabel, icon: Icon }) => {
                   const active =
@@ -526,91 +496,87 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   );
                 })}
               </nav>
+              )}
             </div>
 
-            {/* Right Global Shortcuts */}
+            {/* Right Global Utilities (Hidden during Guided Tour, leaving safe exit + theme toggle) */}
             <div className="flex shrink-0 items-center gap-1.5">
-              <Link
-                href="/sync"
-                className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition xl:inline-flex ${
-                  pathname.startsWith("/sync")
-                    ? "border-[var(--cyan)]/60 bg-[var(--cyan-soft)] text-[var(--cyan)]"
-                    : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--cyan)]/50 hover:text-[var(--cyan)]"
-                }`}
-              >
-                <Cloud className="h-[15px] w-[15px]" />
-                <span>云端同步</span>
-              </Link>
-              <Link
-                href="/vaults"
-                className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition lg:inline-flex ${
-                  pathname.startsWith("/vaults")
-                    ? "border-[var(--accent)]/60 bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
-                }`}
-              >
-                <FolderKanban className="h-[15px] w-[15px]" />
-                <span>全部库 ({overview?.vaults.length ?? 1})</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setSwitcherOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-1 text-xs text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
-              >
-                <Search className="h-[15px] w-[15px] text-[var(--ink-dim)]" />
-                <span className="hidden sm:inline">搜库 / 笔记</span>
-                <kbd className="rounded border border-[var(--border)] bg-[var(--bg-deep)] px-1 font-mono text-[10px] text-[var(--ink-dim)]">
-                  Ctrl K
-                </kbd>
-              </button>
+              {!tourActive ? (
+                <>
+                  <Link
+                    href="/sync"
+                    title="云端同步中心（9 大平台）"
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition ${
+                      pathname.startsWith("/sync")
+                        ? "border-[var(--cyan)]/60 bg-[var(--cyan-soft)] text-[var(--cyan)]"
+                        : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--cyan)]/50 hover:text-[var(--cyan)]"
+                    }`}
+                  >
+                    <Cloud className="h-[14px] w-[14px]" />
+                    <span className="hidden xl:inline">云同步</span>
+                  </Link>
+                  <Link
+                    href="/vaults"
+                    title="全部知识库大厅"
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition ${
+                      pathname.startsWith("/vaults")
+                        ? "border-[var(--accent)]/60 bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-strong)] bg-[var(--surface)]/80 text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    <FolderKanban className="h-[14px] w-[14px]" />
+                    <span className="hidden lg:inline">全部库 ({overview?.vaults.length ?? 1})</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setSwitcherOpen(true)}
+                    title="快速切换知识库 / 笔记 / 命令 (Ctrl+K)"
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-xs text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                  >
+                    <Search className="h-[14px] w-[14px] text-[var(--ink-dim)]" />
+                    <span className="hidden md:inline">搜库</span>
+                    <kbd className="hidden rounded border border-[var(--border)] bg-[var(--bg-deep)] px-1 font-mono text-[10px] text-[var(--ink-dim)] sm:inline">
+                      Ctrl K
+                    </kbd>
+                  </button>
+                  <Link
+                    href="/settings"
+                    title="模型与提炼规则设置"
+                    className={`inline-flex h-7 items-center justify-center rounded-md border px-2 text-xs transition ${
+                      pathname.startsWith("/settings")
+                        ? "border-[var(--accent)]/60 bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--ink-muted)] hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                    }`}
+                  >
+                    <Settings className="h-[14px] w-[14px]" />
+                  </Link>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrlHasTour(false);
+                    endGuidedTour();
+                  }}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 text-[11px] font-medium text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                >
+                  跳过引导，展开全部菜单
+                </button>
+              )}
               <button
                 type="button"
                 onClick={toggleTheme}
-                title={theme === "light" ? "切换至低反差柔炭深色模式" : "切换至护眼浅色模式"}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--ink-strong)]"
+                title={theme === "dark" ? "切换至投研纸本亮色主题" : "切换至曜石投研终端暗色主题"}
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--border-strong)] bg-[var(--surface)]/90 px-2 text-[11px] text-[var(--ink-muted)] transition hover:border-[var(--accent)]/60 hover:text-[var(--ink-strong)]"
               >
                 {theme === "light" ? (
-                  <>
-                    <Moon className="h-[15px] w-[15px]" />
-                    <span className="hidden xl:inline">深色</span>
-                  </>
+                  <Moon className="h-[14px] w-[14px]" />
                 ) : (
-                  <>
-                    <Sun className="h-[15px] w-[15px] text-[var(--ink-strong)]" />
-                    <span className="hidden xl:inline">浅色</span>
-                  </>
+                  <Sun className="h-[14px] w-[14px] text-[var(--amber)]" />
                 )}
               </button>
             </div>
           </header>
-
-          {/* Soft Demo Sandbox Notice Bar */}
-          {activeVault?.isDemo && !isGlobalPage && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--accent-soft)] px-4 py-1.5 text-[11px] text-[var(--ink)]">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--cyan)]" />
-                <span>
-                  当前处于<strong>「体验示范库」</strong>（内置 6 篇复盘 + 示范交割单 + 免配模型示范手册），放心点看双链星图、账本和手册，绝不污染你的正式库。
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCreateOpen(true)}
-                  className="rounded-md bg-[var(--accent-strong)] px-2.5 py-0.5 text-[11px] font-medium text-white transition hover:bg-[var(--accent)]"
-                >
-                  + 创建我的正式知识库
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchVault("default", "/")}
-                  className="rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 text-[11px] text-[var(--ink-muted)] transition hover:text-[var(--ink-strong)]"
-                >
-                  切回主库
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Main Workspace Viewport (keyed by activeVaultId so switching vaults cleanly refreshes all pages) */}
           <main
@@ -629,7 +595,6 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
             )}
           </main>
         </div>
-      </div>
 
       {/* 24px Bottom Status Bar */}
       <footer className="flex h-7 shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg-deep)] px-3.5 text-xs text-[var(--ink-dim)] select-none">
@@ -657,7 +622,13 @@ export default function ObsidianShell({ children }: { children: React.ReactNode 
                   : "bg-[var(--amber)]"
               }`}
             />
-            <span>{provider?.configured ? `AI 模型: ${provider.model}` : "未配置 AI 模型"}</span>
+            <span>
+              {provider?.configured
+                ? provider.mode === "cli"
+                  ? `本机 Agent: ${provider.label}`
+                  : `AI 模型: ${provider.model}`
+                : "免 API 协作可用 / 配置 AI 引擎"}
+            </span>
           </Link>
           <span className="hidden font-mono text-[10px] text-[var(--ink-dim)] md:inline">
             本地离线优先 · 数据留在本机

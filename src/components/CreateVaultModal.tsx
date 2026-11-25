@@ -84,7 +84,7 @@ export default function CreateVaultModal({
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [templateId, setTemplateId] = useState<VaultTemplateId>("short-term");
+  const [templateId, setTemplateId] = useState<VaultTemplateId>("custom");
   const [color, setColor] = useState("#2d5f8b");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [externalSourceDir, setExternalSourceDir] = useState("");
@@ -98,7 +98,7 @@ export default function CreateVaultModal({
       setStep(1);
       setName("");
       setDescription("");
-      setTemplateId("short-term");
+      setTemplateId("custom");
       setColor("#2d5f8b");
       setShowAdvanced(false);
       setExternalSourceDir("");
@@ -245,43 +245,7 @@ export default function CreateVaultModal({
               />
             </div>
 
-            {/* Step 2: 流派模板 */}
-            <div>
-              <label className="mb-2 block text-xs font-medium text-[var(--ink)]">
-                2. 选择开箱模板（自动配置本库双链关键词与默认 AI 提炼规则）
-              </label>
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {tplList.map((tpl) => {
-                  const active = templateId === tpl.id;
-                  return (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => selectTemplate(tpl)}
-                      className={`rounded-xl border p-3 text-left transition ${
-                        active
-                          ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50"
-                          : "border-[var(--border)] bg-[var(--bg-deep)]/85 hover:border-[var(--border-strong)] hover:bg-[var(--surface)]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tpl.color }} />
-                          {tpl.name}
-                        </span>
-                        <span className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-dim)]">
-                          {tpl.conceptCount} 组词典
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[10px] font-medium text-[var(--cyan)]">{tpl.badge}</div>
-                      <p className="mt-1 text-[11px] leading-4 text-[var(--ink-muted)]">{tpl.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Advanced Collapsible */}
+            {/* Advanced Collapsible (Optional Style Preset, External Folder, Clone Concepts) */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/65">
               <button
                 type="button"
@@ -290,12 +254,42 @@ export default function CreateVaultModal({
               >
                 <span className="inline-flex items-center gap-1.5">
                   <FolderOpen className="h-[15px] w-[15px] text-[var(--ink-dim)]" />
-                  高级选项（挂载本机已有文件夹 / 复制已有库词典）
+                  高级选项（挂载本机已有文件夹 / 预设词典风格 / 克隆词典）
                 </span>
                 {showAdvanced ? <ChevronUp className="h-[15px] w-[15px]" /> : <ChevronDown className="h-[15px] w-[15px]" />}
               </button>
               {showAdvanced && (
                 <div className="space-y-3 border-t border-[var(--border)] px-3.5 py-3">
+                  <div>
+                    <label className="mb-1.5 block text-[11px] text-[var(--ink-muted)]">
+                      预置概念词典模板（默认使用通用全量词典，可按需预设）
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {tplList.map((tpl) => {
+                        const active = templateId === tpl.id;
+                        return (
+                          <button
+                            key={tpl.id}
+                            type="button"
+                            onClick={() => selectTemplate(tpl)}
+                            className={`rounded-lg border p-2.5 text-left transition ${
+                              active
+                                ? "border-[var(--cyan)] bg-[var(--cyan-soft)]/50"
+                                : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--ink-strong)]">
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tpl.color }} />
+                                {tpl.name}
+                              </span>
+                              <span className="font-mono text-[10px] text-[var(--ink-dim)]">{tpl.conceptCount} 词</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <div>
                     <label className="mb-1 block text-[11px] text-[var(--ink-muted)]">
                       挂载本机已有复盘文件夹 / 现有 Obsidian 目录（可选，留空则在软件内独立托管）
@@ -317,7 +311,7 @@ export default function CreateVaultModal({
                         onChange={(e) => setCloneFromId(e.target.value)}
                         className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
                       >
-                        <option value="">使用上方所选模板默认词典</option>
+                        <option value="">使用当前选择的词典配置</option>
                         {existingVaults.map((v) => (
                           <option key={v.id} value={v.id}>
                             复制「{v.name}」的关键词词典

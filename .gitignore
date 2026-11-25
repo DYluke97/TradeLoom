@@ -28,8 +28,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Portable release artifacts & local handoff notes
+# Portable release artifacts, promo video workspace & local handoff notes
 /dist/
+/promo-video/
 /release/*.zip
 /release/TradeLoom-*/
 /HANDOFF.md

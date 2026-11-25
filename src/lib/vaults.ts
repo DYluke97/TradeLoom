@@ -531,6 +531,7 @@ export async function updateVaultMeta(
     description?: string;
     color?: string;
     defaultSkillId?: string;
+    externalSourceDir?: string;
     skipLedgerStep?: boolean;
   },
 ): Promise<{ ok: true; overview: VaultsOverview } | { ok: false; error: string }> {
@@ -538,6 +539,21 @@ export async function updateVaultMeta(
   const target = reg.vaults.find((v) => v.id === vaultId);
   if (!target) {
     return { ok: false, error: `找不到知识库：${vaultId}` };
+  }
+  let externalChanged = false;
+  if (typeof patch.externalSourceDir === "string") {
+    const trimmed = patch.externalSourceDir.trim();
+    if (trimmed) {
+      const checked = await validateExternalSourceDir(trimmed);
+      if (!checked.ok) return checked;
+      if (target.externalSourceDir !== checked.resolved) {
+        target.externalSourceDir = checked.resolved;
+        externalChanged = true;
+      }
+    } else if (target.externalSourceDir) {
+      target.externalSourceDir = undefined;
+      externalChanged = true;
+    }
   }
   if (typeof patch.name === "string") {
     const clean = sanitizeVaultName(patch.name);
@@ -556,8 +572,15 @@ export async function updateVaultMeta(
   if (typeof patch.skipLedgerStep === "boolean") {
     target.skipLedgerStep = patch.skipLedgerStep || undefined;
   }
+  target.lastOpenedAt = new Date().toISOString();
 
   await saveVaultRegistry(reg);
+  if (externalChanged) {
+    await runWithVault(vaultId, async () => {
+      await ensureWorkspace(vaultId);
+      await rebuildVault();
+    });
+  }
   const overview = await getVaultsOverview();
   return { ok: true, overview };
 }

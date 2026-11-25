@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildPeriodQuantBrief } from "@/lib/ledger";
-import { buildPrecheck, materializeDocs, materializeManuals, runStageSynthesis } from "@/lib/synthesis";
+import {
+  buildPrecheck,
+  clampOutboundLimit,
+  exportSynthesisPromptPack,
+  importExternalSynthesisResult,
+  materializeDocs,
+  materializeManuals,
+  runStageSynthesis,
+} from "@/lib/synthesis";
 import { loadOrBuildVault } from "@/lib/vault";
 import { getActiveVaultId, runWithVault } from "@/lib/workspace";
 
@@ -10,13 +18,16 @@ export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   let body: {
-    mode?: "precheck" | "run";
+    mode?: "precheck" | "run" | "export-prompt" | "import-result";
     stream?: boolean;
     docIds?: string[];
     manualIds?: string[];
     skillId?: string;
     stageTitle?: string;
     includeQuantAudit?: boolean;
+    maxChars?: number;
+    rawResponse?: string;
+    modelLabel?: string;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -45,6 +56,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "所选文档在当前知识库中不存在" }, { status: 404 });
     }
 
+    const outboundLimit = clampOutboundLimit(body.maxChars);
+
+    if (body.mode === "export-prompt") {
+      const exported = await exportSynthesisPromptPack({
+        docs: selectedDocs,
+        manualIds,
+        skillId: body.skillId || "short-term",
+        stageTitle: body.stageTitle,
+        includeQuantAudit: body.includeQuantAudit !== false,
+        maxChars: outboundLimit,
+      });
+      if (!exported.ok) {
+        return NextResponse.json({ ok: false, error: exported.error }, { status: exported.status });
+      }
+      return NextResponse.json({ ...exported, mode: "export-prompt" });
+    }
+
+    if (body.mode === "import-result") {
+      const imported = await importExternalSynthesisResult({
+        docs: selectedDocs,
+        manualIds,
+        skillId: body.skillId || "short-term",
+        stageTitle: body.stageTitle,
+        includeQuantAudit: body.includeQuantAudit !== false,
+        maxChars: outboundLimit,
+        rawResponse: typeof body.rawResponse === "string" ? body.rawResponse : "",
+        modelLabel: typeof body.modelLabel === "string" ? body.modelLabel : undefined,
+      });
+      if (!imported.ok) {
+        return NextResponse.json({ ok: false, error: imported.error }, { status: imported.status });
+      }
+      return NextResponse.json({ ok: true, mode: "import-result", report: imported.report });
+    }
+
     if (body.mode !== "run") {
       const [matDocs, matManuals] = await Promise.all([
         selectedDocs.length > 0 ? materializeDocs(selectedDocs) : Promise.resolve([]),
@@ -53,7 +98,7 @@ export async function POST(request: NextRequest) {
       if (matDocs.length === 0 && matManuals.length === 0) {
         return NextResponse.json({ ok: false, error: "所选阶段手册或文档不存在" }, { status: 404 });
       }
-      const { snapshot } = buildPrecheck([...matDocs, ...matManuals]);
+      const { snapshot } = buildPrecheck([...matDocs, ...matManuals], outboundLimit);
       const quantBrief = await buildPeriodQuantBrief(
         snapshot.date_range.from ?? undefined,
         snapshot.date_range.to ?? undefined,
@@ -80,6 +125,7 @@ export async function POST(request: NextRequest) {
                 skillId: body.skillId || "short-term",
                 stageTitle: body.stageTitle,
                 includeQuantAudit: body.includeQuantAudit !== false,
+                maxChars: outboundLimit,
                 signal: request.signal,
                 onStage: (ev) => send({ type: "progress", ...ev }),
               });
@@ -117,6 +163,7 @@ export async function POST(request: NextRequest) {
       skillId: body.skillId || "short-term",
       stageTitle: body.stageTitle,
       includeQuantAudit: body.includeQuantAudit !== false,
+      maxChars: outboundLimit,
       signal: request.signal,
     });
 

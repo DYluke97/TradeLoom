@@ -1,10 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { BookMarked, Calendar, CheckSquare, Cpu, Layers, Loader2, Play, ShieldCheck, Square, StopCircle } from "lucide-react";
+import {
+  ArrowRight,
+  BookMarked,
+  Calendar,
+  Check,
+  CheckCircle2,
+  CheckSquare,
+  ClipboardPaste,
+  Copy,
+  Cpu,
+  Download,
+  Layers,
+  Loader2,
+  Play,
+  ShieldCheck,
+  Square,
+  StopCircle,
+  Terminal,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import ReportView from "@/components/ReportView";
+import { endGuidedTour, useGuidedTour } from "@/lib/onboarding-tour";
 import type { MaskedProviderStatus } from "@/lib/provider";
 import type { SkillSpec } from "@/lib/skills";
 import type { PeriodQuantBrief } from "@/lib/ledger-analytics";
@@ -12,8 +31,23 @@ import type { PrecheckSnapshot, SynthesisReport } from "@/lib/synthesis";
 import type { VaultDoc, VaultIndex } from "@/lib/vault-builder";
 
 type SourceTab = "docs" | "manuals";
+type ExecMode = "direct" | "manual";
 
 export default function SynthesizeWorkspace() {
+  const [urlHasTour, setUrlHasTour] = useState(false);
+  const [execMode, setExecMode] = useState<ExecMode>("direct");
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setUrlHasTour(sp.get("tour") === "1");
+      if (sp.get("mode") === "manual") setExecMode("manual");
+    } catch {
+      setUrlHasTour(false);
+    }
+  }, []);
+  const tourActive = useGuidedTour(urlHasTour);
+  const [tourGraduated, setTourGraduated] = useState(false);
+
   const [vault, setVault] = useState<VaultIndex | null>(null);
   const [skills, setSkills] = useState<SkillSpec[]>([]);
   const [provider, setProvider] = useState<MaskedProviderStatus | null>(null);
@@ -27,6 +61,7 @@ export default function SynthesizeWorkspace() {
   const [selectedManualIds, setSelectedManualIds] = useState<string[]>([]);
   const [skillId, setSkillId] = useState("short-term");
   const [stageTitle, setStageTitle] = useState("");
+  const [maxChars, setMaxChars] = useState<number>(500_000);
 
   const [snapshot, setSnapshot] = useState<PrecheckSnapshot | null>(null);
   const [quantBrief, setQuantBrief] = useState<PeriodQuantBrief | null>(null);
@@ -38,6 +73,15 @@ export default function SynthesizeWorkspace() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // Zero-API manual collaboration state
+  const [exportedPrompt, setExportedPrompt] = useState("");
+  const [exportedMeta, setExportedMeta] = useState<{ chars: number; evidence: number; docs: number } | null>(null);
+  const [exportingPrompt, setExportingPrompt] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [pastedResponse, setPastedResponse] = useState("");
+  const [manualModelLabel, setManualModelLabel] = useState("网页 AI / 外部 Agent 协作");
+  const [importingResult, setImportingResult] = useState(false);
 
   async function refreshManuals() {
     const res = await fetch("/api/manuals", { cache: "no-store" }).then((r) => r.json());
@@ -57,7 +101,7 @@ export default function SynthesizeWorkspace() {
       if (v.ok) {
         setVault(v.index);
         const docs = (v.index.documents ?? []) as VaultDoc[];
-        setSelectedIds(docs.slice(0, 12).map((d) => d.doc_id));
+        setSelectedIds(docs.slice(0, 50).map((d) => d.doc_id));
       }
       if (s.ok && Array.isArray(s.skills)) {
         setSkills(s.skills);
@@ -165,10 +209,98 @@ export default function SynthesizeWorkspace() {
     setToDate("");
   }
 
-  function buildRequestPayload(mode: "precheck" | "run") {
+  function buildRequestPayload(mode: "precheck" | "run" | "export-prompt" | "import-result") {
     return sourceTab === "manuals"
-      ? { mode, manualIds: selectedManualIds, skillId, stageTitle, includeQuantAudit }
-      : { mode, docIds: selectedIds, skillId, stageTitle, includeQuantAudit };
+      ? { mode, manualIds: selectedManualIds, skillId, stageTitle, includeQuantAudit, maxChars }
+      : { mode, docIds: selectedIds, skillId, stageTitle, includeQuantAudit, maxChars };
+  }
+
+  async function handleExportPromptPack() {
+    setError("");
+    setExportingPrompt(true);
+    setPromptCopied(false);
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequestPayload("export-prompt")),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "生成提示词包失败");
+      } else {
+        setSnapshot(data.snapshot);
+        setQuantBrief(data.quantBrief ?? null);
+        setExportedPrompt(data.promptText || "");
+        setExportedMeta({
+          chars: data.charCount ?? 0,
+          evidence: data.evidenceCount ?? 0,
+          docs: data.snapshot?.included_ids?.length ?? 0,
+        });
+        try {
+          await navigator.clipboard.writeText(data.promptText || "");
+          setPromptCopied(true);
+          setTimeout(() => setPromptCopied(false), 2500);
+        } catch {
+          /* clipboard may be blocked in non-secure context; user can click copy/download */
+        }
+      }
+    } finally {
+      setExportingPrompt(false);
+    }
+  }
+
+  async function handleCopyExistingPrompt() {
+    if (!exportedPrompt) return;
+    try {
+      await navigator.clipboard.writeText(exportedPrompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2500);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function handleDownloadPromptTxt() {
+    if (!exportedPrompt) return;
+    const blob = new Blob([exportedPrompt], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tradeloom-prompt-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportExternalResult() {
+    setError("");
+    setImportingResult(true);
+    try {
+      const res = await fetch("/api/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...buildRequestPayload("import-result"),
+          rawResponse: pastedResponse,
+          modelLabel: manualModelLabel,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "校验并生成手册失败");
+      } else {
+        setReport(data.report);
+        setPastedResponse("");
+        if (tourActive) {
+          endGuidedTour();
+          setTourGraduated(true);
+        }
+        dispatchVaultChanged();
+        refreshManuals().catch(() => {});
+      }
+    } finally {
+      setImportingResult(false);
+    }
   }
 
   async function handlePrecheck() {
@@ -241,6 +373,10 @@ export default function SynthesizeWorkspace() {
               setStreamStatus(evt.message);
             } else if (evt.type === "done" && evt.report) {
               setReport(evt.report);
+              if (tourActive) {
+                endGuidedTour();
+                setTourGraduated(true);
+              }
               dispatchVaultChanged();
               refreshManuals().catch(() => {});
             } else if (evt.type === "error") {
@@ -253,6 +389,10 @@ export default function SynthesizeWorkspace() {
         if (!data.ok) setError(data.error || "提炼失败");
         else {
           setReport(data.report);
+          if (tourActive) {
+            endGuidedTour();
+            setTourGraduated(true);
+          }
           dispatchVaultChanged();
           refreshManuals().catch(() => {});
         }
@@ -329,7 +469,7 @@ export default function SynthesizeWorkspace() {
           {sourceTab === "manuals" ? (
             <>
               <div className="mt-3 rounded-lg border border-[var(--cyan)]/30 bg-[var(--cyan-soft)]/45 p-3 text-xs leading-5 text-[var(--ink)]">
-                <strong>分层二次综合（Map-Reduce）</strong>：勾选多份已生成的周度 / 月度 / 季度阶段手册，跨周期对比认知升级与稳定铁律，一键合成年度总纲或终极个人交易手册，突破单次 8 万字上下文上限。
+                <strong>分层二次综合（Map-Reduce）</strong>：勾选多份已生成的周度 / 月度 / 季度阶段手册，跨周期对比认知升级与稳定铁律，一键合成年度总纲或终极个人交易手册。
               </div>
 
               <div className="mt-4 max-h-[390px] space-y-1.5 overflow-y-auto pr-1">
@@ -657,34 +797,183 @@ export default function SynthesizeWorkspace() {
               })}
             </div>
 
-            <label className="block text-[11px] text-[var(--ink-dim)]">
-              {sourceTab === "manuals" ? "总纲手册标题（可选，留空自动按跨度命名）" : "阶段手册标题（可选，留空自动按时间段与 Skill 命名）"}
-              <input
-                value={stageTitle}
-                onChange={(e) => setStageTitle(e.target.value)}
-                placeholder={
-                  sourceTab === "manuals"
-                    ? "例如：2024–2025 个人短线交易方法论年度总纲"
-                    : "例如：2025 上半年短线情绪周期演进手册"
-                }
-                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
-              />
-            </label>
+            <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_172px]">
+              <label className="block text-[11px] text-[var(--ink-dim)]">
+                {sourceTab === "manuals" ? "总纲手册标题（可选）" : "阶段手册标题（可选，留空自动命名）"}
+                <input
+                  value={stageTitle}
+                  onChange={(e) => setStageTitle(e.target.value)}
+                  placeholder={
+                    sourceTab === "manuals"
+                      ? "例如：2024–2025 个人交易方法论年度总纲"
+                      : "例如：2025 上半年短线情绪周期演进手册"
+                  }
+                  className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-3 py-2 text-xs text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--accent)] focus:outline-none"
+                />
+              </label>
 
-            {/* Provider Status Banner */}
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--ink-muted)]">当前大模型通道</span>
-                <Link href="/settings" className="text-[var(--accent)] hover:underline">
-                  {provider?.configured ? "更换配置" : "去配置 API"}
-                </Link>
-              </div>
-              <div className="mt-1 font-medium text-[var(--ink)]">
-                {provider?.configured
-                  ? `${provider.model}（${provider.url}）`
-                  : "尚未配置大模型 API Key（预检免费可用，执行提炼前需配置）"}
-              </div>
+              <label className="block text-[11px] text-[var(--ink-dim)]">
+                单次装箱容量上限
+                <select
+                  value={maxChars}
+                  onChange={(e) => {
+                    setSnapshot(null);
+                    setMaxChars(Number(e.target.value));
+                  }}
+                  className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-deep)] px-2.5 py-2 font-mono text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                >
+                  <option value={200000}>20 万字（标准 128K）</option>
+                  <option value={500000}>50 万字（推荐默认）</option>
+                  <option value={1200000}>120 万字（百万长窗）</option>
+                  <option value={3000000}>300 万字（全量装箱）</option>
+                </select>
+              </label>
             </div>
+
+            {/* Execution Mode Switch: Direct (CLI Agent / API) vs Zero-API Collaboration */}
+            <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setExecMode("direct");
+                  setError("");
+                }}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium transition ${
+                  execMode === "direct"
+                    ? "bg-[var(--surface)] text-[var(--ink-strong)] shadow-xs"
+                    : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                <Terminal className="h-3.5 w-3.5 text-[var(--accent)]" />
+                直连提炼（本机 Agent / API）
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExecMode("manual");
+                  setError("");
+                }}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 font-medium transition ${
+                  execMode === "manual"
+                    ? "bg-[var(--surface)] text-[var(--cyan)] shadow-xs"
+                    : "text-[var(--ink-muted)] hover:text-[var(--cyan)]"
+                }`}
+              >
+                <Copy className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                免 API 协作（网页 AI / 订阅）
+              </button>
+            </div>
+
+            {/* Provider Status Banner (Direct Mode) */}
+            {execMode === "direct" && (
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-deep)] p-3 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--ink-muted)]">当前直连 AI 引擎</span>
+                  <Link href={tourActive ? "/settings?tour=1" : "/settings"} className="text-[var(--accent)] hover:underline">
+                    {provider?.configured ? "更换本机 Agent / API" : "去配置本机 Agent 或 API"}
+                  </Link>
+                </div>
+                <div className="mt-1 font-medium text-[var(--ink)]">
+                  {provider?.configured
+                    ? provider.mode === "cli"
+                      ? `本机 CLI Agent：${provider.label}（免 API Key 直连）`
+                      : `${provider.model}（${provider.url}）`
+                    : "尚未配置直连引擎——可前往设置一键直连本机 CLI Agent，或直接切右侧「免 API 协作」零配置完成凝练。"}
+                </div>
+                {!provider?.configured && (
+                  <button
+                    type="button"
+                    onClick={() => setExecMode("manual")}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--cyan)] hover:underline"
+                  >
+                    没有 API Key？切到「免 API 网页/订阅协作」立即凝练 →
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Zero-API Web / External Agent Collaboration Panel */}
+            {execMode === "manual" && (
+              <div className="space-y-3 rounded-lg border border-[var(--cyan)]/35 bg-[var(--bg-deep)] p-3.5 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-[var(--ink-strong)]">
+                    免 API 协作：复制到 ChatGPT / Claude / DeepSeek / Kimi / 任意 Agent
+                  </span>
+                  <span className="font-mono text-[10px] text-[var(--cyan)]">0 API 消耗 · 同等防幻觉核验</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportPromptPack}
+                    disabled={exportingPrompt || activeSelectionCount === 0}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--cyan)] px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-45"
+                  >
+                    {exportingPrompt ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : promptCopied ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    {exportingPrompt
+                      ? "正在装箱证据切片..."
+                      : promptCopied
+                        ? "已生成并复制到剪贴板！"
+                        : `1. 生成并复制完整提示词包（已选 ${activeSelectionCount} ${sourceTab === "manuals" ? "份" : "篇"}）`}
+                  </button>
+
+                  {exportedPrompt && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCopyExistingPrompt}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-2 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--cyan)]"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        再次复制
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadPromptTxt}
+                        title="长复盘下载成 .txt 附件直接拖入 Kimi / ChatGPT / Claude / DeepSeek 更省心"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 py-2 text-[11px] font-medium text-[var(--ink)] hover:border-[var(--cyan)]"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        下载 .txt 附件
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {exportedMeta && (
+                  <div className="rounded-md border border-[var(--emerald)]/30 bg-[var(--emerald-soft)]/60 px-2.5 py-1.5 font-mono text-[11px] text-[var(--emerald)]">
+                    已打包 {exportedMeta.docs} 份材料 · {exportedMeta.chars.toLocaleString()} 字 · {exportedMeta.evidence} 条确定性 evidence_id。请发给你的 AI 后，将完整回复贴在下方：
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-[11px] font-medium text-[var(--ink-muted)]">
+                      2. 粘贴 AI / Agent 返回的回复（支持直接包含 ```json 代码块）
+                    </label>
+                    <input
+                      value={manualModelLabel}
+                      onChange={(e) => setManualModelLabel(e.target.value)}
+                      placeholder="署名标注（如 ChatGPT Plus）"
+                      className="w-44 rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--ink)] focus:border-[var(--cyan)] focus:outline-none"
+                    />
+                  </div>
+                  <textarea
+                    value={pastedResponse}
+                    onChange={(e) => setPastedResponse(e.target.value)}
+                    rows={5}
+                    placeholder='把网页 AI 或外部 Agent 生成的 JSON 粘贴到这里，例如：{"overview": ..., "timeline": [...], "manual": [...]}'
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--surface)] p-2.5 font-mono text-[11px] text-[var(--ink)] placeholder:text-[var(--ink-dim)] focus:border-[var(--cyan)] focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Precheck Result */}
             {snapshot && (
@@ -770,42 +1059,85 @@ export default function SynthesizeWorkspace() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 pt-2">
-            <button
-              type="button"
-              onClick={handlePrecheck}
-              disabled={loadingPrecheck || running || activeSelectionCount === 0}
-              className="flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-2 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)]/60 disabled:opacity-50"
-            >
-              {loadingPrecheck
-                ? "预检中..."
-                : `先做发送预检（已选 ${activeSelectionCount} ${sourceTab === "manuals" ? "份" : "篇"}）`}
-            </button>
-            {running ? (
+          {execMode === "manual" ? (
+            <div className="flex flex-wrap items-center gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={handleCancelSynthesis}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-500"
+                onClick={handleImportExternalResult}
+                disabled={importingResult || activeSelectionCount === 0 || !pastedResponse.trim()}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
               >
-                <StopCircle className="h-[15px] w-[15px]" />
-                取消提炼（立即中断）
+                {importingResult ? (
+                  <Loader2 className="h-[15px] w-[15px] animate-spin" />
+                ) : (
+                  <ClipboardPaste className="h-[15px] w-[15px]" />
+                )}
+                {importingResult ? "正在逐字核验 evidence_id 并落库..." : "3. 核验原文证据并生成正式交易手册"}
               </button>
-            ) : (
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={handleRunSynthesis}
-                disabled={activeSelectionCount === 0 || !provider?.configured}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
+                onClick={handlePrecheck}
+                disabled={loadingPrecheck || running || activeSelectionCount === 0}
+                className="flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-2)] px-4 py-2 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)]/60 disabled:opacity-50"
               >
-                <Play className="h-[15px] w-[15px]" />
-                {sourceTab === "manuals" ? "二次综合生成总纲手册" : "开始提炼时间轴与手册"}
+                {loadingPrecheck
+                  ? "预检中..."
+                  : `先做发送预检（已选 ${activeSelectionCount} ${sourceTab === "manuals" ? "份" : "篇"}）`}
               </button>
-            )}
-          </div>
+              {running ? (
+                <button
+                  type="button"
+                  onClick={handleCancelSynthesis}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-500"
+                >
+                  <StopCircle className="h-[15px] w-[15px]" />
+                  取消提炼（立即中断）
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRunSynthesis}
+                  disabled={activeSelectionCount === 0 || !provider?.configured}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)] disabled:opacity-45"
+                >
+                  <Play className="h-[15px] w-[15px]" />
+                  {sourceTab === "manuals" ? "二次综合生成总纲手册" : "开始提炼时间轴与手册"}
+                </button>
+              )}
+            </div>
+          )}
         </section>
       </div>
 
-      {/* Live Output */}
+      {/* Live Output & Tour Graduation Banner */}
+      {tourGraduated && report && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--emerald)]/45 bg-[var(--emerald-soft)]/60 px-4 py-3 text-xs">
+          <div className="flex items-center gap-2 font-medium text-[var(--ink-strong)]">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--emerald)]" />
+            <span>
+              恭喜！第 1 份个人交易手册已凝练完成，上方全部工作台导航已为你解锁。
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/manuals"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)]"
+            >
+              前往手册档案库
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-strong)] px-3.5 py-1.5 font-semibold text-white transition hover:bg-[var(--accent)]"
+            >
+              回到总览工作台
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
       {report && <ReportView report={report} />}
     </div>
   );

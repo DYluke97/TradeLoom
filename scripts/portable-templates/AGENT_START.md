@@ -22,13 +22,22 @@ powershell -ExecutionPolicy Bypass -File .\start-agent.ps1
 - 个人交易手册（二层树）：`http://127.0.0.1:<port>/manuals`
 - 模型与 Skill 配置：`http://127.0.0.1:<port>/settings`
 
-## 3. 一键停止后台服务
+## 3. 外部 AI Agent 双向接入（Local MCP Server + SKILL.md）
+
+服务启动后，外部 Agent（Claude Desktop / Cursor / Antigravity / OpenClaw / Claude Code / Codex）可直接接入 TradeLoom：
+
+- **Streamable HTTP MCP 端点**：`http://127.0.0.1:<port>/api/mcp`（开放 9 个核心工具）
+- **Stdio MCP 桥接脚本**：`.\runtime\node.exe .\app\scripts\tradeloom-mcp-server.mjs`
+- **标准 Agent Skill 文档**：`.\app\docs\tradeloom-agent-skill\SKILL.md`
+- 也可在页面「设置 → 外部 Agent 接入（MCP / Skill）」一键复制含本机真实路径的配置 JSON。
+
+## 4. 一键停止后台服务
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\stop-agent.ps1
 ```
 
-## 4. 本地数据与隐私边界
+## 5. 本地数据与隐私边界
 
 - 全部复盘原文、Obsidian 双链库、实盘账本与大模型 API Key 均仅保存在当前目录的 `workspace\` 下。
 - 可直接在 Obsidian 桌面端选择「打开本地仓库」指向 `workspace\vault`。

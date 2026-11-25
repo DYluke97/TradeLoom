@@ -12,7 +12,6 @@ import {
   FolderOpen,
   Loader2,
   Network,
-  Play,
   Plus,
   Sparkles,
   Trash2,
@@ -28,7 +27,6 @@ export default function VaultsHubWorkspace() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [demoBusy, setDemoBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Edit modal state
@@ -73,31 +71,6 @@ export default function VaultsHubWorkspace() {
       }
     } finally {
       setBusyId(null);
-    }
-  }
-
-  async function handleCreateOrResetDemo() {
-    setDemoBusy(true);
-    setNotice(null);
-    try {
-      const res = await fetch("/api/vaults", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create-demo", activate: true }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setOverview(data);
-        dispatchVaultChanged(data.activeVaultId);
-        setNotice({
-          ok: true,
-          text: "独立「体验示范库」已生成（含 6 篇复盘 + 示例交割账本 + 免配模型示范手册），可随时进入预览或删除。",
-        });
-      } else {
-        setNotice({ ok: false, text: data.error || "生成体验示范库失败" });
-      }
-    } finally {
-      setDemoBusy(false);
     }
   }
 
@@ -206,15 +179,6 @@ export default function VaultsHubWorkspace() {
               <Plus className="h-[17px] w-[17px]" />
               新建双链知识库
             </button>
-            <button
-              type="button"
-              disabled={demoBusy}
-              onClick={handleCreateOrResetDemo}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cyan)]/45 bg-[var(--cyan-soft)]/50 px-3.5 py-2 text-xs font-medium text-[var(--cyan)] transition hover:bg-[var(--cyan)]/20 disabled:opacity-50"
-            >
-              {demoBusy ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Play className="h-[15px] w-[15px]" />}
-              {overview?.onboarding.hasDemoVault ? "重置体验示范库" : "生成体验示范库"}
-            </button>
           </div>
         </div>
 
@@ -266,11 +230,6 @@ export default function VaultsHubWorkspace() {
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--emerald-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--emerald)]">
                           <Check className="h-2.5 w-2.5" />
                           当前使用中
-                        </span>
-                      )}
-                      {v.isDemo && (
-                        <span className="rounded-full bg-[var(--cyan-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--cyan)]">
-                          体验示范
                         </span>
                       )}
                       {v.paths.isExternal && (

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowRight,
+  ArrowUpRight,
   BookOpen,
   Calendar,
   CandlestickChart,
@@ -15,8 +17,12 @@ import {
   Folder,
   FolderOpen,
   Hash,
+  Layers,
   Link2,
+  Loader2,
   Network,
+  PanelLeft,
+  PanelLeftClose,
   PlusCircle,
   RefreshCw,
   Save,
@@ -33,6 +39,7 @@ import ConceptTaxonomyEditor from "@/components/ConceptTaxonomyEditor";
 import { dispatchVaultChanged } from "@/components/CreateVaultModal";
 import MarkdownView from "@/components/MarkdownView";
 import ObsidianGraph from "@/components/ObsidianGraph";
+import { useGuidedTour } from "@/lib/onboarding-tour";
 import type { ParsedMarkdown } from "@/lib/markdown";
 import type { LedgerDailySnapshot } from "@/lib/ledger-analytics";
 import type { UnlinkedMention, VaultDoc, VaultFileItem, VaultIndex, VaultNodeType } from "@/lib/vault-builder";
@@ -84,10 +91,13 @@ function HighlightSnippet({ snippet, match }: { snippet: string; match: string }
 }
 
 export default function VaultWorkspace() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const paramCard = searchParams.get("card");
   const paramView = searchParams.get("view");
   const paramImport = searchParams.get("import");
+  const tourActive = useGuidedTour(searchParams.get("tour") === "1");
+  const [skippingToModel, setSkippingToModel] = useState(false);
 
   const [index, setIndex] = useState<VaultIndex | null>(null);
   const [hasSamples, setHasSamples] = useState(false);
@@ -115,6 +125,10 @@ export default function VaultWorkspace() {
   const [statusMsg, setStatusMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [draggingFiles, setDraggingFiles] = useState(false);
+  const [graphExplorerOpen, setGraphExplorerOpen] = useState(false);
+  const [inspectedRel, setInspectedRel] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<DocResponse | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -198,6 +212,46 @@ export default function VaultWorkspace() {
     const modeToFetch = centerMode === "source" ? "source" : "card";
     loadDoc(activeCard, modeToFetch);
   }, [activeCard, centerMode, loadDoc]);
+
+  // Fetch rich preview content for the floating glass drawer when inspecting a node in full-bleed graph mode
+  useEffect(() => {
+    if (centerMode !== "graph" || !inspectedRel) {
+      setPreviewDoc(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPreview(true);
+    fetch(`/api/vault/doc?card=${encodeURIComponent(inspectedRel)}&mode=card`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: DocResponse) => {
+        if (!cancelled && data.ok) setPreviewDoc(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingPreview(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [centerMode, inspectedRel]);
+
+  async function handleSkipLedgerToModel() {
+    setSkippingToModel(true);
+    try {
+      const ov = await fetch("/api/vaults", { cache: "no-store" }).then((r) => r.json());
+      if (ov?.ok && ov.activeVaultId) {
+        await fetch("/api/vaults", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "update", id: ov.activeVaultId, skipLedgerStep: true }),
+        });
+      }
+      const p = await fetch("/api/provider", { cache: "no-store" }).then((r) => r.json());
+      router.push(p?.ok && p.status?.configured ? "/synthesize?tour=1" : "/settings?tour=1");
+    } finally {
+      setSkippingToModel(false);
+    }
+  }
 
   const titleByRel = useMemo(() => {
     const map = new Map<string, string>();
@@ -514,7 +568,8 @@ export default function VaultWorkspace() {
           <p className="mt-1 text-xs text-[var(--ink-muted)]">支持批量拖入 .md / .txt / .docx / .html / .pdf 复盘文件</p>
         </div>
       )}
-      {/* LEFT PANE: Obsidian File Explorer */}
+      {/* LEFT PANE: Obsidian File Explorer (Collapsed by default in full-bleed Graph Mode, 1-click expandable) */}
+      {(centerMode !== "graph" || graphExplorerOpen) && (
       <aside className="flex w-[268px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] select-none">
         {/* Explorer Action Toolbar */}
         <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
@@ -952,14 +1007,16 @@ export default function VaultWorkspace() {
           })}
         </div>
       </aside>
+      )}
 
-      {/* CENTER PANE: Obsidian Multi-Tab Canvas */}
+      {/* CENTER PANE: Obsidian Multi-Tab Canvas OR 100% Full-Bleed Immersive Constellation */}
       <section className="flex min-w-0 flex-1 flex-col bg-[var(--bg)]">
-        {/* Note Tabs Strip */}
+        {/* Note Tabs Strip (Hidden in full-bleed Graph Mode so constellation owns 100% viewport) */}
+        {centerMode !== "graph" && (
         <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-2 pt-1">
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
             {openTabs.map((tabRel) => {
-              const active = tabRel === activeCard && centerMode !== "graph";
+              const active = tabRel === activeCard;
               return (
                 <div
                   key={tabRel}
@@ -991,11 +1048,7 @@ export default function VaultWorkspace() {
             <button
               type="button"
               onClick={() => setCenterMode("graph")}
-              className={`flex items-center gap-1 rounded-t border-x border-t px-2.5 py-1 text-xs transition ${
-                centerMode === "graph"
-                  ? "border-[var(--cyan)]/45 bg-[var(--bg)] font-medium text-[var(--cyan)]"
-                  : "border-transparent text-[var(--ink-dim)] hover:text-[var(--cyan)]"
-              }`}
+              className="flex items-center gap-1 rounded-t border-x border-t border-transparent px-2.5 py-1 text-xs text-[var(--ink-dim)] transition hover:text-[var(--cyan)]"
             >
               <Network className="h-4 w-4" />
               全息星图
@@ -1004,7 +1057,7 @@ export default function VaultWorkspace() {
 
           {/* Right Note Controls */}
           <div className="mb-1 flex shrink-0 items-center gap-1.5">
-            {centerMode !== "graph" && docData?.doc && (
+            {docData?.doc && (
               <div className="inline-flex rounded border border-[var(--border)] bg-[var(--bg-deep)] p-0.5 text-[11px]">
                 <button
                   type="button"
@@ -1038,7 +1091,7 @@ export default function VaultWorkspace() {
               </button>
             )}
 
-            {centerMode !== "graph" && docData?.doc && !editing && (
+            {docData?.doc && !editing && (
               confirmDelete ? (
                 <div className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[11px]">
                   <span className="text-[var(--rose)]">移入回收站？</span>
@@ -1096,6 +1149,7 @@ export default function VaultWorkspace() {
             )}
           </div>
         </div>
+        )}
 
         {/* Obsidian Breadcrumb Bar */}
         {centerMode !== "graph" && (
@@ -1124,14 +1178,267 @@ export default function VaultWorkspace() {
 
         {/* Main Center Content */}
         {centerMode === "graph" ? (
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             <ObsidianGraph
               index={index}
               activeRel={activeCard}
               mode="global"
-              onSelectNode={(rel) => openCard(rel)}
-              onToggleExpand={() => setCenterMode("card")}
+              immersive
+              selectedRel={inspectedRel}
+              rightPanelOpen={Boolean(inspectedRel)}
+              bottomClearance={tourActive}
+              onInspectNode={(rel) => setInspectedRel(rel)}
+              onSelectNode={(rel) => {
+                setInspectedRel(null);
+                openCard(rel);
+              }}
+              onToggleExpand={() => {
+                setInspectedRel(null);
+                setCenterMode("card");
+              }}
+              leftHeaderSlot={
+                <div className="tl-glass-hud flex items-center gap-1 rounded-xl p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setGraphExplorerOpen((v) => !v)}
+                    title={graphExplorerOpen ? "收起目录树" : "展开文件目录树"}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
+                      graphExplorerOpen
+                        ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : "text-[var(--ink-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
+                    }`}
+                  >
+                    {graphExplorerOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeft className="h-3.5 w-3.5" />}
+                    <span>目录</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInspectedRel(null);
+                      setCenterMode("card");
+                    }}
+                    title="切换到双链文档阅读视图"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[var(--ink-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>阅读</span>
+                  </button>
+                </div>
+              }
             />
+
+            {/* Right-Side Floating Glass Preview Drawer (Click node -> inspect without leaving the constellation!) */}
+            {inspectedRel && (() => {
+              const inspectedFile = index?.files.find((f) => f.rel === inspectedRel) ?? null;
+              const nodeType = inspectedFile?.nodeType ?? "card";
+              const typeBadge: Record<VaultNodeType, { label: string; cls: string }> = {
+                overview: { label: "核心总览", cls: "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/35" },
+                card: { label: "复盘卡片", cls: "bg-[var(--surface-2)] text-[var(--ink-strong)] border-[var(--border-strong)]" },
+                topic: { label: "概念枢纽", cls: "bg-[var(--cyan-soft)] text-[var(--cyan)] border-[var(--cyan)]/35" },
+                timeline: { label: "时间轴", cls: "bg-[var(--amber-soft)] text-[var(--amber)] border-[var(--amber)]/35" },
+                manual: { label: "交易手册", cls: "bg-[var(--emerald-soft)] text-[var(--emerald)] border-[var(--emerald)]/35" },
+              };
+              const badge = typeBadge[nodeType];
+              const linkObj = index?.links[inspectedRel] ?? { out: [], in: [] };
+              const neighbors = Array.from(new Set([...linkObj.out, ...linkObj.in])).filter((r) => r !== inspectedRel);
+              const snap = previewDoc?.doc?.event_date ? ledgerByDate[previewDoc.doc.event_date] : null;
+              const upCls = ledgerColor === "cn" ? "text-[var(--rose)]" : "text-[var(--emerald)]";
+              const downCls = ledgerColor === "cn" ? "text-[var(--emerald)]" : "text-[var(--rose)]";
+
+              return (
+                <aside
+                  className={`tl-glass-hud tl-drawer-in absolute right-3 top-3 z-30 flex w-[380px] max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-2xl ${
+                    tourActive ? "bottom-20" : "bottom-3.5"
+                  }`}
+                >
+                  {/* Drawer Header */}
+                  <div className="shrink-0 space-y-2.5 border-b border-[var(--border)] px-4 py-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                        {previewDoc?.doc?.event_date && (
+                          <span className="font-mono text-[11px] text-[var(--amber)]">
+                            {previewDoc.doc.event_date}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setInspectedRel(null)}
+                        title="关闭预览 (Esc)"
+                        className="rounded-lg p-1 text-[var(--ink-dim)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink-strong)]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="text-sm font-semibold leading-snug text-[var(--ink-strong)]">
+                      {inspectedFile?.title || inspectedRel}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = inspectedRel;
+                          setInspectedRel(null);
+                          openCard(target);
+                        }}
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-strong)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+                      >
+                        进入完整双链阅读 / 编辑
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Drawer Scroll Body */}
+                  <div className="flex-1 space-y-3.5 overflow-y-auto px-4 py-3.5 text-xs">
+                    {/* Linked Real-Money Ledger Mini Anchor */}
+                    {snap && (
+                      <div className="rounded-xl border border-[var(--amber)]/35 bg-[var(--amber-soft)]/35 p-3">
+                        <div className="flex items-center justify-between font-mono text-[11px]">
+                          <span className="inline-flex items-center gap-1 font-sans font-semibold text-[var(--amber)]">
+                            <CandlestickChart className="h-3.5 w-3.5" />
+                            当日实盘锚点
+                          </span>
+                          <span className={snap.dailyReturnPct >= 0 ? upCls : downCls}>
+                            {snap.dailyReturnPct >= 0 ? "+" : ""}
+                            {snap.dailyReturnPct.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-[var(--ink-muted)]">
+                          <span>净值 {snap.nav.toFixed(4)}</span>
+                          {snap.positionPct !== undefined && <span>仓位 {snap.positionPct}%</span>}
+                          {snap.trades.length > 0 && <span>{snap.trades.length} 笔交割</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Matched Concepts (Click to hop in constellation!) */}
+                    {previewDoc?.doc?.auto_concepts && previewDoc.doc.auto_concepts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {previewDoc.doc.auto_concepts.map((c) => {
+                          const topicRel = `30-主题/${c}.md`;
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => {
+                                if (index?.files.some((f) => f.rel === topicRel)) {
+                                  setInspectedRel(topicRel);
+                                }
+                              }}
+                              className="rounded-full border border-[var(--cyan)]/35 bg-[var(--cyan-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--cyan)] transition hover:border-[var(--cyan)]"
+                            >
+                              #{c}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Rendered Excerpt Preview */}
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-deep)]/65 p-3">
+                      {loadingPreview ? (
+                        <div className="flex items-center gap-2 py-6 text-[var(--ink-dim)]">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--cyan)]" />
+                          正在读取卡片内容...
+                        </div>
+                      ) : previewDoc?.parsed ? (
+                        <div className="max-h-[260px] overflow-y-auto pr-1 text-xs">
+                          <MarkdownView
+                            parsed={previewDoc.parsed}
+                            onWikiClick={(target) => {
+                              const resolved = resolveWikiTarget(target);
+                              if (resolved) setInspectedRel(resolved);
+                            }}
+                            onTagClick={(tag) => {
+                              const tRel = `30-主题/${tag}.md`;
+                              if (index?.files.some((f) => f.rel === tRel)) setInspectedRel(tRel);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="py-4 text-[var(--ink-dim)]">暂无正文预览</div>
+                      )}
+                    </div>
+
+                    {/* Connected Neighbors Hopping Pills */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--ink-muted)]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Link2 className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                          相连星图节点（点击直接漫游）
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--ink-dim)]">{neighbors.length}</span>
+                      </div>
+                      {neighbors.length === 0 ? (
+                        <div className="text-[11px] text-[var(--ink-dim)]">暂无关联节点</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {neighbors.slice(0, 18).map((rel) => (
+                            <button
+                              key={rel}
+                              type="button"
+                              onClick={() => setInspectedRel(rel)}
+                              className="max-w-full truncate rounded-lg border border-[var(--border)] bg-[var(--surface)]/85 px-2 py-1 text-[11px] text-[var(--ink)] transition hover:border-[var(--cyan)]/60 hover:text-[var(--cyan)]"
+                            >
+                              {titleByRel.get(rel) || rel}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </aside>
+              );
+            })()}
+
+            {/* Guided Tour Floating Bottom Dock (Replaces cramped 328px right sidebar during onboarding!) */}
+            {tourActive && (
+              <div className="tl-glass-hud absolute bottom-3.5 left-1/2 z-20 flex w-[max-content] max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap items-center justify-between gap-3 rounded-2xl border-[var(--accent)]/40 px-4 py-2.5 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </span>
+                  <div>
+                    <div className="font-semibold text-[var(--ink-strong)]">
+                      双链星图已织成 ·{" "}
+                      <span className="font-mono text-[var(--cyan)]">
+                        {index?.counts.total ?? 0} 篇复盘 / {index?.counts.links ?? 0} 条双链
+                      </span>
+                    </div>
+                    <div className="hidden text-[10px] text-[var(--ink-muted)] sm:block">
+                      点击任意节点可侧滑预览关联复盘，探索完毕后进入下一步
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/ledger?tour=1"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-strong)] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+                  >
+                    <CandlestickChart className="h-3.5 w-3.5" />
+                    导入实盘交割单
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={skippingToModel}
+                    onClick={handleSkipLedgerToModel}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--cyan)] hover:text-[var(--cyan)] disabled:opacity-50"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-[var(--cyan)]" />
+                    {skippingToModel ? "正在进入…" : "跳过实盘，选 AI / Agent 凝练"}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-10">
@@ -1227,8 +1534,45 @@ export default function VaultWorkspace() {
         )}
       </section>
 
-      {/* RIGHT PANE: Force-Directed Local Graph + Backlinks + Unlinked Mentions + Outgoing */}
-      <aside className="hidden w-[312px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] xl:flex">
+      {/* RIGHT PANE: Local Graph + Backlinks (Reading Mode only; hidden in Full-Bleed Graph Mode to avoid duplicate mini-graph) */}
+      {centerMode !== "graph" && (
+      <aside className={`${tourActive ? "hidden lg:flex w-[328px]" : "hidden xl:flex w-[312px]"} shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)]`}>
+        {tourActive && (
+          <div className="shrink-0 space-y-3 border-b border-[var(--border)] bg-[var(--accent-soft)]/45 p-4">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)]">
+              <Sparkles className="h-3.5 w-3.5" />
+              向导下一步 · 实盘校验或直接凝练
+            </div>
+            <p className="text-xs leading-5 text-[var(--ink-muted)]">
+              左侧和中央已经呈现你的复盘星图与脉络（可拖动节点或点开笔记查看）。接下来：
+            </p>
+            <div className="space-y-2">
+              <Link
+                href="/ledger?tour=1"
+                className="flex w-full items-center justify-between gap-2 rounded-xl bg-[var(--accent-strong)] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <CandlestickChart className="h-4 w-4" />
+                  导入实盘交割单（防嘴盘）
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+              </Link>
+              <button
+                type="button"
+                disabled={skippingToModel}
+                onClick={handleSkipLedgerToModel}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] px-3.5 py-2.5 text-xs font-medium text-[var(--ink-strong)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-[var(--cyan)]" />
+                  {skippingToModel ? "正在进入下一步…" : "跳过实盘，选 AI / Agent 凝练"}
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Local Physics Graph */}
         <div className="h-[252px] shrink-0 border-b border-[var(--border)]">
           <ObsidianGraph
@@ -1403,6 +1747,7 @@ export default function VaultWorkspace() {
           )}
         </div>
       </aside>
+      )}
 
       <CloudImportModal
         open={cloudImportOpen}
